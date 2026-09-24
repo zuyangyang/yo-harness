@@ -42,6 +42,8 @@ export interface AppProps {
   loop: AgentLoop;
   askBridge: AskBridge;
   listSessions: () => Promise<Session[]>;
+  /** 装配期已折叠好的行（session_started 头行；Step 9 resume 时是全部回放行） */
+  initialLines: RenderLine[];
 }
 
 /** exactOptionalPropertyTypes + readonly props：条件展开，避免显式 undefined */
@@ -58,10 +60,10 @@ function formatTokens(n: number): string {
 }
 
 export function App(props: AppProps): ReactElement {
-  const { provider, model, contextWindow, bus, renderer, loop, askBridge, listSessions } = props;
+  const { provider, model, contextWindow, bus, renderer, loop, askBridge, listSessions, initialLines } = props;
   const { exit } = useApp();
 
-  const [lines, setLines] = useState<RenderLine[]>([]);
+  const [lines, setLines] = useState<RenderLine[]>(initialLines);
   const [streamText, setStreamText] = useState('');
   const [inputValue, setInputValue] = useState('');
   const [turnActive, setTurnActive] = useState(false);
