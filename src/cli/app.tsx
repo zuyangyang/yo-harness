@@ -30,7 +30,7 @@ const HELP_TEXT = [
   '/exit      exit (waits for the current turn to wrap up)',
   '/model     show active provider / model',
   '/sessions  list recent sessions',
-  '/resume    resume a session (arrives in step 9)',
+  '/resume    hint: exit and run `yo resume` to continue a past session',
 ].join('\n');
 
 export interface AppProps {
@@ -187,7 +187,7 @@ export function App(props: AppProps): ReactElement {
         });
         return;
       case '/resume':
-        appendLocal('session resume arrives in step 9 (`yo resume`)', { dim: true });
+        appendLocal('to resume a past session, exit and run `yo resume` (or `yo resume <id>`)', { dim: true });
         return;
       default:
         appendLocal(`unknown command: ${name} — /help lists commands`, { color: 'yellow' });

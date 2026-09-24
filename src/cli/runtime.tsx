@@ -8,6 +8,9 @@
  *
  * 密钥纪律：API key 只从环境（含 cwd 的 .env）读取后直接注入 SDK
  * client，不进配置对象、不落库、不进事件流。
+ *
+ * Step 9：拆分为 bootstrap()（共享装配）+ launch()（新会话 / resume 入口），
+ * runCli() 与 runResume() 分别调用。
  */
 import { join } from 'node:path';
 
@@ -23,6 +26,7 @@ import {
   createNonInteractivePermission,
   withApprovalEvents,
 } from '../core/permission.js';
+import type { Session, SessionStore } from '../core/ports.js';
 import { FatalError } from '../types/errors.js';
 import type { AgentEvent, EventEnvelope, TurnEndReason } from '../types/events.js';
 import type { LLMClient } from '../types/llm.js';
@@ -36,9 +40,11 @@ import { SqliteSessionStore } from '../storage/session-store.js';
 import { createBuiltinRegistry } from '../tools/registry.js';
 import { createLogger, parseLogLevel } from '../utils/logger.js';
 import { yoHome } from '../utils/paths.js';
+import type { Logger } from '../types/common.js';
 import { App } from './app.js';
 import { AskBridge } from './approval.js';
-import { RenderModel } from './renderer.js';
+import { pickSession } from './picker.js';
+import { RenderModel, type RenderLine } from './renderer.js';
 
 /** 每次 LLM 调用的输出上限；与 ContextManager 的 4k 输出预留对齐 */
 const DEFAULT_MAX_TOKENS = 4_096;
@@ -59,6 +65,30 @@ export interface CliFlags {
   yolo: boolean;
   fake: boolean;
   print: string | undefined;
+}
+
+/** resume 命令选项 */
+export interface ResumeFlags {
+  /** 会话 id（完整 UUID 或前 8 字符前缀）；undefined = 弹选择器 */
+  sessionId: string | undefined;
+  provider: string | undefined;
+  model: string | undefined;
+  yolo: boolean;
+  fake: boolean;
+  print: string | undefined;
+}
+
+/** bootstrap 产物：共享给 runCli / runResume 的已装配依赖 */
+interface Bootstrapped {
+  config: ReturnType<typeof loadConfig>;
+  providerName: ProviderName;
+  providerConf: ProviderConfig;
+  model: string;
+  llm: LLMClient;
+  logger: Logger;
+  db: SqliteDatabase;
+  sessionStore: SqliteSessionStore;
+  eventStore: SqliteEventStore;
 }
 
 /**
@@ -117,6 +147,32 @@ function buildLlmClient(
   return client;
 }
 
+/**
+ * 共享装配：config → db → stores → gateway → registry。
+ * 返回的 Bootstrapped 由 runCli / runResume 继续装配 loop + UI。
+ */
+function bootstrap(flags: { provider: string | undefined; model: string | undefined; yolo: boolean; fake: boolean }): Bootstrapped {
+  loadDotEnv();
+
+  const config = loadConfig({
+    ...(flags.provider !== undefined ? { flagProvider: flags.provider } : {}),
+    ...(flags.model !== undefined ? { flagModel: flags.model } : {}),
+    yolo: flags.yolo,
+  });
+  const providerName = config.defaultProvider;
+  const providerConf = config.providers[providerName];
+  const model = `${providerName}/${providerConf.model}`;
+
+  const llm = buildLlmClient(providerName, providerConf, activeApiKey(config), flags.fake);
+  const logger = createLogger(parseLogLevel(process.env.YO_LOG));
+
+  const db: SqliteDatabase = openDatabase(join(yoHome(), 'sessions.db'));
+  const sessionStore = new SqliteSessionStore(db);
+  const eventStore = new SqliteEventStore(db);
+
+  return { config, providerName, providerConf, model, llm, logger, db, sessionStore, eventStore };
+}
+
 /** `-p <text>`：跑一回合，打印最终 assistant 文本后退出；错误以非零码结束 */
 async function runPrintTurn(deps: {
   loop: AgentLoop;
@@ -145,49 +201,44 @@ async function runPrintTurn(deps: {
   }
 }
 
-export async function runCli(flags: CliFlags): Promise<void> {
-  loadDotEnv();
-
-  // 1) 配置：flag > 环境变量 > ~/.yo-harness/config.json > 内置默认
-  const config = loadConfig({
-    ...(flags.provider !== undefined ? { flagProvider: flags.provider } : {}),
-    ...(flags.model !== undefined ? { flagModel: flags.model } : {}),
-    yolo: flags.yolo,
-  });
-  const providerName = config.defaultProvider;
-  const providerConf = config.providers[providerName];
-  const model = `${providerName}/${providerConf.model}`;
-
-  const llm = buildLlmClient(providerName, providerConf, activeApiKey(config), flags.fake);
-  const logger = createLogger(parseLogLevel(process.env.YO_LOG));
-
-  // 2) 存储 + 会话（events 外键约束 session 必须先存在）
-  const db: SqliteDatabase = openDatabase(join(yoHome(), 'sessions.db'));
+/**
+ * 共享启动：给定 session + 历史事件，装配 loop + UI 并运行。
+ * priorEvents 包含 session_started（新会话由调用方构造，resume 由重放得到）。
+ */
+async function launch(
+  boot: Bootstrapped,
+  flags: { yolo: boolean; print: string | undefined },
+  session: Session,
+  priorEvents: AgentEvent[],
+): Promise<void> {
+  const { config, providerName, providerConf, llm, logger, db, sessionStore, eventStore } = boot;
   try {
-    const sessionStore = new SqliteSessionStore(db);
-    const eventStore = new SqliteEventStore(db);
-    const cwd = process.cwd();
-    const session = await sessionStore.create({ model, cwd });
-
-    // 3) 网关：单活跃 provider（Phase 1 不做多 provider 路由）
+    // 1) 网关
     const gateway = new LLMGateway(new Map([[providerName, llm]]), { defaultProvider: providerName });
 
-    // 4) 工具注册表（search 配置缺失时 web_search 运行时给出指引）
+    // 2) 工具注册表
     const registry = createBuiltinRegistry({
       ...(config.search !== undefined ? { search: config.search } : {}),
     });
 
-    // 5) 总线 + 渲染折叠器；session_started 在 render 前消费进 renderer，
+    // 3) 总线 + 渲染折叠器；priorEvents 在 render 前消费进 renderer，
     //    其输出行作为 Static 区初始内容（bus 订阅发生在 App 挂载之后）
     const bus = new EventBus();
     const renderer = new RenderModel();
-    const started = await eventStore.append(session.id, { type: 'session_started', model, cwd });
-    const initialLines = renderer.push(started.payload);
+    const initialLines: RenderLine[] = [];
+    for (const event of priorEvents) {
+      const lines = renderer.push(event);
+      initialLines.push(...lines);
+    }
 
-    // 首条 user_input 落库后顺手把会话标题补上（/sessions 列表可读性）
+    // 4) 上下文管理器：从历史事件重建（新会话只有 session_started，fromEvents 等价于空）
+    const context = ContextManager.fromEvents(priorEvents, { contextWindow: providerConf.contextWindow });
+
+    // 首条 user_input 落库后顺手把会话标题补上（仅当标题为空时）
     const onFirstInput = (envelope: EventEnvelope): void => {
       if (envelope.payload.type !== 'user_input') return;
       bus.off('event', onFirstInput);
+      if (session.title.length > 0) return; // resume 已有标题的会话不覆盖
       const title = envelope.payload.content.replace(/\s+/g, ' ').trim().slice(0, 60);
       void sessionStore
         .updateTitle(session.id, title)
@@ -195,7 +246,7 @@ export async function runCli(flags: CliFlags): Promise<void> {
     };
     bus.on('event', onFirstInput);
 
-    // 6) 权限：交互模式经审批桥问 UI；-p 模式无人可问，安全默认拒绝
+    // 5) 权限
     const bridge = new AskBridge();
     const appendAndEmit = async (event: AgentEvent): Promise<void> => {
       const envelope = await eventStore.append(session.id, event);
@@ -206,23 +257,23 @@ export async function runCli(flags: CliFlags): Promise<void> {
         ? createNonInteractivePermission(config.permission)
         : createInteractivePermission(withApprovalEvents(bridge.ask, appendAndEmit), config.permission);
 
-    // 7) 主循环
+    // 6) 主循环
     const loop = new AgentLoop({
       sessionId: session.id,
-      cwd,
+      cwd: session.cwd,
       llm: gateway,
       store: eventStore,
       tools: registry,
       permission,
       budget: new TurnBudget(config.budget),
-      context: new ContextManager({ contextWindow: providerConf.contextWindow }),
+      context,
       bus,
       systemPrompt: SYSTEM_PROMPT,
       maxTokens: DEFAULT_MAX_TOKENS,
       logger,
     });
 
-    // 8) 前端：-p 打印模式无 TUI
+    // 7) 前端
     if (flags.print !== undefined) {
       await runPrintTurn({ loop, bus, text: flags.print });
       return;
@@ -245,4 +296,78 @@ export async function runCli(flags: CliFlags): Promise<void> {
   } finally {
     db.close();
   }
+}
+
+/** 解析会话 id：精确匹配或 8 字符前缀匹配 */
+export async function resolveSession(
+  sessionStore: SessionStore,
+  idOrPrefix: string,
+): Promise<Session | undefined> {
+  // 先尝试精确匹配
+  const exact = await sessionStore.get(idOrPrefix);
+  if (exact !== undefined) return exact;
+  // 前缀匹配：取最近 100 个会话，找 id 以给定前缀开头的
+  if (idOrPrefix.length < 8) return undefined;
+  const recent = await sessionStore.listRecent(100);
+  const matches = recent.filter((s) => s.id.startsWith(idOrPrefix));
+  if (matches.length === 1) return matches[0];
+  return undefined;
+}
+
+export async function runCli(flags: CliFlags): Promise<void> {
+  const boot = bootstrap(flags);
+  const cwd = process.cwd();
+  const session = await boot.sessionStore.create({ model: boot.model, cwd });
+
+  // 新会话：session_started 作为唯一 priorEvent
+  const startedEvent: AgentEvent = { type: 'session_started', model: boot.model, cwd };
+  // 落库（launch 内的 appendAndEmit 只处理 loop 产出的事件，session_started 需提前写入）
+  await boot.eventStore.append(session.id, startedEvent);
+
+  await launch(boot, { yolo: flags.yolo, print: flags.print }, session, [startedEvent]);
+}
+
+export async function runResume(flags: ResumeFlags): Promise<void> {
+  const boot = bootstrap({ provider: flags.provider, model: flags.model, yolo: flags.yolo, fake: flags.fake });
+  const { sessionStore, eventStore, logger } = boot;
+
+  // 1) 解析目标会话
+  let session: Session | undefined;
+  if (flags.sessionId !== undefined) {
+    session = await resolveSession(sessionStore, flags.sessionId);
+    if (session === undefined) {
+      throw new FatalError(
+        `session not found: "${flags.sessionId}"\n` +
+          '  run `yo` then `/sessions` to list recent sessions, or `yo resume` to pick interactively',
+      );
+    }
+  } else {
+    const recent = await sessionStore.listRecent(10);
+    if (recent.length === 0) {
+      throw new FatalError(
+        'no sessions to resume\n' +
+          '  run `yo` to start a new session first',
+      );
+    }
+    session = await pickSession(recent);
+    if (session === undefined) {
+      // 用户取消
+      return;
+    }
+  }
+
+  // 2) 重放事件
+  const envelopes = await eventStore.replay(session.id);
+  const priorEvents = envelopes.map((e) => e.payload);
+  if (priorEvents.length === 0) {
+    throw new FatalError(`session ${session.id} has no events — data integrity issue`);
+  }
+
+  // 3) 刷新 updated_at
+  await sessionStore.touch(session.id);
+
+  logger.info('resuming session', { id: session.id.slice(0, 8), events: priorEvents.length, model: session.model });
+
+  // 4) 启动（launch 内 renderer 会 fold 全部 priorEvents 为 initialLines）
+  await launch(boot, { yolo: flags.yolo, print: flags.print }, session, priorEvents);
 }
