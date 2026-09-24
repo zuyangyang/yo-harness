@@ -1,8 +1,41 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-coverage/
 *.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Environment variables（密钥；.env.example 是模板，需提交）
 .env
-.env.*
+.env.local
+.env.*.local
+
+# Logs
 *.log
+npm-debug.log*
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ESLint cache
+.eslintcache
+
+# yo-harness runtime data（如果 YO_DATA_DIR 指向项目内路径）
+.yo-harness/
+*.db
+*.db-wal
+*.db-shm
+
+# npm pack output
+*.tgz
