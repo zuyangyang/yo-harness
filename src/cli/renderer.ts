@@ -25,7 +25,7 @@ export interface RenderLine {
   indent?: number;
 }
 
-interface LineStyle {
+export interface LineStyle {
   color?: RenderColor;
   bold?: boolean;
   dim?: boolean;
@@ -34,7 +34,8 @@ interface LineStyle {
 
 const PREVIEW_MAX = 100;
 
-function line(text: string, style?: LineStyle): RenderLine {
+/** 构造 RenderLine（app.tsx 的本地提示行也用它，保证样式约定一致） */
+export function line(text: string, style?: LineStyle): RenderLine {
   const out: RenderLine = { text };
   if (style?.color !== undefined) out.color = style.color;
   if (style?.bold === true) out.bold = true;
