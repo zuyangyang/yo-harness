@@ -6,13 +6,15 @@
  * allowlist 命中才放行（未命中询问）/ yolo 全放行（含 write，用户
  * 显式 opting-in，CLI --yolo / config 均可设置）。
  *
- * 交互实现注入 ask 回调（Step 8 的 approval.tsx 提供，并负责
- * approval_request / approval_result 事件的落库与渲染）；非交互实现
- * （`yo -p`）无人可问 → 未命中自动规则的均拒绝。
+ * 交互实现注入 ask 回调（Step 8 的 approval.tsx 提供）；withApprovalEvents
+ * 装饰 ask，把审批问询落成 approval_request / approval_result 事件（事件流
+ * 是审计与 resume 的依据，只有真正问询过的调用才产生审批事件）。
+ * 非交互实现（`yo -p`）无人可问 → 未命中自动规则的均拒绝。
  *
  * 安全约定：ApprovalRequest.summary 只含路径 / 命令 / 大小等脱敏摘要，
  * 绝不携带写入内容或密钥（密钥不入事件 payload）。
  */
+import type { AgentEvent } from '../types/events.js';
 import type { Tool } from '../types/tools.js';
 
 export type ShellMode = 'ask' | 'allowlist' | 'yolo';
@@ -150,5 +152,33 @@ export function createNonInteractivePermission(
       const auto = autoApprove(tool, args, settings);
       return Promise.resolve(auto ?? { approved: false, scope: 'once' as const });
     },
+  };
+}
+
+/**
+ * 装饰 ask：审批问询前后各落一个事件（approval_request / approval_result），
+ * 事件经 sink 由调用方写入存储（CLI 装配层同时广播到总线）。
+ * 只有真正问询过用户的调用才产生审批事件 —— 自动放行的不留痕，
+ * 事件流因此与"用户拍板过什么"严格一致。
+ */
+export function withApprovalEvents(
+  ask: ApprovalAsk,
+  sink: (event: AgentEvent) => Promise<unknown>,
+): ApprovalAsk {
+  return async (request) => {
+    await sink({
+      type: 'approval_request',
+      callId: request.callId,
+      toolName: request.toolName,
+      summary: request.summary,
+    });
+    const answer = await ask(request);
+    await sink({
+      type: 'approval_result',
+      callId: request.callId,
+      approved: answer !== 'no',
+      scope: answer === 'always' ? 'session' : 'once',
+    });
+    return answer;
   };
 }

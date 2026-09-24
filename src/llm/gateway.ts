@@ -45,6 +45,11 @@ export class LLMGateway {
     return this.config.defaultProvider;
   }
 
+  /** LLMClient 端口名：内核（AgentLoop 等）直接依赖网关时使用 */
+  get name(): string {
+    return this.config.defaultProvider;
+  }
+
   async chat(req: ChatRequest, opts?: ChatOptions): Promise<ChatResponse> {
     const client = this.clients.get(this.config.defaultProvider);
     // 构造函数已校验，此处仅防御

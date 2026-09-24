@@ -86,6 +86,8 @@ describe('LLMGateway', () => {
     expect(openai.requests).toHaveLength(1);
     expect(anthropic.requests).toHaveLength(0);
     expect(gateway.provider).toBe('openai');
+    // 网关自身满足 LLMClient 端口（AgentLoop 可直接依赖）
+    expect(gateway.name).toBe('openai');
   });
 
   it('TransientError 按 1s/2s/4s 退避重试，成功后返回', async () => {
