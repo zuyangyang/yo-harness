@@ -67,6 +67,14 @@ export default tseslint.config(
     },
   },
   {
+    // 端口（core/ports.ts）为远程存储预留 async 签名，better-sqlite3 是同步实现，
+    // 属"同步实现异步端口"的刻意取舍，不逐个内联 disable。
+    files: ['src/storage/**/*.ts'],
+    rules: {
+      '@typescript-eslint/require-await': 'off',
+    },
+  },
+  {
     files: ['src/cli/**/*.tsx'],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',
