@@ -27,7 +27,7 @@ import type {
   TurnEndReason,
   Usage,
 } from '../types/events.js';
-import { BudgetStop, TransientError } from '../types/errors.js';
+import { BudgetStop, isTransientError, TransientError } from '../types/errors.js';
 import type { ChatMessage, ChatRequest, ChatResponse, LLMClient } from '../types/llm.js';
 import type { ToolResult } from '../types/tools.js';
 import { logTokenCalibration } from '../utils/tokens.js';
@@ -174,25 +174,57 @@ export class AgentLoop {
       });
       return;
     }
+
+    const maxRetries = 3;
     const startedAt = Date.now();
-    let result: ToolResult;
-    try {
-      result = await tool.run(toolCall.args, {
-        sessionId: this.deps.sessionId,
-        cwd: this.deps.cwd,
-        logger: this.deps.logger,
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let result: ToolResult;
+      try {
+        result = await tool.run(toolCall.args, {
+          sessionId: this.deps.sessionId,
+          cwd: this.deps.cwd,
+          logger: this.deps.logger,
+        });
+      } catch (err) {
+        // 契约：run() 永不 throw；违约降级为失败结果，回合继续
+        result = { ok: false, content: `tool crashed: ${String(err)}` };
+      }
+
+      // 成功或非瞬态错误 → 直接返回
+      if (result.ok || !isTransientError(result.content)) {
+        await this.appendAndPush({
+          type: 'tool_result',
+          callId: toolCall.callId,
+          ok: result.ok,
+          content: result.content,
+          durationMs: Date.now() - startedAt,
+        });
+        return;
+      }
+
+      // 瞬态错误且还有重试机会 → 退避后重试
+      if (attempt < maxRetries) {
+        const delayMs = 1000 * 2 ** attempt; // 1s, 2s, 4s
+        await this.sleep(delayMs);
+        continue;
+      }
+
+      // 重试用尽 → 附加重试次数信息
+      const exhaustedContent = `${result.content}\nRetries: ${maxRetries}/${maxRetries}`;
+      await this.appendAndPush({
+        type: 'tool_result',
+        callId: toolCall.callId,
+        ok: false,
+        content: exhaustedContent,
+        durationMs: Date.now() - startedAt,
       });
-    } catch (err) {
-      // 契约：run() 永不 throw；违约降级为失败结果，回合继续
-      result = { ok: false, content: `tool crashed: ${String(err)}` };
+      return;
     }
-    await this.appendAndPush({
-      type: 'tool_result',
-      callId: toolCall.callId,
-      ok: result.ok,
-      content: result.content,
-      durationMs: Date.now() - startedAt,
-    });
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private toRequest(messages: ChatMessage[]): ChatRequest {

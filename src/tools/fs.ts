@@ -11,6 +11,7 @@ import path from 'node:path';
 import { z } from 'zod';
 
 import type { Tool, ToolResult } from '../types/tools.js';
+import { formatToolError } from '../types/errors.js';
 import { errorMessage } from '../utils/errors.js';
 import { resolveInWorkspace } from '../utils/paths.js';
 
@@ -185,5 +186,21 @@ function invalidArgs(toolName: string, error: z.ZodError): ToolResult {
 }
 
 function failed(toolName: string, err: unknown): ToolResult {
-  return { ok: false, content: `${toolName} failed: ${errorMessage(err)}` };
+  const msg = errorMessage(err);
+  const code = (err as NodeJS.ErrnoException).code;
+
+  // 瞬态 I/O 错误：磁盘满、硬件 I/O 错误、资源暂时不可用
+  const transientCodes = new Set(['EIO', 'ENOSPC', 'EAGAIN', 'EBUSY']);
+  if (code !== undefined && transientCodes.has(code)) {
+    return {
+      ok: false,
+      content: formatToolError({
+        kind: 'transient',
+        message: `${toolName} I/O error (${code}): ${msg}`,
+        suggestion: 'This is a temporary system resource issue. The system will retry automatically.',
+      }),
+    };
+  }
+
+  return { ok: false, content: `${toolName} failed: ${msg}` };
 }

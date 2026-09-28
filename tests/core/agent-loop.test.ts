@@ -25,7 +25,7 @@ import type {
   TurnEndReason,
   Usage,
 } from '../../src/types/events.js';
-import { TransientError } from '../../src/types/errors.js';
+import { TransientError, formatToolError, isTransientError } from '../../src/types/errors.js';
 import type { ChatResponse, LLMClient } from '../../src/types/llm.js';
 import type { Tool } from '../../src/types/tools.js';
 
@@ -449,5 +449,163 @@ describe('AgentLoop', () => {
     expect(tr.ok).toBe(false);
     expect(tr.content).toContain('tool crashed');
     expect(tr.content).toContain('boom internals');
+  });
+
+  it('瞬态错误自动重试：前 2 次失败，第 3 次成功 → 最终 ok=true', async () => {
+    let attempts = 0;
+    const flaky = makeTool('flaky', 'read', () => {
+      attempts++;
+      if (attempts <= 2) {
+        return Promise.resolve({
+          ok: false,
+          content: formatToolError({
+            kind: 'transient',
+            message: 'network timeout',
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, content: 'success' });
+    });
+    const { loop, store } = makeLoop({
+      script: [resp('', [call('c1', 'flaky')]), resp('done')],
+      tools: [flaky],
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    expect(attempts).toBe(3);
+    const tr = store.events[4]?.payload;
+    if (tr?.type !== 'tool_result') throw new Error('expected tool_result');
+    expect(tr.ok).toBe(true);
+    expect(tr.content).toBe('success');
+  });
+
+  it('瞬态错误重试用尽：3 次全失败 → 最终 ok=false，content 含重试次数', async () => {
+    let attempts = 0;
+    const alwaysFail = makeTool('always_fail', 'read', () => {
+      attempts++;
+      return Promise.resolve({
+        ok: false,
+        content: formatToolError({
+          kind: 'transient',
+          message: 'persistent failure',
+        }),
+      });
+    });
+    const { loop, store } = makeLoop({
+      script: [resp('', [call('c1', 'always_fail')]), resp('done')],
+      tools: [alwaysFail],
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    expect(attempts).toBe(4); // 1 initial + 3 retries
+    const tr = store.events[4]?.payload;
+    if (tr?.type !== 'tool_result') throw new Error('expected tool_result');
+    expect(tr.ok).toBe(false);
+    expect(tr.content).toContain('[TRANSIENT]');
+    expect(tr.content).toContain('Retries: 3/3');
+  });
+
+  it('参数错误不重试：直接返回 [PARAMETER]', async () => {
+    let attempts = 0;
+    const paramError = makeTool('param_err', 'read', () => {
+      attempts++;
+      return Promise.resolve({
+        ok: false,
+        content: formatToolError({
+          kind: 'parameter',
+          message: 'invalid path',
+          validationDetails: 'path must be absolute',
+        }),
+      });
+    });
+    const { loop, store } = makeLoop({
+      script: [resp('', [call('c1', 'param_err')]), resp('done')],
+      tools: [paramError],
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    expect(attempts).toBe(1); // 不重试
+    const tr = store.events[4]?.payload;
+    if (tr?.type !== 'tool_result') throw new Error('expected tool_result');
+    expect(tr.ok).toBe(false);
+    expect(tr.content).toContain('[PARAMETER]');
+    expect(tr.content).toContain('invalid path');
+  });
+
+  it('致命错误不重试：直接返回 [FATAL]', async () => {
+    let attempts = 0;
+    const fatal = makeTool('fatal', 'read', () => {
+      attempts++;
+      return Promise.resolve({
+        ok: false,
+        content: formatToolError({
+          kind: 'fatal',
+          message: 'unrecoverable state',
+        }),
+      });
+    });
+    const { loop, store } = makeLoop({
+      script: [resp('', [call('c1', 'fatal')]), resp('done')],
+      tools: [fatal],
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    expect(attempts).toBe(1); // 不重试
+    const tr = store.events[4]?.payload;
+    if (tr?.type !== 'tool_result') throw new Error('expected tool_result');
+    expect(tr.ok).toBe(false);
+    expect(tr.content).toContain('[FATAL]');
+  });
+});
+
+describe('formatToolError', () => {
+  it('transient 格式正确', () => {
+    const result = formatToolError({
+      kind: 'transient',
+      message: 'network timeout',
+      suggestion: 'retry later',
+      retryCount: 2,
+    });
+    expect(result).toContain('[TRANSIENT]');
+    expect(result).toContain('network timeout');
+    expect(result).toContain('Suggestion: retry later');
+    expect(result).toContain('Retries: 2/3');
+  });
+
+  it('parameter 格式正确', () => {
+    const result = formatToolError({
+      kind: 'parameter',
+      message: 'invalid args',
+      validationDetails: 'missing required field',
+    });
+    expect(result).toContain('[PARAMETER]');
+    expect(result).toContain('invalid args');
+    expect(result).toContain('Details: missing required field');
+  });
+
+  it('fatal 格式正确', () => {
+    const result = formatToolError({
+      kind: 'fatal',
+      message: 'disk corrupted',
+    });
+    expect(result).toContain('[FATAL]');
+    expect(result).toContain('disk corrupted');
+  });
+});
+
+describe('isTransientError', () => {
+  it('检测 [TRANSIENT] 前缀', () => {
+    expect(isTransientError('[TRANSIENT] network timeout')).toBe(true);
+    expect(isTransientError('[PARAMETER] invalid args')).toBe(false);
+    expect(isTransientError('[FATAL] disk corrupted')).toBe(false);
+    expect(isTransientError('some other error')).toBe(false);
   });
 });

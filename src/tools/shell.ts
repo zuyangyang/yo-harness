@@ -11,6 +11,7 @@
 import { spawn } from 'node:child_process';
 import { z } from 'zod';
 
+import { formatToolError } from '../types/errors.js';
 import type { Tool, ToolResult } from '../types/tools.js';
 
 /** 默认超时 */
@@ -66,13 +67,41 @@ function formatResult(
   timedOut: boolean,
   timeoutMs: number,
 ): ToolResult {
-  const head = timedOut
-    ? `timed out after ${timeoutMs}ms (killed)`
-    : `exit code: ${code ?? 'unknown'}${signal !== null ? ` (signal: ${signal})` : ''}`;
   const outText = stdout.text() + (stdout.truncated ? '\n[stdout truncated at 10KB]' : '');
   const errText = stderr.text() + (stderr.truncated ? '\n[stderr truncated at 10KB]' : '');
+
+  // 超时视为瞬态错误，可重试
+  if (timedOut) {
+    return {
+      ok: false,
+      content: formatToolError({
+        kind: 'transient',
+        message: `shell timed out after ${timeoutMs}ms (killed)`,
+        suggestion: 'The command took too long. Consider breaking it into smaller steps or increasing timeoutMs.',
+      }),
+    };
+  }
+
+  // OOM 检测（SIGKILL + 特定 stderr 模式）
+  const isOOM =
+    signal === 'SIGKILL' &&
+    (errText.includes('out of memory') ||
+      errText.includes('OOM') ||
+      errText.includes('Cannot allocate memory'));
+  if (isOOM) {
+    return {
+      ok: false,
+      content: formatToolError({
+        kind: 'transient',
+        message: 'shell killed due to out-of-memory (OOM)',
+        suggestion: 'The process used too much memory. Try processing data in smaller chunks.',
+      }),
+    };
+  }
+
+  const head = `exit code: ${code ?? 'unknown'}${signal !== null ? ` (signal: ${signal})` : ''}`;
   return {
-    ok: !timedOut && code === 0,
+    ok: code === 0,
     content: `${head}\n--- stdout ---\n${outText}\n--- stderr ---\n${errText}`,
   };
 }

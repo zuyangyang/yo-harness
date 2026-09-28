@@ -16,7 +16,7 @@ import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { z } from 'zod';
 
-import { ValidationError } from '../types/errors.js';
+import { formatToolError, ValidationError } from '../types/errors.js';
 import type { Tool } from '../types/tools.js';
 import { errorMessage } from '../utils/errors.js';
 
@@ -269,7 +269,26 @@ export function createWebFetchTool(deps: WebFetchDeps = {}): Tool {
         if (err instanceof ValidationError) {
           return { ok: false, content: err.message };
         }
-        return { ok: false, content: `web_fetch failed: ${errorMessage(err)}` };
+        // 网络错误（超时、连接失败等）视为瞬态错误，可重试
+        const msg = errorMessage(err);
+        const isNetworkError =
+          msg.includes('ETIMEDOUT') ||
+          msg.includes('ECONNREFUSED') ||
+          msg.includes('ECONNRESET') ||
+          msg.includes('ENOTFOUND') ||
+          msg.includes('timeout') ||
+          msg.includes('network');
+        if (isNetworkError) {
+          return {
+            ok: false,
+            content: formatToolError({
+              kind: 'transient',
+              message: `web_fetch network error: ${msg}`,
+              suggestion: 'This is likely a temporary network issue. The system will retry automatically.',
+            }),
+          };
+        }
+        return { ok: false, content: `web_fetch failed: ${msg}` };
       }
     },
   };
@@ -463,7 +482,27 @@ export function createWebSearchTool(
           .join('\n\n');
         return { ok: true, content, data: { count: results.length } };
       } catch (err) {
-        return { ok: false, content: `web_search failed: ${errorMessage(err)}` };
+        const msg = errorMessage(err);
+        // 网络错误视为瞬态错误，可重试
+        const isNetworkError =
+          msg.includes('ETIMEDOUT') ||
+          msg.includes('ECONNREFUSED') ||
+          msg.includes('ECONNRESET') ||
+          msg.includes('ENOTFOUND') ||
+          msg.includes('timeout') ||
+          msg.includes('network') ||
+          msg.includes('fetch failed');
+        if (isNetworkError) {
+          return {
+            ok: false,
+            content: formatToolError({
+              kind: 'transient',
+              message: `web_search network error: ${msg}`,
+              suggestion: 'This is likely a temporary network issue. The system will retry automatically.',
+            }),
+          };
+        }
+        return { ok: false, content: `web_search failed: ${msg}` };
       }
     },
   };
