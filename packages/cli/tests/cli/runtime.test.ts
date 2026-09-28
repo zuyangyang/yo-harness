@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import type { Session, SessionStore } from '../../src/core/ports.js';
+import type { Session, SessionStore } from '@yo-harness/core/core/ports.js';
 import { resolveSession } from '../../src/cli/runtime.js';
 
 /** 构造一个最小 SessionStore 替身 */

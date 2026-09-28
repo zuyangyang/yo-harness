@@ -1,0 +1,32 @@
+{
+  "name": "@yo-harness/server",
+  "version": "0.1.0",
+  "description": "yo-harness headless server（HTTP + WebSocket）",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@yo-harness/core": "workspace:*",
+    "@hono/node-server": "^2.1.1",
+    "hono": "^4.13.10"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1"
+  }
+}

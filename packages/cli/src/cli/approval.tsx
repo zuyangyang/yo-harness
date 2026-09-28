@@ -11,7 +11,7 @@
 import { Box, Text, useInput } from 'ink';
 import type { ReactElement } from 'react';
 
-import type { ApprovalAnswer, ApprovalAsk, ApprovalRequest } from '../core/permission.js';
+import type { ApprovalAnswer, ApprovalAsk, ApprovalRequest } from '@yo-harness/core/core/permission.js';
 
 export class AskBridge {
   private handler: ApprovalAsk | undefined;

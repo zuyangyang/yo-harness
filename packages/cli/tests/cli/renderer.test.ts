@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentEvent, TurnEndReason, Usage } from '../../src/types/events.js';
+import type { AgentEvent, TurnEndReason, Usage } from '@yo-harness/core/types/events.js';
 import { RenderModel } from '../../src/cli/renderer.js';
 
 const USAGE: Usage = { inputTokens: 12, outputTokens: 34 };

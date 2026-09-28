@@ -11,9 +11,9 @@
  * 模型可用 YO_MODEL 覆盖（默认 anthropic=claude-sonnet-4-5，openai=gpt-4o-mini）。
  * 密钥只从环境变量读取（SDK 行为），绝不写进代码 / 日志 / 事件流。
  */
-import { AnthropicLLMClient } from '../src/llm/providers/anthropic.js';
-import { OpenAICompatLLMClient } from '../src/llm/providers/openai-compat.js';
-import type { LLMClient } from '../src/types/llm.js';
+import { AnthropicLLMClient } from '@yo-harness/core/llm/providers/anthropic.js';
+import { OpenAICompatLLMClient } from '@yo-harness/core/llm/providers/openai-compat.js';
+import type { LLMClient } from '@yo-harness/core/types/llm.js';
 
 const SYSTEM = 'You are yo-harness ping, a smoke-test assistant. Answer in one short sentence.';
 

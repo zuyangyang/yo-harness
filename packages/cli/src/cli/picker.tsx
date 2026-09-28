@@ -14,7 +14,7 @@
 import { Box, Text, useApp, useInput } from 'ink';
 import { useState, type ReactElement } from 'react';
 
-import type { Session } from '../core/ports.js';
+import type { Session } from '@yo-harness/core/core/ports.js';
 
 export interface SessionPickerProps {
   sessions: Session[];

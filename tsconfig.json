@@ -1,18 +1,8 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
-    "jsx": "react-jsx",
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noFallthroughCasesInSwitch": true,
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "types": ["node"]
-  },
-  "include": ["src", "tests", "examples", "vitest.config.ts"]
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/cli" },
+    { "path": "packages/server" }
+  ]
 }

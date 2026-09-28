@@ -7,10 +7,10 @@ import { createRequire } from 'node:module';
 import { Command } from 'commander';
 
 import { runCli, runResume } from './cli/runtime.js';
-import { startDaemon } from './daemon/daemon-main.js';
-import { DaemonApiClient } from './daemon/daemon-api.js';
-import { FatalError } from './types/errors.js';
-import { yoHome } from './utils/paths.js';
+import { startDaemon } from '@yo-harness/core/daemon/daemon-main.js';
+import { DaemonApiClient } from '@yo-harness/core/daemon/daemon-api.js';
+import { FatalError } from '@yo-harness/core/types/errors.js';
+import { yoHome } from '@yo-harness/core/utils/paths.js';
 import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);

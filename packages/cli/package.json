@@ -1,0 +1,36 @@
+{
+  "name": "@yo-harness/cli",
+  "version": "0.1.0",
+  "description": "yo-harness CLI 客户端（ink TUI）",
+  "type": "module",
+  "bin": {
+    "yo": "dist/main.js"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@yo-harness/core": "workspace:*",
+    "commander": "^15.0.0",
+    "ink": "^5.2.1",
+    "ink-text-input": "^6.0.0",
+    "picocolors": "^1.1.1",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.6",
+    "@types/react": "^18.3.31",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1"
+  }
+}

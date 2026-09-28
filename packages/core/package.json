@@ -1,0 +1,37 @@
+{
+  "name": "@yo-harness/core",
+  "version": "0.1.0",
+  "description": "yo-harness 核心引擎：Agent Loop、工具注册、存储、LLM 网关、MCP、记忆、路由、守护进程",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "@hono/node-server": "^2.1.1",
+    "better-sqlite3": "^13.0.3",
+    "hono": "^4.13.10",
+    "openai": "^7.23.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^24.13.6",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1"
+  },
+  "allowScripts": {
+    "better-sqlite3@13.0.3": true
+  }
+}

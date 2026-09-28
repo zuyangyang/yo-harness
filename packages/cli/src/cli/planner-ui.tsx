@@ -14,7 +14,7 @@
 import { Box, Text, useInput } from 'ink';
 import type { ReactElement } from 'react';
 
-import type { Plan, PlanTask } from '../types/plan.js';
+import type { Plan, PlanTask } from '@yo-harness/core/types/plan.js';
 
 export type PlanApproval = 'approved' | 'rejected';
 

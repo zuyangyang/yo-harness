@@ -16,38 +16,38 @@ import { join } from 'node:path';
 
 import { render } from 'ink';
 
-import { loadConfig, activeApiKey, type ProviderConfig, type ProviderName } from '../config/config.js';
-import { AgentLoop } from '../core/agent-loop.js';
-import { TurnBudget } from '../core/budget.js';
-import { ContextManager } from '../core/context-manager.js';
-import { EventBus } from '../core/event-bus.js';
-import { GoalTracker } from '../core/goal-tracker.js';
+import { loadConfig, activeApiKey, type ProviderConfig, type ProviderName } from '@yo-harness/core/config/config.js';
+import { AgentLoop } from '@yo-harness/core/core/agent-loop.js';
+import { TurnBudget } from '@yo-harness/core/core/budget.js';
+import { ContextManager } from '@yo-harness/core/core/context-manager.js';
+import { EventBus } from '@yo-harness/core/core/event-bus.js';
+import { GoalTracker } from '@yo-harness/core/core/goal-tracker.js';
 import {
   createInteractivePermission,
   createNonInteractivePermission,
   withApprovalEvents,
-} from '../core/permission.js';
-import { Planner, readOnlyResolver } from '../core/planner.js';
-import type { Session, SessionStore } from '../core/ports.js';
-import { FatalError } from '../types/errors.js';
-import type { AgentEvent, EventEnvelope, TurnEndReason } from '../types/events.js';
-import type { LLMClient } from '../types/llm.js';
-import type { Plan } from '../types/plan.js';
-import { LLMGateway } from '../llm/gateway.js';
-import { AnthropicLLMClient } from '../llm/providers/anthropic.js';
-import { FakeLLMClient } from '../llm/providers/fake.js';
-import { OpenAICompatLLMClient } from '../llm/providers/openai-compat.js';
-import { ModelRouter } from '../router/model-router.js';
-import { CostTracker } from '../router/cost-tracker.js';
-import { McpManager } from '../mcp/manager.js';
-import { openDatabase, type SqliteDatabase } from '../storage/db.js';
-import { SqliteEventStore } from '../storage/event-store.js';
-import { SqliteSessionStore } from '../storage/session-store.js';
-import { SqliteCheckpointStore } from '../storage/checkpoint-store.js';
-import { createBuiltinRegistry } from '../tools/registry.js';
-import { createLogger, parseLogLevel } from '../utils/logger.js';
-import { yoHome } from '../utils/paths.js';
-import type { Logger } from '../types/common.js';
+} from '@yo-harness/core/core/permission.js';
+import { Planner, readOnlyResolver } from '@yo-harness/core/core/planner.js';
+import type { Session, SessionStore } from '@yo-harness/core/core/ports.js';
+import { FatalError } from '@yo-harness/core/types/errors.js';
+import type { AgentEvent, EventEnvelope, TurnEndReason } from '@yo-harness/core/types/events.js';
+import type { LLMClient } from '@yo-harness/core/types/llm.js';
+import type { Plan } from '@yo-harness/core/types/plan.js';
+import { LLMGateway } from '@yo-harness/core/llm/gateway.js';
+import { AnthropicLLMClient } from '@yo-harness/core/llm/providers/anthropic.js';
+import { FakeLLMClient } from '@yo-harness/core/llm/providers/fake.js';
+import { OpenAICompatLLMClient } from '@yo-harness/core/llm/providers/openai-compat.js';
+import { ModelRouter } from '@yo-harness/core/router/model-router.js';
+import { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
+import { McpManager } from '@yo-harness/core/mcp/manager.js';
+import { openDatabase, type SqliteDatabase } from '@yo-harness/core/storage/db.js';
+import { SqliteEventStore } from '@yo-harness/core/storage/event-store.js';
+import { SqliteSessionStore } from '@yo-harness/core/storage/session-store.js';
+import { SqliteCheckpointStore } from '@yo-harness/core/storage/checkpoint-store.js';
+import { createBuiltinRegistry } from '@yo-harness/core/tools/registry.js';
+import { createLogger, parseLogLevel } from '@yo-harness/core/utils/logger.js';
+import { yoHome } from '@yo-harness/core/utils/paths.js';
+import type { Logger } from '@yo-harness/core/types/common.js';
 import { App } from './app.js';
 import { AskBridge } from './approval.js';
 import { pickSession } from './picker.js';

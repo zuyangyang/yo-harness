@@ -11,8 +11,8 @@
  * - 摘要复用 core/permission 的 summarizeToolCall（同一份脱敏逻辑，
  *   审批 UI 与结果行展示保持一致）。
  */
-import { summarizeToolCall } from '../core/permission.js';
-import type { AgentEvent } from '../types/events.js';
+import { summarizeToolCall } from '@yo-harness/core/core/permission.js';
+import type { AgentEvent } from '@yo-harness/core/types/events.js';
 
 export type RenderColor = 'cyan' | 'green' | 'red' | 'yellow' | 'gray' | 'magenta';
 

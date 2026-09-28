@@ -18,12 +18,12 @@
  */
 import { join } from 'node:path';
 
-import { openDatabase } from '../src/storage/db.js';
-import { SqliteEventStore } from '../src/storage/event-store.js';
-import { SqliteSessionStore } from '../src/storage/session-store.js';
-import { yoHome } from '../src/utils/paths.js';
-import type { EventEnvelope } from '../src/types/events.js';
-import type { Session } from '../src/core/ports.js';
+import { openDatabase } from '@yo-harness/core/storage/db.js';
+import { SqliteEventStore } from '@yo-harness/core/storage/event-store.js';
+import { SqliteSessionStore } from '@yo-harness/core/storage/session-store.js';
+import { yoHome } from '@yo-harness/core/utils/paths.js';
+import type { EventEnvelope } from '@yo-harness/core/types/events.js';
+import type { Session } from '@yo-harness/core/core/ports.js';
 
 interface CheckResult {
   name: string;
