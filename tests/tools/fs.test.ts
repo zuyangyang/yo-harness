@@ -124,6 +124,36 @@ describe('write_file', () => {
       cleanupWorkspace(ws);
     }
   });
+
+  it('写前调用 snapshotBeforeWrite（Phase 2 检查点集成）', async () => {
+    const ws = makeWorkspace();
+    try {
+      const snapshots: string[] = [];
+      const ctx = {
+        ...makeCtx(ws),
+        snapshotBeforeWrite: (relPath: string) => {
+          snapshots.push(relPath);
+          return Promise.resolve('fake-checkpoint-id');
+        },
+      };
+      const res = await writeFileTool.run({ path: 'tracked.txt', content: 'data' }, ctx);
+      expect(res.ok).toBe(true);
+      expect(snapshots).toEqual(['tracked.txt']);
+    } finally {
+      cleanupWorkspace(ws);
+    }
+  });
+
+  it('无 snapshotBeforeWrite 回调时正常写入（向后兼容）', async () => {
+    const ws = makeWorkspace();
+    try {
+      const ctx = makeCtx(ws); // 不含 snapshotBeforeWrite
+      const res = await writeFileTool.run({ path: 'no-cp.txt', content: 'ok' }, ctx);
+      expect(res.ok).toBe(true);
+    } finally {
+      cleanupWorkspace(ws);
+    }
+  });
 });
 
 describe('list_dir', () => {

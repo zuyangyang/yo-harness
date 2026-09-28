@@ -108,7 +108,14 @@ export const writeFileTool: Tool = {
       return invalidArgs('write_file', parsed.error);
     }
     try {
-      const abs = resolveInWorkspace(ctx.cwd, parsed.data.path);
+      const relPath = parsed.data.path;
+      const abs = resolveInWorkspace(ctx.cwd, relPath);
+
+      // Phase 2: 写前快照 —— 如果 agent-loop 注入了 checkpoint 回调
+      if (ctx.snapshotBeforeWrite !== undefined) {
+        await ctx.snapshotBeforeWrite(relPath);
+      }
+
       await mkdir(path.dirname(abs), { recursive: true });
       await writeFile(abs, parsed.data.content, 'utf8');
       const bytes = Buffer.byteLength(parsed.data.content, 'utf8');
