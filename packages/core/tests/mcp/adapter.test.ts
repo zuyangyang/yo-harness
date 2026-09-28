@@ -17,6 +17,14 @@ function makeCtx(): ExecutionContext {
     sessionId: 'test-session',
     cwd: '/tmp',
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    sandbox: {
+      exec: async () => ({ exitCode: 0, stdout: '', stderr: '', timedOut: false }),
+      readFile: async () => Buffer.from(''),
+      writeFile: async () => {},
+      listDir: async () => [],
+      getStatus: () => 'ready' as const,
+      destroy: async () => {},
+    },
   };
 }
 

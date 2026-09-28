@@ -11,6 +11,7 @@ import { LLMGateway } from '../../src/llm/gateway.js';
 import { ModelRouter } from '../../src/router/model-router.js';
 import { CostTracker } from '../../src/router/cost-tracker.js';
 import { ToolRegistry } from '../../src/tools/registry.js';
+import { createLocalSandbox } from '../../src/sandbox/local-sandbox.js';
 import { openDatabase } from '../../src/storage/db.js';
 import { SqliteEventStore } from '../../src/storage/event-store.js';
 import { SqliteSessionStore } from '../../src/storage/session-store.js';
@@ -66,6 +67,7 @@ describe('TaskRunner', () => {
       tools: registry,
       router,
       costTracker,
+      sandbox: createLocalSandbox(join(tmpdir(), 'yo-task-test')),
       logger,
       systemPrompt: 'You are a test assistant.',
       maxTokens: 100,
@@ -152,6 +154,7 @@ describe('TaskRunner', () => {
       tools: registry,
       router,
       costTracker,
+      sandbox: createLocalSandbox(join(tmpdir(), 'yo-task-test')),
       logger,
       systemPrompt: 'You are a test assistant.',
       maxTokens: 100,

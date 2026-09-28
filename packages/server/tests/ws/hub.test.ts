@@ -44,6 +44,7 @@ function createMockWebSocket(): MockWebSocket {
     },
     send(data: string) { sent.push(data); },
     get readyState() { return mock.readyState; },
+    set readyState(v: number) { mock.readyState = v; },
     OPEN: 1,
   } as unknown as WebSocket;
 
@@ -58,11 +59,11 @@ function mockSessionManager(): SessionManager {
 }
 
 const fakeEvent: EventEnvelope = {
-  id: 'e1',
+  id: 1,
   sessionId: 's1',
-  type: 'assistant.text',
-  timestamp: Date.now(),
-  data: { text: 'hello' },
+  seq: 1,
+  ts: new Date().toISOString(),
+  payload: { type: 'user_input', content: 'hello' },
 };
 
 let hub: WebSocketHub;
@@ -156,7 +157,7 @@ describe('广播', () => {
 
     expect(m1.sent).toHaveLength(1);
     expect(m2.sent).toHaveLength(1);
-    const parsed = JSON.parse(m1.sent[0]);
+    const parsed = JSON.parse(m1.sent[0]!);
     expect(parsed.type).toBe('event');
     expect(parsed.sessionId).toBe('s1');
   });
@@ -196,14 +197,15 @@ describe('广播', () => {
 
     hub.broadcastApprovalRequest('s1', {
       id: 'a1',
+      sessionId: 's1',
+      callId: 'c1',
       toolName: 'Bash',
       summary: 'rm -rf /',
-      createdAt: Date.now(),
-      resolve: () => {},
+      createdAt: new Date().toISOString(),
     });
 
     expect(m.sent).toHaveLength(1);
-    const parsed = JSON.parse(m.sent[0]);
+    const parsed = JSON.parse(m.sent[0]!);
     expect(parsed.type).toBe('approval.request');
     expect(parsed.approvalId).toBe('a1');
     expect(parsed.toolName).toBe('Bash');
@@ -231,7 +233,7 @@ describe('客户端消息处理', () => {
     hub.addConnection(m.ws, 'u1');
     m.simulateMessage('{"type":"ping"}');
     expect(m.sent).toHaveLength(1);
-    const parsed = JSON.parse(m.sent[0]);
+    const parsed = JSON.parse(m.sent[0]!);
     expect(parsed.type).toBe('pong');
   });
 
@@ -254,7 +256,7 @@ describe('客户端消息处理', () => {
     hub.addConnection(m.ws, 'u1');
     m.simulateMessage('not json');
     expect(m.sent).toHaveLength(1);
-    const parsed = JSON.parse(m.sent[0]);
+    const parsed = JSON.parse(m.sent[0]!);
     expect(parsed.type).toBe('error');
     expect(parsed.code).toBe('invalid_message');
   });
@@ -264,7 +266,7 @@ describe('客户端消息处理', () => {
     hub.addConnection(m.ws, 'u1');
     m.simulateMessage('{"type":"unknown"}');
     expect(m.sent).toHaveLength(1);
-    const parsed = JSON.parse(m.sent[0]);
+    const parsed = JSON.parse(m.sent[0]!);
     expect(parsed.type).toBe('error');
   });
 });

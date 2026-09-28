@@ -13,6 +13,7 @@ import { createBuiltinRegistry } from '@yo-harness/core/tools/registry.js';
 import { createLogger } from '@yo-harness/core/utils/logger.js';
 import { DEFAULT_BUDGET_LIMITS } from '@yo-harness/core/core/budget.js';
 import { DEFAULT_PERMISSION_SETTINGS } from '@yo-harness/core/core/permission.js';
+import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
 import type { SessionManagerDeps } from '../../src/session-manager.js';
 
 let storage: StorageBackend;
@@ -31,6 +32,7 @@ function createDeps(): SessionManagerDeps {
     tools: createBuiltinRegistry(),
     router,
     costTracker: new CostTracker(),
+    sandbox: createLocalSandbox('/tmp'),
     logger: createLogger('silent'),
     systemPrompt: 'test',
     maxTokens: 1024,

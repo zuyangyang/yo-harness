@@ -29,6 +29,7 @@ import type { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
 import type { ModelRouter } from '@yo-harness/core/router/model-router.js';
 import type { Logger } from '@yo-harness/core/types/common.js';
 import type { AgentEvent, EventEnvelope, TurnEndReason } from '@yo-harness/core/types/events.js';
+import type { SandboxProvider } from '@yo-harness/core/types/sandbox.js';
 
 export interface PendingApproval {
   id: string;
@@ -57,6 +58,7 @@ export interface SessionManagerDeps {
   tools: ToolResolver;
   router: ModelRouter;
   costTracker: CostTracker;
+  sandbox: SandboxProvider;
   logger: Logger;
   systemPrompt: string;
   maxTokens: number;
@@ -184,6 +186,7 @@ export class SessionManager {
       budget: new TurnBudget(this.deps.budgetLimits),
       context,
       bus,
+      sandbox: this.deps.sandbox,
       systemPrompt: this.deps.systemPrompt,
       maxTokens: this.deps.maxTokens,
       logger: this.deps.logger,

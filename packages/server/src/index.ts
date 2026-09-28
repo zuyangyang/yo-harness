@@ -14,6 +14,7 @@ import { LLMGateway } from '@yo-harness/core/llm/gateway.js';
 import { FakeLLMClient } from '@yo-harness/core/llm/providers/fake.js';
 import { createBuiltinRegistry } from '@yo-harness/core/tools/registry.js';
 import { createLogger } from '@yo-harness/core/utils/logger.js';
+import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
 
 import { createApp } from './app.js';
 import { SessionManager } from './session-manager.js';
@@ -74,6 +75,7 @@ export async function createServer(options: CreateServerOptions) {
     tools,
     router,
     costTracker,
+    sandbox: createLocalSandbox(process.cwd()),
     logger,
     systemPrompt: serverConfig.systemPrompt,
     maxTokens: serverConfig.maxTokens,

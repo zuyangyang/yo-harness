@@ -7,6 +7,7 @@
  */
 import type { z } from 'zod';
 import type { Logger } from './common.js';
+import type { SandboxProvider } from './sandbox.js';
 
 export type RiskLevel = 'read' | 'write' | 'net' | 'danger';
 
@@ -23,6 +24,8 @@ export interface ExecutionContext {
   /** 会话工作目录，所有相对路径以此为基准 */
   cwd: string;
   logger: Logger;
+  /** Phase 4：沙箱提供者（由 agent-loop 注入） */
+  sandbox: SandboxProvider;
   /**
    * Phase 2：写操作前快照回调（由 agent-loop 注入）。
    * 写入文件前调用，返回 checkpointId；为 undefined 时跳过快照（测试 / 无检查点场景）。

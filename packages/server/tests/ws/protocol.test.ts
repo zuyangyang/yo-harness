@@ -50,13 +50,13 @@ describe('encodeServerMessage', () => {
     const msg: ServerMessage = {
       type: 'event',
       sessionId: 's1',
-      event: { id: 'e1', sessionId: 's1', type: 'assistant.text', timestamp: 0, data: { text: 'hi' } },
+      event: { id: 1, sessionId: 's1', seq: 1, ts: '2024-01-01T00:00:00.000Z', payload: { type: 'user_input', content: 'hi' } },
     };
     const encoded = encodeServerMessage(msg);
     const parsed = JSON.parse(encoded);
     expect(parsed.type).toBe('event');
     expect(parsed.sessionId).toBe('s1');
-    expect(parsed.event.data.text).toBe('hi');
+    expect(parsed.event.payload.content).toBe('hi');
   });
 
   it('pong 消息序列化', () => {

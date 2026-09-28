@@ -3,6 +3,9 @@ packages:
 allowBuilds:
   argon2: true
   better-sqlite3: true
+  cpu-features: set this to true or false
   esbuild: true
+  protobufjs: set this to true or false
+  ssh2: set this to true or false
 minimumReleaseAgeExclude:
   - hono@4.13.10

@@ -31,6 +31,7 @@ import { createBuiltinRegistry } from '../tools/registry.js';
 import { FatalError } from '../types/errors.js';
 import { createLogger, parseLogLevel } from '../utils/logger.js';
 import { yoHome } from '../utils/paths.js';
+import { createLocalSandbox } from '../sandbox/local-sandbox.js';
 import { TaskRunner } from './task-runner.js';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -103,6 +104,7 @@ export function startDaemon(config: DaemonConfig = {}): void {
     tools: registry,
     router,
     costTracker,
+    sandbox: createLocalSandbox(process.cwd()),
     logger,
     systemPrompt: 'You are yo, a local-first personal agent.',
     maxTokens: 4096,

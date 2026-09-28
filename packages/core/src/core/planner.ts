@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
 import type { Logger } from '../types/common.js';
 import type { ChatMessage, LLMClient } from '../types/llm.js';
 import { PlanOutputSchema, type Plan, type PlanOutput, type PlanTask } from '../types/plan.js';
+import type { SandboxProvider } from '../types/sandbox.js';
 import type { ToolResult } from '../types/tools.js';
 import type { EventBus } from './event-bus.js';
 import type { ToolResolver } from './ports.js';
@@ -26,6 +27,7 @@ export interface PlannerDeps {
   /** 只读工具子集（由 readOnlyResolver 过滤） */
   tools: ToolResolver;
   permission: PermissionManager;
+  sandbox: SandboxProvider;
   sessionId: string;
   cwd: string;
   logger: Logger;
@@ -158,7 +160,7 @@ export class Planner {
         // 执行工具
         let result: ToolResult;
         try {
-          result = await tool.run(toolCall.args, { sessionId, cwd, logger });
+          result = await tool.run(toolCall.args, { sessionId, cwd, logger, sandbox: this.deps.sandbox });
         } catch (err) {
           result = { ok: false, content: `tool crashed: ${String(err)}` };
         }

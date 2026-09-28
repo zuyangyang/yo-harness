@@ -4,6 +4,7 @@ import { Planner, readOnlyResolver } from '../../src/core/planner.js';
 import type { Logger } from '../../src/types/common.js';
 import type { ToolCall } from '../../src/types/events.js';
 import type { ChatResponse, LLMClient } from '../../src/types/llm.js';
+import type { SandboxProvider } from '../../src/types/sandbox.js';
 import type { Tool, ToolResult, ToolSpec } from '../../src/types/tools.js';
 import { EventBus } from '../../src/core/event-bus.js';
 import type { PermissionManager } from '../../src/core/permission.js';
@@ -18,6 +19,15 @@ const noopLogger: Logger = {
   info: () => { /* noop */ },
   warn: () => { /* noop */ },
   error: () => { /* noop */ },
+};
+
+const mockSandbox: SandboxProvider = {
+  exec: async () => ({ exitCode: 0, stdout: '', stderr: '', timedOut: false }),
+  readFile: async () => Buffer.from(''),
+  writeFile: async () => {},
+  listDir: async () => [],
+  getStatus: () => 'ready' as const,
+  destroy: async () => {},
 };
 
 /** 模拟 LLM 客户端：按顺序返回预设响应 */
@@ -123,6 +133,7 @@ describe('Planner', () => {
       llm,
       tools: resolver,
       permission: alwaysApprove,
+      sandbox: mockSandbox,
       sessionId: 'test-session',
       cwd: '/test',
       logger: noopLogger,
@@ -158,6 +169,7 @@ describe('Planner', () => {
       llm,
       tools: resolver,
       permission: alwaysApprove,
+      sandbox: mockSandbox,
       sessionId: 'test-session',
       cwd: '/test',
       logger: noopLogger,
@@ -187,6 +199,7 @@ describe('Planner', () => {
       llm,
       tools: resolver,
       permission: alwaysApprove,
+      sandbox: mockSandbox,
       sessionId: 'test-session',
       cwd: '/test',
       logger: noopLogger,
@@ -214,6 +227,7 @@ describe('Planner', () => {
       llm,
       tools: resolver,
       permission: alwaysApprove,
+      sandbox: mockSandbox,
       sessionId: 'test-session',
       cwd: '/test',
       logger: noopLogger,
@@ -240,6 +254,7 @@ describe('Planner', () => {
       llm,
       tools: resolver,
       permission: alwaysApprove,
+      sandbox: mockSandbox,
       sessionId: 'test-session',
       cwd: '/test',
       logger: noopLogger,
@@ -277,6 +292,7 @@ describe('Planner', () => {
       llm,
       tools: resolver,
       permission: alwaysApprove,
+      sandbox: mockSandbox,
       sessionId: 'test-session',
       cwd: '/test',
       logger: noopLogger,

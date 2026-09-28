@@ -47,6 +47,7 @@ import { SqliteCheckpointStore } from '@yo-harness/core/storage/checkpoint-store
 import { createBuiltinRegistry } from '@yo-harness/core/tools/registry.js';
 import { createLogger, parseLogLevel } from '@yo-harness/core/utils/logger.js';
 import { yoHome } from '@yo-harness/core/utils/paths.js';
+import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
 import type { Logger } from '@yo-harness/core/types/common.js';
 import { App } from './app.js';
 import { AskBridge } from './approval.js';
@@ -296,6 +297,7 @@ async function launch(
       budget: new TurnBudget(config.budget),
       context,
       bus,
+      sandbox: createLocalSandbox(session.cwd),
       systemPrompt: SYSTEM_PROMPT,
       maxTokens: DEFAULT_MAX_TOKENS,
       logger,
@@ -319,6 +321,7 @@ async function launch(
         llm,
         tools: readOnlyResolver(registry),
         permission,
+        sandbox: createLocalSandbox(session.cwd),
         sessionId: session.id,
         cwd: session.cwd,
         logger,
@@ -335,6 +338,7 @@ async function launch(
         llm,
         tools: readOnlyResolver(registry),
         permission,
+        sandbox: createLocalSandbox(session.cwd),
         sessionId: session.id,
         cwd: session.cwd,
         logger,

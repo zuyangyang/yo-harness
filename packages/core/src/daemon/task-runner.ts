@@ -22,6 +22,7 @@ import type { CostTracker } from '../router/cost-tracker.js';
 import type { ModelRouter } from '../router/model-router.js';
 import type { Logger } from '../types/common.js';
 import type { TurnEndReason } from '../types/events.js';
+import type { SandboxProvider } from '../types/sandbox.js';
 import type { SessionStore } from '../core/ports.js';
 import type { TaskStore } from '../storage/task-store.js';
 
@@ -32,6 +33,7 @@ export interface TaskRunnerDeps {
   tools: ToolResolver;
   router: ModelRouter;
   costTracker: CostTracker;
+  sandbox: SandboxProvider;
   logger: Logger;
   systemPrompt: string;
   maxTokens: number;
@@ -96,6 +98,7 @@ export class TaskRunner {
       budget: new TurnBudget(this.deps.budgetLimits),
       context,
       bus,
+      sandbox: this.deps.sandbox,
       systemPrompt: this.deps.systemPrompt || SYSTEM_PROMPT,
       maxTokens: this.deps.maxTokens,
       logger,

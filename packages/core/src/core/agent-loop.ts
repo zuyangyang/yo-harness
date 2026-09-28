@@ -30,6 +30,7 @@ import type {
 import { BudgetStop, isTransientError, TransientError } from '../types/errors.js';
 import type { ChatMessage, ChatRequest, ChatResponse } from '../types/llm.js';
 import type { ToolResult } from '../types/tools.js';
+import type { SandboxProvider } from '../types/sandbox.js';
 import { logTokenCalibration } from '../utils/tokens.js';
 import type { TurnBudget } from './budget.js';
 import type { ContextBuildResult, ContextManager } from './context-manager.js';
@@ -55,6 +56,8 @@ export interface AgentLoopDeps {
   maxTokens: number;
   temperature?: number;
   logger: Logger;
+  /** Phase 4：沙箱提供者 */
+  sandbox: SandboxProvider;
 }
 
 /** LLM 阶段失败的标记：error 事件 stage='llm'，原始错误保存在 original */
@@ -197,6 +200,7 @@ export class AgentLoop {
           sessionId: this.deps.sessionId,
           cwd: this.deps.cwd,
           logger: this.deps.logger,
+          sandbox: this.deps.sandbox,
         });
       } catch (err) {
         // 契约：run() 永不 throw；违约降级为失败结果，回合继续
