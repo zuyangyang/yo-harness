@@ -107,7 +107,7 @@ export class AgentLoop {
       if (this.interruptFlag) return 'interrupted';
       budget.countStep();
       budget.guard();
-      const built = context.build();
+      const built = await context.build();
       if (built.elidedCount > 0) {
         await this.append({
           type: 'context_elided',

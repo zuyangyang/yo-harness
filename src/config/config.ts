@@ -32,6 +32,19 @@ export interface ProviderConfig {
   baseURL?: string;
 }
 
+/** Phase 2: 自适应压缩配置 */
+export interface CompressionSettings {
+  enabled: boolean;
+  /** 用哪个 provider 做压缩（可选，缺省用默认 provider） */
+  provider?: ProviderName;
+  /** 压缩专用模型（可选，覆盖 provider 默认模型） */
+  model?: string;
+  /** 触发压缩的阈值比例（默认 0.7） */
+  triggerRatio: number;
+  /** 单条摘要的 token 上限（默认 200） */
+  maxTokensPerSummary: number;
+}
+
 export interface AppConfig {
   defaultProvider: ProviderName;
   providers: Record<ProviderName, ProviderConfig>;
@@ -39,6 +52,8 @@ export interface AppConfig {
   search: WebSearchSettings | undefined;
   permission: PermissionSettings;
   budget: BudgetLimits;
+  /** Phase 2: 自适应压缩配置（可选） */
+  compression: CompressionSettings | undefined;
 }
 
 /** 内置默认：不写任何配置文件也能跑（当然，调用真实 API 还需要环境变量里有 key） */
@@ -83,6 +98,15 @@ const configFileSchema = z.strictObject({
       maxStepsPerTurn: z.number().int().positive().optional(),
       maxTokensPerTurn: z.number().int().positive().optional(),
       maxTurnDurationMs: z.number().int().positive().optional(),
+    })
+    .optional(),
+  compression: z
+    .strictObject({
+      enabled: z.boolean().optional(),
+      provider: z.enum(['anthropic', 'openai-compat']).optional(),
+      model: z.string().min(1).optional(),
+      triggerRatio: z.number().min(0).max(1).optional(),
+      maxTokensPerSummary: z.number().int().positive().optional(),
     })
     .optional(),
 });
@@ -190,6 +214,23 @@ function buildSearch(file: ConfigFile | undefined): WebSearchSettings | undefine
   return settings;
 }
 
+/** Phase 2: 构建压缩配置 */
+function buildCompression(file: ConfigFile | undefined): CompressionSettings | undefined {
+  const fromFile = file?.compression;
+  if (fromFile === undefined) return undefined;
+  
+  const settings: CompressionSettings = {
+    enabled: fromFile.enabled ?? true,
+    triggerRatio: fromFile.triggerRatio ?? 0.7,
+    maxTokensPerSummary: fromFile.maxTokensPerSummary ?? 200,
+  };
+  
+  if (fromFile.provider !== undefined) settings.provider = fromFile.provider;
+  if (fromFile.model !== undefined) settings.model = fromFile.model;
+  
+  return settings;
+}
+
 /** 读取并合并全部配置来源；任何失败都是 FatalError（进程应立即退出） */
 export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
   const env = overrides.env ?? process.env;
@@ -224,6 +265,7 @@ export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
       maxTokensPerTurn: budgetFile?.maxTokensPerTurn ?? DEFAULT_BUDGET_LIMITS.maxTokensPerTurn,
       maxTurnDurationMs: budgetFile?.maxTurnDurationMs ?? DEFAULT_BUDGET_LIMITS.maxTurnDurationMs,
     },
+    compression: buildCompression(file),
   };
 }
 

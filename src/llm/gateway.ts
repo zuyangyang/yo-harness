@@ -50,6 +50,11 @@ export class LLMGateway {
     return this.config.defaultProvider;
   }
 
+  /** Phase 2: 按 provider 名获取特定的 LLMClient（压缩等场景用） */
+  getClient(providerName: string): LLMClient | undefined {
+    return this.clients.get(providerName);
+  }
+
   async chat(req: ChatRequest, opts?: ChatOptions): Promise<ChatResponse> {
     const client = this.clients.get(this.config.defaultProvider);
     // 构造函数已校验，此处仅防御

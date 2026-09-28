@@ -232,7 +232,7 @@ describe('AgentLoop', () => {
       store.events.map((e) => e.payload),
       contextConfig,
     );
-    expect(rebuilt.build().messages).toEqual(loop.context.build().messages);
+    expect((await rebuilt.build()).messages).toEqual((await loop.context.build()).messages);
   });
 
   it('用户拒绝工具：审批事件成对落库，拒绝结果以 isError 回传', async () => {

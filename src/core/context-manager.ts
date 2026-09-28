@@ -13,13 +13,14 @@
  * 保留区 = 最近 keepRecent 条消息 ∪ 最后一条 user 消息，永不裁剪。
  * 裁剪后仍超预算则 best-effort 返回（交由上层决定报错与否）。
  *
- * build() 是纯函数：不改变内部状态，可重复调用（AgentLoop 每个
- * step 调用一次，ContextBuildResult 同时是 context_elided 事件的
- * 数据来源）。
+ * build() 是异步的（压缩阶段需要调 LLM），不改变内部状态，可重复调用
+ * （AgentLoop 每个 step 调用一次，ContextBuildResult 同时是 context_elided
+ * 事件的数据来源）。
  */
 import type { AgentEvent } from '../types/events.js';
 import type { ChatMessage } from '../types/llm.js';
 import { estimateMessageTokens, estimateTokens } from '../utils/tokens.js';
+import type { Compressor } from './compressor.js';
 
 /** 输出预留：为模型本次回复保留的空间，不计入 body 预算 */
 export const DEFAULT_OUTPUT_RESERVE_TOKENS = 4_000;
@@ -49,6 +50,12 @@ export interface ContextBuildResult {
   estTokens: number;
   /** 本次构建的 body 预算上限 */
   bodyBudgetTokens: number;
+  /** Phase 2: 压缩的消息数量（摘要替换） */
+  compressedCount: number;
+  /** Phase 2: 压缩前估算 tokens */
+  compressedBeforeTokens: number;
+  /** Phase 2: 压缩后估算 tokens */
+  compressedAfterTokens: number;
 }
 
 /** tool_result 被省略后的占位文本（保留可追溯性，不保留内容） */
@@ -89,12 +96,20 @@ export class ContextManager {
   private readonly toolsSystemReserveTokens: number;
   private readonly bodyTargetRatio: number;
 
+  /** Phase 2: 可选的压缩器 */
+  private compressor: Compressor | undefined;
+
   constructor(readonly config: ContextManagerConfig) {
     this.keepRecent = config.keepRecent ?? DEFAULT_KEEP_RECENT;
     this.outputReserveTokens = config.outputReserveTokens ?? DEFAULT_OUTPUT_RESERVE_TOKENS;
     this.toolsSystemReserveTokens =
       config.toolsSystemReserveTokens ?? DEFAULT_TOOLS_SYSTEM_RESERVE_TOKENS;
     this.bodyTargetRatio = config.bodyTargetRatio ?? DEFAULT_BODY_TARGET_RATIO;
+  }
+
+  /** Phase 2: 注入压缩器（可选） */
+  setCompressor(compressor: Compressor): void {
+    this.compressor = compressor;
   }
 
   /** 事件流重放构建（resume 场景）；与逐步 push 等价 */
@@ -124,6 +139,9 @@ export class ContextManager {
     const est = estimateMessageTokens(message);
     this.ests.push(est);
     this.estTotal += est;
+
+    // Phase 2: push 新事件时压缩缓存失效（索引偏移变了）
+    this.compressor?.clearCache();
   }
 
   /** body 预算 = (窗口 − 输出预留 − 工具/系统预留) × 目标占比 */
@@ -133,23 +151,43 @@ export class ContextManager {
     return Math.max(0, Math.floor(usable * this.bodyTargetRatio));
   }
 
-  build(): ContextBuildResult {
+  async build(): Promise<ContextBuildResult> {
     const n = this.messages.length;
     const reserved = this.reservedIndices();
     const bodyBudget = this.bodyBudgetTokens();
 
     // 工作副本：build() 不改变 push 累积的状态
-    const ests = this.ests.slice();
+    let workingMessages = this.messages.slice();
+    let ests = this.ests.slice();
     const elided = new Map<number, string>();
     const kept: boolean[] = new Array<boolean>(n).fill(true);
     let estTotal = this.estTotal;
     let elidedCount = 0;
 
+    // Phase 2: 压缩统计
+    let compressedCount = 0;
+    let compressedBeforeTokens = 0;
+    let compressedAfterTokens = 0;
+
+    // Phase 2: 如果配置了压缩器且超阈值，先尝试压缩
+    if (this.compressor !== undefined) {
+      const compressed = await this.compressor.compress(workingMessages, bodyBudget, this.callIdToToolName);
+      if (compressed.compressedCount > 0) {
+        compressedCount = compressed.compressedCount;
+        compressedBeforeTokens = compressed.beforeTokens;
+        compressedAfterTokens = compressed.afterTokens;
+        workingMessages = compressed.messages;
+        // 重新计算 ests 和 estTotal
+        ests = workingMessages.map((m) => estimateMessageTokens(m));
+        estTotal = ests.reduce((sum, est) => sum + est, 0);
+      }
+    }
+
     // 阶段 1：省略保留区之外的 tool_result 文本，最早优先，达标即停
     if (estTotal > bodyBudget) {
-      for (let i = 0; i < n; i++) {
+      for (let i = 0; i < workingMessages.length; i++) {
         if (estTotal <= bodyBudget) break;
-        const message = this.messages[i];
+        const message = workingMessages[i];
         if (message?.role !== 'tool' || reserved.has(i)) continue;
         const placeholder = toolElidedPlaceholder(
           message.text.length,
@@ -167,7 +205,7 @@ export class ContextManager {
 
     // 阶段 2：丢弃最早的无保留消息组，达标即停；仍超则 best-effort 返回
     if (estTotal > bodyBudget) {
-      for (const group of this.messageGroups()) {
+      for (const group of this.messageGroups(workingMessages)) {
         if (estTotal <= bodyBudget) break;
         if (group.some((i) => reserved.has(i))) continue;
         for (const i of group) {
@@ -179,9 +217,9 @@ export class ContextManager {
     }
 
     const messages: ChatMessage[] = [];
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < workingMessages.length; i++) {
       if (!kept[i]) continue;
-      const message = this.messages[i];
+      const message = workingMessages[i];
       if (message === undefined) continue;
       const placeholder = elided.get(i);
       messages.push(placeholder === undefined ? message : { ...message, text: placeholder });
@@ -193,6 +231,9 @@ export class ContextManager {
       freedEstTokens: this.estTotal - estTotal,
       estTokens: estTotal,
       bodyBudgetTokens: bodyBudget,
+      compressedCount,
+      compressedBeforeTokens,
+      compressedAfterTokens,
     };
   }
 
@@ -211,11 +252,12 @@ export class ContextManager {
   }
 
   /** 消息组划分：每组以 user 消息开头，含其后直到下一个 user 前的全部消息 */
-  private messageGroups(): number[][] {
+  private messageGroups(msgs?: ChatMessage[]): number[][] {
+    const messages = msgs ?? this.messages;
     const groups: number[][] = [];
     let current: number[] = [];
-    for (let i = 0; i < this.messages.length; i++) {
-      if (this.messages[i]?.role === 'user') {
+    for (let i = 0; i < messages.length; i++) {
+      if (messages[i]?.role === 'user') {
         if (current.length > 0) groups.push(current);
         current = [i];
       } else {
