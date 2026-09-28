@@ -39,3 +39,48 @@ export interface ToolResolver {
   get(name: string): Tool | undefined;
   specs(): ToolSpec[];
 }
+
+// ─── Phase 2 新增端口 ───
+
+export interface CheckpointFileInfo {
+  relPath: string;
+  /** 原始内容（修改前快照）；null 表示新建文件（恢复时应删除） */
+  content: Buffer | null;
+}
+
+export interface CheckpointSummary {
+  id: string;
+  seq: number;
+  source: string;
+  createdAt: string;
+  fileCount: number;
+}
+
+export interface CheckpointDetail {
+  id: string;
+  source: string;
+  createdAt: string;
+  files: { relPath: string; hasContent: boolean }[];
+}
+
+/** 检查点存储端口：core 定义接口，storage 实现 */
+export interface CheckpointStore {
+  create(input: {
+    sessionId: string;
+    seq: number;
+    source: 'auto_write' | 'auto_undo' | 'manual';
+    files: CheckpointFileInfo[];
+  }): Promise<string>;
+
+  get(checkpointId: string): Promise<CheckpointDetail | undefined>;
+
+  listBySession(sessionId: string): Promise<CheckpointSummary[]>;
+
+  readFileContent(checkpointId: string, relPath: string): Promise<Buffer | null>;
+
+  getAdjacent(
+    sessionId: string,
+    currentSeq: number,
+    direction: 'prev' | 'next',
+  ): Promise<{ id: string; seq: number } | undefined>;
+}

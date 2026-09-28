@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AgentEventSchema, ToolCallSchema } from '../src/types/events.js';
+import { PlanOutputSchema } from '../src/types/plan.js';
 
 const sampleEvents = [
   { type: 'session_started', model: 'claude-sonnet-4-5', cwd: '/tmp/demo' },
@@ -30,6 +31,40 @@ const sampleEvents = [
     reason: 'done',
     usage: { inputTokens: 1200, outputTokens: 340 },
   },
+  // ─── Phase 2 新增事件 ───
+  {
+    type: 'context_compressed',
+    compressedCount: 5,
+    beforeTokens: 40000,
+    afterTokens: 12000,
+    strategy: 'tool_results',
+  },
+  {
+    type: 'checkpoint_created',
+    checkpointId: 'cp_1',
+    files: ['src/a.ts'],
+    source: 'auto_write',
+  },
+  {
+    type: 'checkpoint_restored',
+    checkpointId: 'cp_1',
+    direction: 'undo',
+    files: ['src/a.ts'],
+  },
+  {
+    type: 'plan_created',
+    plan: {
+      id: 'plan_1',
+      objective: '重构 auth 模块',
+      tasks: [{ id: '1', title: '分析现有代码', status: 'pending', acceptance: ['列出依赖'], children: [] }],
+      verificationCriteria: ['npm test 全绿'],
+      createdAt: '2026-09-28T00:00:00Z',
+    },
+  },
+  { type: 'plan_approved', planId: 'plan_1' },
+  { type: 'plan_rejected', planId: 'plan_1', reason: '任务拆分太粗' },
+  { type: 'plan_task_updated', planId: 'plan_1', taskId: '1', status: 'completed' },
+  { type: 'goal_reminder', goal: '重构 auth 模块', stepsSinceProgress: 10 },
 ] as const;
 
 describe('事件 schema', () => {
@@ -74,5 +109,40 @@ describe('ToolCall schema', () => {
   it('拒绝空 callId / toolName', () => {
     expect(ToolCallSchema.safeParse({ callId: '', toolName: 'x', args: {} }).success).toBe(false);
     expect(ToolCallSchema.safeParse({ callId: 'c', toolName: '', args: {} }).success).toBe(false);
+  });
+});
+
+describe('PlanOutput schema（Phase 2）', () => {
+  it('接受合法的规划输出', () => {
+    const plan = {
+      objective: '重构 auth 模块',
+      tasks: [
+        {
+          id: '1',
+          title: '分析现有代码',
+          acceptance: ['列出所有依赖'],
+          children: [
+            { id: '1.1', title: '读取 auth.ts', acceptance: ['识别导出函数'] },
+          ],
+        },
+        { id: '2', title: '设计新接口', acceptance: ['接口文档'], children: [] },
+      ],
+      verificationCriteria: ['npm test 全绿', '无 lint 错误'],
+    };
+    expect(PlanOutputSchema.safeParse(plan).success).toBe(true);
+  });
+
+  it('拒绝空 objective', () => {
+    const plan = { objective: '', tasks: [], verificationCriteria: [] };
+    expect(PlanOutputSchema.safeParse(plan).success).toBe(false);
+  });
+
+  it('拒绝空 task id', () => {
+    const plan = {
+      objective: 'test',
+      tasks: [{ id: '', title: 'x', acceptance: [], children: [] }],
+      verificationCriteria: [],
+    };
+    expect(PlanOutputSchema.safeParse(plan).success).toBe(false);
   });
 });

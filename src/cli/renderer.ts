@@ -137,6 +137,50 @@ export class RenderModel {
       case 'turn_started':
         return [];
 
+      // ─── Phase 2 新增事件渲染（基础版，Step 7 细化） ───
+
+      case 'context_compressed':
+        return [
+          line(
+            `⋯ context compressed: ${event.compressedCount} items (${event.strategy}), ~${event.beforeTokens - event.afterTokens} tokens freed`,
+            { dim: true },
+          ),
+        ];
+
+      case 'checkpoint_created':
+        return [
+          line(`◉ checkpoint saved: ${event.files.join(', ')}`, { dim: true }),
+        ];
+
+      case 'checkpoint_restored':
+        return [
+          line(
+            `↩ checkpoint ${event.direction}: ${event.files.join(', ')}`,
+            { color: 'yellow' },
+          ),
+        ];
+
+      case 'plan_created':
+        return [line('📋 plan created', { color: 'magenta', bold: true })];
+
+      case 'plan_approved':
+        return [line('✓ plan approved', { color: 'green' })];
+
+      case 'plan_rejected':
+        return [line(`✗ plan rejected: ${event.reason}`, { color: 'red' })];
+
+      case 'plan_task_updated':
+        return [
+          line(`  ✓ task ${event.taskId} → ${event.status}`, { color: 'green', dim: true, indent: 2 }),
+        ];
+
+      case 'goal_reminder':
+        return [
+          line(`⚠ goal drift (${event.stepsSinceProgress} steps): ${event.goal}`, {
+            color: 'yellow',
+          }),
+        ];
+
       default: {
         // 穷尽性检查：新增事件类型时这里编译报错，提醒补渲染
         const exhaustive: never = event;

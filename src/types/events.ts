@@ -92,6 +92,51 @@ export const AgentEventSchema = z.discriminatedUnion('type', [
     reason: TurnEndReasonSchema,
     usage: UsageSchema,
   }),
+  // ─── Phase 2 新增事件 ───
+  z.object({
+    type: z.literal('context_compressed'),
+    compressedCount: z.number().int().nonnegative(),
+    beforeTokens: z.number().int().nonnegative(),
+    afterTokens: z.number().int().nonnegative(),
+    strategy: z.enum(['tool_results', 'turns']),
+  }),
+  z.object({
+    type: z.literal('checkpoint_created'),
+    checkpointId: z.string(),
+    files: z.array(z.string()),
+    source: z.enum(['auto_write', 'auto_undo', 'manual']),
+  }),
+  z.object({
+    type: z.literal('checkpoint_restored'),
+    checkpointId: z.string(),
+    direction: z.enum(['undo', 'redo']),
+    files: z.array(z.string()),
+  }),
+  z.object({
+    type: z.literal('plan_created'),
+    /** Plan 结构由 types/plan.ts 定义；此处用 z.any() 避免深层 schema 重复 */
+    plan: z.any(),
+  }),
+  z.object({
+    type: z.literal('plan_approved'),
+    planId: z.string(),
+  }),
+  z.object({
+    type: z.literal('plan_rejected'),
+    planId: z.string(),
+    reason: z.string(),
+  }),
+  z.object({
+    type: z.literal('plan_task_updated'),
+    planId: z.string(),
+    taskId: z.string(),
+    status: z.enum(['pending', 'in_progress', 'completed', 'skipped']),
+  }),
+  z.object({
+    type: z.literal('goal_reminder'),
+    goal: z.string(),
+    stepsSinceProgress: z.number().int().nonnegative(),
+  }),
 ]);
 
 export type AgentEvent = z.infer<typeof AgentEventSchema>;

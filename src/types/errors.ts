@@ -37,3 +37,31 @@ export class BudgetStop extends FatalError {
     super(`turn stopped: ${reason}`);
   }
 }
+
+/**
+ * 工具执行的结构化错误（Phase 2）。
+ *
+ * 工具的 run() 返回 ToolResult(ok=false, content=formatToolError(...))，
+ * loop 据此决定是否重试（transient → 重试，parameter → 反馈模型自纠，fatal → 终止）。
+ */
+export interface ToolError {
+  kind: 'transient' | 'parameter' | 'fatal';
+  message: string;
+  suggestion?: string;
+  retryCount?: number;
+  validationDetails?: string;
+}
+
+/** 格式化为模型可读的错误文本（嵌入 ToolResult.content） */
+export function formatToolError(err: ToolError): string {
+  const parts = [`[${err.kind.toUpperCase()}] ${err.message}`];
+  if (err.suggestion) parts.push(`Suggestion: ${err.suggestion}`);
+  if (err.retryCount !== undefined) parts.push(`Retries: ${err.retryCount}/3`);
+  if (err.validationDetails) parts.push(`Details: ${err.validationDetails}`);
+  return parts.join('\n');
+}
+
+/** 从工具结果文本中检测是否为瞬态错误（供 loop 重试逻辑使用） */
+export function isTransientError(content: string): boolean {
+  return content.startsWith('[TRANSIENT]');
+}
