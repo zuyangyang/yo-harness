@@ -1,8 +1,14 @@
 /**
  * yo-harness headless server 入口。
- *
- * Phase 4 Step 0：空骨架，后续步骤逐步填充。
  */
+
+export {
+  SqliteBackend,
+  createSqliteBackend,
+  PostgresBackend,
+  createPostgresBackend,
+} from './storage/index.js';
+export type { StorageBackend, PostgresConfig } from './storage/index.js';
 
 export function createServer(): void {
   // TODO: Step 4 — Hono app 装配

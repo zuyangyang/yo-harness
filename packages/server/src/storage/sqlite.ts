@@ -1,0 +1,42 @@
+/**
+ * SQLite StorageBackend：包装 Phase 1-3 的各 SQLite store 为统一接口。
+ *
+ * 单租户模式直接使用本地 SQLite 文件，零配置。
+ */
+import type { SqliteDatabase } from '@yo-harness/core/storage/db.js';
+import { openDatabase } from '@yo-harness/core/storage/db.js';
+import { SqliteEventStore } from '@yo-harness/core/storage/event-store.js';
+import { SqliteSessionStore } from '@yo-harness/core/storage/session-store.js';
+import { SqliteCheckpointStore } from '@yo-harness/core/storage/checkpoint-store.js';
+import { SqliteMemoryStore } from '@yo-harness/core/storage/memory-store.js';
+import { SqliteTaskStore } from '@yo-harness/core/storage/task-store.js';
+import type { StorageBackend } from './interface.js';
+
+export class SqliteBackend implements StorageBackend {
+  readonly sessions: SqliteSessionStore;
+  readonly events: SqliteEventStore;
+  readonly checkpoints: SqliteCheckpointStore;
+  readonly memories: SqliteMemoryStore;
+  readonly tasks: SqliteTaskStore;
+
+  constructor(private readonly db: SqliteDatabase) {
+    this.sessions = new SqliteSessionStore(db);
+    this.events = new SqliteEventStore(db);
+    this.checkpoints = new SqliteCheckpointStore(db);
+    this.memories = new SqliteMemoryStore(db);
+    this.tasks = new SqliteTaskStore(db);
+  }
+
+  async initialize(): Promise<void> {
+    // schema 已在 openDatabase() 中初始化，无需额外操作
+  }
+
+  async close(): Promise<void> {
+    this.db.close();
+  }
+}
+
+export function createSqliteBackend(dbPath: string): SqliteBackend {
+  const db = openDatabase(dbPath);
+  return new SqliteBackend(db);
+}

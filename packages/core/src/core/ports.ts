@@ -8,6 +8,7 @@
 import type { AgentEvent, EventEnvelope } from '../types/events.js';
 import type { Memory, MemoryCategory, MemoryStatus } from '../types/memory.js';
 import type { Tool, ToolSpec } from '../types/tools.js';
+import type { BackgroundTask, BackgroundTaskStatus, CreateTaskInput } from '../daemon/types.js';
 
 export interface EventStore {
   append(sessionId: string, event: AgentEvent): Promise<EventEnvelope>;
@@ -103,4 +104,19 @@ export interface MemoryStore {
   archive(id: string): Promise<void>;
   listActive(): Promise<Memory[]>;
   search(query: string, options?: MemorySearchOptions): Promise<Memory[]>;
+}
+
+// ─── Phase 3 后台任务端口 ───
+
+export interface TaskStore {
+  create(input: CreateTaskInput): Promise<BackgroundTask>;
+  get(id: string): Promise<BackgroundTask | undefined>;
+  list(limit?: number): Promise<BackgroundTask[]>;
+  updateStatus(
+    id: string,
+    status: BackgroundTaskStatus,
+    endReason?: BackgroundTask['endReason'],
+    errorMessage?: string,
+    summary?: string,
+  ): Promise<void>;
 }

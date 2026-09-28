@@ -9,6 +9,9 @@ import { randomUUID } from 'node:crypto';
 
 import type { SqliteDatabase } from './db.js';
 import type { BackgroundTask, BackgroundTaskStatus, CreateTaskInput } from '../daemon/types.js';
+import type { TaskStore } from '../core/ports.js';
+
+export type { TaskStore } from '../core/ports.js';
 
 interface TaskRow {
   id: string;
@@ -23,19 +26,6 @@ interface TaskRow {
   end_reason: string | null;
   summary: string | null;
   error_message: string | null;
-}
-
-export interface TaskStore {
-  create(input: CreateTaskInput): Promise<BackgroundTask>;
-  get(id: string): Promise<BackgroundTask | undefined>;
-  list(limit?: number): Promise<BackgroundTask[]>;
-  updateStatus(
-    id: string,
-    status: BackgroundTaskStatus,
-    endReason?: BackgroundTask['endReason'],
-    errorMessage?: string,
-    summary?: string,
-  ): Promise<void>;
 }
 
 function mapTask(row: TaskRow): BackgroundTask {

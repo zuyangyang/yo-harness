@@ -21,10 +21,13 @@
   "dependencies": {
     "@yo-harness/core": "workspace:*",
     "@hono/node-server": "^2.1.1",
-    "hono": "^4.13.10"
+    "drizzle-orm": "^0.44.5",
+    "hono": "^4.13.10",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",
+    "@types/pg": "^8.15.5",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vitest": "^5.0.1"
