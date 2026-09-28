@@ -21,15 +21,18 @@ import { AgentLoop } from '../core/agent-loop.js';
 import { TurnBudget } from '../core/budget.js';
 import { ContextManager } from '../core/context-manager.js';
 import { EventBus } from '../core/event-bus.js';
+import { GoalTracker } from '../core/goal-tracker.js';
 import {
   createInteractivePermission,
   createNonInteractivePermission,
   withApprovalEvents,
 } from '../core/permission.js';
+import { Planner, readOnlyResolver } from '../core/planner.js';
 import type { Session, SessionStore } from '../core/ports.js';
 import { FatalError } from '../types/errors.js';
 import type { AgentEvent, EventEnvelope, TurnEndReason } from '../types/events.js';
 import type { LLMClient } from '../types/llm.js';
+import type { Plan } from '../types/plan.js';
 import { LLMGateway } from '../llm/gateway.js';
 import { AnthropicLLMClient } from '../llm/providers/anthropic.js';
 import { FakeLLMClient } from '../llm/providers/fake.js';
@@ -37,6 +40,7 @@ import { OpenAICompatLLMClient } from '../llm/providers/openai-compat.js';
 import { openDatabase, type SqliteDatabase } from '../storage/db.js';
 import { SqliteEventStore } from '../storage/event-store.js';
 import { SqliteSessionStore } from '../storage/session-store.js';
+import { SqliteCheckpointStore } from '../storage/checkpoint-store.js';
 import { createBuiltinRegistry } from '../tools/registry.js';
 import { createLogger, parseLogLevel } from '../utils/logger.js';
 import { yoHome } from '../utils/paths.js';
@@ -65,6 +69,7 @@ export interface CliFlags {
   yolo: boolean;
   fake: boolean;
   print: string | undefined;
+  plan: string | undefined;
 }
 
 /** resume 命令选项 */
@@ -207,7 +212,7 @@ async function runPrintTurn(deps: {
  */
 async function launch(
   boot: Bootstrapped,
-  flags: { yolo: boolean; print: string | undefined },
+  flags: { yolo: boolean; print: string | undefined; plan: string | undefined },
   session: Session,
   priorEvents: AgentEvent[],
 ): Promise<void> {
@@ -273,7 +278,54 @@ async function launch(
       logger,
     });
 
-    // 7) 前端
+    // ─── Phase 2 新增装配 ───
+
+    // 7) 检查点存储
+    const checkpointStore = config.checkpointing.enabled
+      ? new SqliteCheckpointStore(db)
+      : undefined;
+
+    // 8) 目标追踪器
+    const goalTracker = new GoalTracker({
+      driftThreshold: config.goalTracking?.driftThreshold ?? 8,
+    });
+
+    // 9) 规划器回调
+    const runPlannerFn = async (description: string): Promise<Plan | null> => {
+      const planner = new Planner({
+        llm,
+        tools: readOnlyResolver(registry),
+        permission,
+        sessionId: session.id,
+        cwd: session.cwd,
+        logger,
+        bus,
+        maxExploreSteps: config.planner?.maxExploreSteps ?? 10,
+      });
+      const result = await planner.plan(description);
+      return result?.plan ?? null;
+    };
+
+    // ─── --plan 模式：启动时立即运行规划器 ───
+    if (flags.plan !== undefined) {
+      const planner = new Planner({
+        llm,
+        tools: readOnlyResolver(registry),
+        permission,
+        sessionId: session.id,
+        cwd: session.cwd,
+        logger,
+        bus,
+        maxExploreSteps: config.planner?.maxExploreSteps ?? 10,
+      });
+      const planResult = await planner.plan(flags.plan);
+      if (planResult !== null) {
+        // plan_created 事件已在 planner.plan() 内通过 bus 发送
+        // UI 挂载后会捕获该事件并显示审批界面
+      }
+    }
+
+    // 10) 前端
     if (flags.print !== undefined) {
       await runPrintTurn({ loop, bus, text: flags.print });
       return;
@@ -289,6 +341,11 @@ async function launch(
         askBridge={bridge}
         listSessions={() => sessionStore.listRecent(10)}
         initialLines={initialLines}
+        checkpointStore={checkpointStore}
+        sessionId={session.id}
+        cwd={session.cwd}
+        goalTracker={goalTracker}
+        runPlanner={runPlannerFn}
       />,
       { exitOnCtrlC: false },
     );
@@ -324,7 +381,7 @@ export async function runCli(flags: CliFlags): Promise<void> {
   // 落库（launch 内的 appendAndEmit 只处理 loop 产出的事件，session_started 需提前写入）
   await boot.eventStore.append(session.id, startedEvent);
 
-  await launch(boot, { yolo: flags.yolo, print: flags.print }, session, [startedEvent]);
+  await launch(boot, { yolo: flags.yolo, print: flags.print, plan: flags.plan }, session, [startedEvent]);
 }
 
 export async function runResume(flags: ResumeFlags): Promise<void> {

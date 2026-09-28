@@ -45,6 +45,23 @@ export interface CompressionSettings {
   maxTokensPerSummary: number;
 }
 
+/** Phase 2: 检查点配置 */
+export interface CheckpointingSettings {
+  enabled: boolean;
+}
+
+/** Phase 2: 规划器配置 */
+export interface PlannerSettings {
+  /** 最大探索步数（默认 10） */
+  maxExploreSteps: number;
+}
+
+/** Phase 2: 目标追踪配置 */
+export interface GoalTrackingSettings {
+  /** 连续多少步无进展时注入提醒（默认 8） */
+  driftThreshold: number;
+}
+
 export interface AppConfig {
   defaultProvider: ProviderName;
   providers: Record<ProviderName, ProviderConfig>;
@@ -54,6 +71,12 @@ export interface AppConfig {
   budget: BudgetLimits;
   /** Phase 2: 自适应压缩配置（可选） */
   compression: CompressionSettings | undefined;
+  /** Phase 2: 检查点配置（可选，默认启用） */
+  checkpointing: CheckpointingSettings;
+  /** Phase 2: 规划器配置（可选） */
+  planner: PlannerSettings | undefined;
+  /** Phase 2: 目标追踪配置（可选） */
+  goalTracking: GoalTrackingSettings | undefined;
 }
 
 /** 内置默认：不写任何配置文件也能跑（当然，调用真实 API 还需要环境变量里有 key） */
@@ -107,6 +130,21 @@ const configFileSchema = z.strictObject({
       model: z.string().min(1).optional(),
       triggerRatio: z.number().min(0).max(1).optional(),
       maxTokensPerSummary: z.number().int().positive().optional(),
+    })
+    .optional(),
+  checkpointing: z
+    .strictObject({
+      enabled: z.boolean().optional(),
+    })
+    .optional(),
+  planner: z
+    .strictObject({
+      maxExploreSteps: z.number().int().positive().optional(),
+    })
+    .optional(),
+  goalTracking: z
+    .strictObject({
+      driftThreshold: z.number().int().positive().optional(),
     })
     .optional(),
 });
@@ -231,6 +269,31 @@ function buildCompression(file: ConfigFile | undefined): CompressionSettings | u
   return settings;
 }
 
+/** Phase 2: 构建检查点配置 */
+function buildCheckpointing(file: ConfigFile | undefined): CheckpointingSettings {
+  return {
+    enabled: file?.checkpointing?.enabled ?? true,
+  };
+}
+
+/** Phase 2: 构建规划器配置 */
+function buildPlanner(file: ConfigFile | undefined): PlannerSettings | undefined {
+  const fromFile = file?.planner;
+  if (fromFile === undefined) return undefined;
+  return {
+    maxExploreSteps: fromFile.maxExploreSteps ?? 10,
+  };
+}
+
+/** Phase 2: 构建目标追踪配置 */
+function buildGoalTracking(file: ConfigFile | undefined): GoalTrackingSettings | undefined {
+  const fromFile = file?.goalTracking;
+  if (fromFile === undefined) return undefined;
+  return {
+    driftThreshold: fromFile.driftThreshold ?? 8,
+  };
+}
+
 /** 读取并合并全部配置来源；任何失败都是 FatalError（进程应立即退出） */
 export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
   const env = overrides.env ?? process.env;
@@ -266,6 +329,9 @@ export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
       maxTurnDurationMs: budgetFile?.maxTurnDurationMs ?? DEFAULT_BUDGET_LIMITS.maxTurnDurationMs,
     },
     compression: buildCompression(file),
+    checkpointing: buildCheckpointing(file),
+    planner: buildPlanner(file),
+    goalTracking: buildGoalTracking(file),
   };
 }
 
