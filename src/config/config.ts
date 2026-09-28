@@ -64,6 +64,12 @@ export interface GoalTrackingSettings {
   driftThreshold: number;
 }
 
+/** Phase 3: daemon 配置 */
+export interface DaemonSettings {
+  /** 空闲超时毫秒数（默认 5 分钟） */
+  idleTimeoutMs: number;
+}
+
 export interface AppConfig {
   defaultProvider: ProviderName;
   providers: Record<ProviderName, ProviderConfig>;
@@ -83,6 +89,8 @@ export interface AppConfig {
   modelRoles: ModelRoleMap | undefined;
   /** Phase 3: MCP server 配置（可选，未配置则不启动任何 MCP client） */
   mcp: Record<string, McpServerConfig>;
+  /** Phase 3: daemon 配置（可选） */
+  daemon: DaemonSettings | undefined;
 }
 
 /** 内置默认：不写任何配置文件也能跑（当然，调用真实 API 还需要环境变量里有 key） */
@@ -171,6 +179,11 @@ const configFileSchema = z.strictObject({
         startupTimeoutMs: z.number().int().positive().optional(),
       }),
     )
+    .optional(),
+  daemon: z
+    .strictObject({
+      idleTimeoutMs: z.number().int().positive().optional(),
+    })
     .optional(),
 });
 
@@ -346,6 +359,15 @@ function buildMcp(file: ConfigFile | undefined): Record<string, McpServerConfig>
   return result;
 }
 
+/** Phase 3: 构建 daemon 配置 */
+function buildDaemon(file: ConfigFile | undefined): DaemonSettings | undefined {
+  const fromFile = file?.daemon;
+  if (fromFile === undefined) return undefined;
+  return {
+    idleTimeoutMs: fromFile.idleTimeoutMs ?? 5 * 60 * 1000,
+  };
+}
+
 /** 读取并合并全部配置来源；任何失败都是 FatalError（进程应立即退出） */
 export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
   const env = overrides.env ?? process.env;
@@ -386,6 +408,7 @@ export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
     goalTracking: buildGoalTracking(file),
     modelRoles: buildModelRoles(file),
     mcp: buildMcp(file),
+    daemon: buildDaemon(file),
   };
 }
 

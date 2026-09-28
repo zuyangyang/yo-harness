@@ -7,7 +7,11 @@ import { createRequire } from 'node:module';
 import { Command } from 'commander';
 
 import { runCli, runResume } from './cli/runtime.js';
+import { startDaemon } from './daemon/daemon-main.js';
+import { DaemonApiClient } from './daemon/daemon-api.js';
 import { FatalError } from './types/errors.js';
+import { yoHome } from './utils/paths.js';
+import { join } from 'node:path';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../package.json') as { version: string };
@@ -71,6 +75,128 @@ program
       plan: options.plan,
     }),
   );
+
+// ─── Phase 3: daemon 子命令 ───
+
+program
+  .command('daemon')
+  .description('启动 daemon 进程（后台任务调度器）')
+  .action(async () => {
+    await startDaemon();
+  });
+
+program
+  .command('daemon-stop')
+  .description('停止 daemon 进程')
+  .action(async () => {
+    const client = new DaemonApiClient({ socketPath: join(yoHome(), 'daemon.sock') });
+    try {
+      await client.stopDaemon();
+      console.log('daemon stopped');
+    } catch (err) {
+      if (err instanceof FatalError) {
+        console.error(`yo: ${err.message}`);
+      } else {
+        console.error(err);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command('bg')
+  .description('提交后台任务（daemon 自动启动）')
+  .argument('<prompt>', '任务描述')
+  .action(async (prompt: string) => {
+    const client = new DaemonApiClient({ socketPath: join(yoHome(), 'daemon.sock') });
+    try {
+      const result = await client.startTask({ prompt, cwd: process.cwd(), model: 'auto' });
+      console.log(`task submitted: ${result.taskId}`);
+      console.log(`  session: ${result.sessionId}`);
+      console.log(`  check status: yo tasks`);
+    } catch (err) {
+      if (err instanceof FatalError) {
+        console.error(`yo: ${err.message}`);
+      } else {
+        console.error(err);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command('tasks')
+  .description('列出后台任务')
+  .option('-n, --limit <n>', '最大显示数量', '20')
+  .action(async (options: { limit: string }) => {
+    const client = new DaemonApiClient({ socketPath: join(yoHome(), 'daemon.sock') });
+    try {
+      const tasks = await client.listTasks(Number(options.limit));
+      if (tasks.length === 0) {
+        console.log('no tasks');
+        return;
+      }
+      for (const task of tasks) {
+        const status = task.status.padEnd(10);
+        const id = task.id.slice(0, 8);
+        const desc = task.description.slice(0, 50);
+        console.log(`${id}  ${status}  ${desc}`);
+      }
+    } catch (err) {
+      if (err instanceof FatalError) {
+        console.error(`yo: ${err.message}`);
+      } else {
+        console.error(err);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command('task')
+  .description('查看任务详情')
+  .argument('<id>', '任务 id')
+  .action(async (id: string) => {
+    const client = new DaemonApiClient({ socketPath: join(yoHome(), 'daemon.sock') });
+    try {
+      const task = await client.getTask(id);
+      console.log(`Task: ${task.id}`);
+      console.log(`Status: ${task.status}`);
+      console.log(`Description: ${task.description}`);
+      console.log(`Model: ${task.model}`);
+      console.log(`Created: ${task.createdAt}`);
+      if (task.completedAt !== null) console.log(`Completed: ${task.completedAt}`);
+      if (task.endReason !== null) console.log(`End reason: ${task.endReason}`);
+      if (task.summary !== null) console.log(`Summary: ${task.summary}`);
+      if (task.errorMessage !== null) console.log(`Error: ${task.errorMessage}`);
+    } catch (err) {
+      if (err instanceof FatalError) {
+        console.error(`yo: ${err.message}`);
+      } else {
+        console.error(err);
+      }
+      process.exit(1);
+    }
+  });
+
+program
+  .command('task-cancel')
+  .description('取消任务')
+  .argument('<id>', '任务 id')
+  .action(async (id: string) => {
+    const client = new DaemonApiClient({ socketPath: join(yoHome(), 'daemon.sock') });
+    try {
+      await client.cancelTask(id);
+      console.log(`task ${id} cancelled`);
+    } catch (err) {
+      if (err instanceof FatalError) {
+        console.error(`yo: ${err.message}`);
+      } else {
+        console.error(err);
+      }
+      process.exit(1);
+    }
+  });
 
 program.parseAsync().catch((err: unknown) => {
   // FatalError 自带修复指引，只打 message；意外错误保留完整形态便于排查
