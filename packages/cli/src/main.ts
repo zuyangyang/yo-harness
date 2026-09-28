@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { Command } from 'commander';
 
 import { runCli, runResume } from './cli/runtime.js';
+import { runRemote } from './cli/remote-runtime.js';
 import { startDaemon } from '@yo-harness/core/daemon/daemon-main.js';
 import { DaemonApiClient } from '@yo-harness/core/daemon/daemon-api.js';
 import { FatalError } from '@yo-harness/core/types/errors.js';
@@ -24,6 +25,10 @@ interface ParsedOptions {
   provider?: string;
   fake?: boolean;
   yolo?: boolean;
+  server?: string;
+  tenant?: string;
+  username?: string;
+  password?: string;
 }
 
 const program = new Command();
@@ -41,18 +46,31 @@ program
   .option('--provider <name>', 'LLM provider：anthropic | openai-compat')
   .option('--fake', '离线脚本化 provider（YO_FAKE_SCRIPT，缺省一句问候）')
   .option('--yolo', '本次运行全量放行审批（危险，仅限可信沙箱）')
-  // 返回 promise：commander 的 parseAsync 会等待 action 结果，
-  // runCli 的 FatalError 因此能进统一的 catch（干净的消息 + exit 1）
-  .action((options: ParsedOptions) =>
-    runCli({
+  .option('--server <url>', '远程模式：连接 yo-server（默认本地模式）')
+  .option('--tenant <id>', '远程模式租户 ID（或 YO_TENANT_ID 环境变量）')
+  .option('--username <user>', '远程模式用户名（或 YO_USERNAME 环境变量）')
+  .option('--password <pass>', '远程模式密码（或 YO_PASSWORD 环境变量）')
+  .action((options: ParsedOptions) => {
+    if (options.server) {
+      const remoteOpts: import('./cli/remote-runtime.js').RemoteOptions = {
+        serverUrl: options.server,
+        tenantId: options.tenant ?? process.env['YO_TENANT_ID'] ?? '',
+        username: options.username ?? process.env['YO_USERNAME'] ?? '',
+        password: options.password ?? process.env['YO_PASSWORD'] ?? '',
+      };
+      if (options.model !== undefined) remoteOpts.model = options.model;
+      if (options.print !== undefined) remoteOpts.print = options.print;
+      return runRemote(remoteOpts);
+    }
+    return runCli({
       provider: options.provider,
       model: options.model,
       yolo: options.yolo === true,
       fake: options.fake === true,
       print: options.print,
       plan: options.plan,
-    }),
-  );
+    });
+  });
 
 program
   .command('resume')
