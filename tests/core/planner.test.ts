@@ -33,6 +33,9 @@ class FakeLLM implements LLMClient {
   chat(): Promise<ChatResponse> {
     const resp = this.responses[this.callCount] ?? this.responses[this.responses.length - 1];
     this.callCount++;
+    if (resp === undefined) {
+      throw new Error('No more responses');
+    }
     return Promise.resolve(resp);
   }
 
@@ -85,8 +88,6 @@ class FakeToolResolver implements ToolResolver {
 /** 模拟权限管理器：始终批准 */
 const alwaysApprove: PermissionManager = {
   request: () => Promise.resolve({ approved: true as const, scope: 'once' as const }),
-  updateSettings: () => { /* noop */ },
-  getSettings: () => ({ shellMode: 'yolo' as const, shellAllowlist: [] }),
 };
 
 /** 创建有效计划 JSON */

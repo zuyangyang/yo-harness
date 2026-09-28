@@ -81,6 +81,7 @@ export interface ResumeFlags {
   yolo: boolean;
   fake: boolean;
   print: string | undefined;
+  plan: string | undefined;
 }
 
 /** bootstrap 产物：共享给 runCli / runResume 的已装配依赖 */
@@ -341,10 +342,10 @@ async function launch(
         askBridge={bridge}
         listSessions={() => sessionStore.listRecent(10)}
         initialLines={initialLines}
-        checkpointStore={checkpointStore}
+        {...(checkpointStore !== undefined ? { checkpointStore } : {})}
+        {...(goalTracker !== undefined ? { goalTracker } : {})}
         sessionId={session.id}
         cwd={session.cwd}
-        goalTracker={goalTracker}
         runPlanner={runPlannerFn}
       />,
       { exitOnCtrlC: false },
@@ -426,5 +427,5 @@ export async function runResume(flags: ResumeFlags): Promise<void> {
   logger.info('resuming session', { id: session.id.slice(0, 8), events: priorEvents.length, model: session.model });
 
   // 4) 启动（launch 内 renderer 会 fold 全部 priorEvents 为 initialLines）
-  await launch(boot, { yolo: flags.yolo, print: flags.print }, session, priorEvents);
+  await launch(boot, { yolo: flags.yolo, print: flags.print, plan: flags.plan }, session, priorEvents);
 }

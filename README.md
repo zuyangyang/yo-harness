@@ -11,6 +11,9 @@
 - **事件溯源**：全部动作以事件流落库（SQLite），进程重启后可恢复会话
 - **上下文管理**：自动估算 token、分级裁剪，长对话不超窗
 - **安全约束**：密钥只从环境变量读取，文件操作限制在工作目录内，SSRF 防护
+- **规划器**：复杂任务先只读探索代码库，产出结构化执行计划，用户确认后按计划推进
+- **检查点与撤销**：写操作前自动快照，支持 `/undo` 回滚文件变更
+- **目标追踪**：长任务漂移检测，定期提醒当前目标，防止上下文丢失
 
 ## 安装
 
@@ -51,6 +54,9 @@ npm run dev -- -m claude-sonnet-4-5
 # 发送一条消息，打印回复后退出
 npm run dev -- -p "hello, what can you do?"
 npm run dev -- --fake -p "hello"  # 离线模式
+
+# 规划模式：先探索再产出执行计划（不执行）
+npm run dev -- --plan "重构认证模块，从 session 迁移到 JWT"
 ```
 
 ### 恢复历史会话
@@ -72,6 +78,10 @@ npm run dev -- resume <session-id> --fake -p "continue from where we left off"
 - `/exit` — 退出（等待当前 turn 结束）
 - `/model` — 显示当前 Provider / 模型
 - `/sessions` — 列出最近 10 个会话
+- `/plan <描述>` — 规划模式：先只读探索代码库，产出结构化执行计划
+- `/undo` — 撤销上一次文件变更（回滚到上一个检查点）
+- `/checkpoints` — 列出当前会话的检查点历史
+- `/goal` — 显示/设置当前目标（长任务漂移检测）
 
 ## 配置
 
@@ -118,6 +128,15 @@ npm run dev -- resume <session-id> --fake -p "continue from where we left off"
     "maxStepsPerTurn": 20,
     "maxTokensPerTurn": 100000,
     "maxTurnDurationMs": 300000
+  },
+  "checkpointing": {
+    "enabled": true
+  },
+  "planner": {
+    "maxExploreSteps": 10
+  },
+  "goalTracking": {
+    "driftThreshold": 8
   }
 }
 ```
@@ -159,13 +178,14 @@ npm run check
 
 ```
 src/
-├── cli/           # TUI 层（ink App、renderer、picker、approval）
+├── cli/           # TUI 层（ink App、renderer、picker、approval、planner-ui）
 ├── config/        # 配置加载与校验
-├── core/          # 内核（AgentLoop、ContextManager、EventBus、Permission）
+├── core/          # 内核（AgentLoop、ContextManager、EventBus、Permission、
+│                  #   Compressor、Summarizer、Planner、GoalTracker、Checkpoint）
 ├── llm/           # LLM 网关与 Provider 适配
-├── storage/       # SQLite 存储（SessionStore、EventStore）
+├── storage/       # SQLite 存储（SessionStore、EventStore、CheckpointStore）
 ├── tools/         # 工具注册表与 6 个内置工具
-├── types/         # 领域类型与 zod schema
+├── types/         # 领域类型与 zod schema（events、plan、checkpoint）
 └── utils/         # 工具函数（logger、tokens、paths）
 tests/             # 单元测试（与 src/ 同构）
 examples/          # 手动冒烟脚本（不进 CI）
@@ -177,6 +197,23 @@ examples/          # 手动冒烟脚本（不进 CI）
 - **端口-适配器**：内核（core/）只依赖端口（ports.ts），存储 / LLM / 工具提供实现
 - **纯函数渲染**：RenderModel 把事件折叠为 RenderLine，不依赖 ink / React
 - **密钥纪律**：API key 只从环境读取，不进配置对象、不落库、不进事件流
+
+### Phase 2 可靠性特性
+
+**规划器（Planner）**
+复杂任务直接丢给 ReAct 循环容易目标漂移。规划器让模型先用只读工具探索代码库，产出结构化计划（JSON），用户确认后交给执行者按计划推进。规划阶段只能用只读工具（`read_file`、`list_dir`），确保不会意外修改代码。
+
+**检查点与撤销（Checkpoint & Undo）**
+写操作前自动快照文件内容到 SQLite，支持 `/undo` 回滚到上一个检查点。检查点来源分三种：`auto_write`（write_file 前自动）、`auto_undo`（undo 操作前）、`manual`（手动触发）。
+
+**目标追踪（Goal Tracker）**
+长任务容易上下文丢失、目标漂移。设置目标后，每 N 步（默认 8 步）提醒模型当前目标，检测是否偏离方向。可通过 `/goal` 命令设置或查看当前目标。
+
+**工具错误恢复**
+工具调用失败时，根据错误类型分类处理：瞬态错误（网络超时、限流）自动重试最多 3 次；永久错误（权限拒绝、文件不存在）立即返回不重试；未知错误按瞬态处理。
+
+**自适应压缩**
+上下文接近窗口限制时，自动压缩旧消息：保留最近 N 条完整消息，更早的用 LLM 生成摘要替换。压缩策略分两种：`tool_results`（只压缩工具返回结果）、`turns`（压缩整个 turn）。
 
 ## 示例脚本
 

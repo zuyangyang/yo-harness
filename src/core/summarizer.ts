@@ -47,6 +47,7 @@ Provide a concise summary:`;
     const resp = await this.llm.chat({
       system: 'You are a summarization assistant. Be concise and preserve key information.',
       messages: [{ role: 'user', text: prompt }],
+      tools: [],
       maxTokens: input.maxTokens,
     });
     return resp.text.trim();
@@ -73,6 +74,7 @@ Provide a concise summary:`;
     const resp = await this.llm.chat({
       system: 'You are a summarization assistant. Be concise and preserve key information.',
       messages: [{ role: 'user', text: prompt }],
+      tools: [],
       maxTokens: input.maxTokens,
     });
     return resp.text.trim();
@@ -85,7 +87,9 @@ export class FallbackSummarizer implements Summarizer {
 
   summarizeToolResult(input: {
     toolName: string;
+    args: Record<string, unknown>;
     result: string;
+    maxTokens: number;
   }): Promise<string> {
     const truncated =
       input.result.length > this.maxChars
@@ -97,8 +101,14 @@ export class FallbackSummarizer implements Summarizer {
   summarizeTurn(input: {
     userText: string;
     assistantText: string;
+    toolSummaries: string[];
+    maxTokens: number;
   }): Promise<string> {
-    const combined = `User: ${input.userText}\nAssistant: ${input.assistantText}`;
+    const toolsText =
+      input.toolSummaries.length > 0
+        ? `\nTool results:\n${input.toolSummaries.map((s) => `- ${s}`).join('\n')}`
+        : '';
+    const combined = `User: ${input.userText}\nAssistant: ${input.assistantText}${toolsText}`;
     const truncated =
       combined.length > this.maxChars
         ? `${combined.slice(0, this.maxChars)}... [truncated]`

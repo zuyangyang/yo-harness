@@ -134,7 +134,43 @@ function validate(events: EventEnvelope[]): CheckResult[] {
     ),
   );
 
-  // 6. 事件类型分布统计
+  // 6. plan_created ↔ plan_approved/plan_rejected 配对
+  const plansCreated = new Set<string>();
+  const plansApproved = new Set<string>();
+  const plansRejected = new Set<string>();
+  for (const env of events) {
+    const p = env.payload;
+    if (p.type === 'plan_created') plansCreated.add((p.plan as { id: string }).id);
+    if (p.type === 'plan_approved') plansApproved.add(p.planId);
+    if (p.type === 'plan_rejected') plansRejected.add(p.planId);
+  }
+  const plansPending = [...plansCreated].filter(
+    (id) => !plansApproved.has(id) && !plansRejected.has(id),
+  );
+  const plansWithoutCreate = [...plansApproved, ...plansRejected].filter(
+    (id) => !plansCreated.has(id),
+  );
+  results.push(
+    check(
+      'plan_created ↔ approved/rejected',
+      plansPending.length === 0 && plansWithoutCreate.length === 0,
+      `${plansCreated.size} plans created, ${plansApproved.size} approved, ${plansRejected.size} rejected` +
+        (plansPending.length > 0 ? `, pending: ${plansPending.join(', ')}` : '') +
+        (plansWithoutCreate.length > 0 ? `, missing create: ${plansWithoutCreate.join(', ')}` : ''),
+    ),
+  );
+
+  // 7. Phase 2 事件统计
+  const phase2Events = ['context_compressed', 'checkpoint_created', 'checkpoint_restored', 'goal_reminder'];
+  const phase2Counts = phase2Events.map((type) => {
+    const count = events.filter((e) => e.payload.type === type).length;
+    return count > 0 ? `${type}:${count}` : null;
+  }).filter((s): s is string => s !== null);
+  if (phase2Counts.length > 0) {
+    results.push(check('Phase 2 events', true, phase2Counts.join(' ')));
+  }
+
+  // 8. 事件类型分布统计
   const typeCounts = new Map<string, number>();
   for (const env of events) {
     const type = env.payload.type;

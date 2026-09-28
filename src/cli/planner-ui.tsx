@@ -11,7 +11,8 @@
  * - 通过 AskBridge 模式与 agent-loop 通信
  * - 编辑模式 Phase 2 简化：只支持跳过/恢复任务，不支持改标题
  */
-import { Box, Text, useInput, type ReactElement } from 'react';
+import { Box, Text, useInput } from 'ink';
+import type { ReactElement } from 'react';
 
 import type { Plan, PlanTask } from '../types/plan.js';
 
@@ -87,7 +88,7 @@ export function PlanDisplay({ plan }: { plan: Plan }): ReactElement {
 
 /** 计划审批组件 */
 export function PlanApprovalPrompt({ plan, onApprove, onReject }: PlanApprovalProps): ReactElement {
-  useInput((input, key) => {
+  useInput((input: string, key: { escape?: boolean }) => {
     if (key.escape) {
       onReject('user cancelled');
       return;

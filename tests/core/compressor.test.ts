@@ -15,8 +15,13 @@ class FakeSummarizer implements Summarizer {
   }
 }
 
+function msg(role: 'user' | 'assistant', text: string): ChatMessage;
+function msg(role: 'tool', text: string, callId: string): ChatMessage;
 function msg(role: 'user' | 'assistant' | 'tool', text: string, callId?: string): ChatMessage {
-  return callId !== undefined ? { role, callId, text } : { role, text };
+  if (role === 'tool') {
+    return { role, callId: callId ?? 'test-call-id', text };
+  }
+  return { role, text };
 }
 
 describe('Compressor', () => {

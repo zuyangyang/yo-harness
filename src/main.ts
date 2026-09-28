@@ -55,6 +55,7 @@ program
   .description('恢复历史会话（无参数弹选择器，传 id 直接恢复）')
   .argument('[id]', '会话 id（完整 UUID 或前 8 字符前缀）')
   .option('-p, --print <text>', '非交互模式：发送一条消息，打印最终回复后退出')
+  .option('--plan <description>', '规划模式：先探索再产出执行计划')
   .option('--provider <name>', 'LLM provider：anthropic | openai-compat')
   .option('-m, --model <model>', '覆盖生效 provider 的模型')
   .option('--fake', '离线脚本化 provider')
@@ -67,6 +68,7 @@ program
       yolo: options.yolo === true,
       fake: options.fake === true,
       print: options.print,
+      plan: options.plan,
     }),
   );
 
