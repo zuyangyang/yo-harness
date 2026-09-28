@@ -10,4 +10,7 @@ export default defineConfig({
       '/ws': { target: 'ws://localhost:3200', ws: true },
     },
   },
+  test: {
+    environment: 'jsdom',
+  },
 });

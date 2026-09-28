@@ -10,17 +10,19 @@ import { useEffect } from 'react';
 import type { EventEnvelope } from '@yo-harness/core/types/events.js';
 import { wsClient, type ApprovalRequest } from '../api/websocket.js';
 import { useSessionStore } from '../stores/session.js';
+import { useApprovalStore } from '../stores/approval.js';
 
 export function useWebSocket() {
   const addEvent = useSessionStore((state) => state.addEvent);
+  const addApproval = useApprovalStore((state) => state.addApproval);
 
   useEffect(() => {
     const onEvent = (sessionId: string, envelope: EventEnvelope): void => {
       addEvent(sessionId, envelope);
     };
 
-    const onApproval = (_req: ApprovalRequest): void => {
-      // TODO: 审批弹窗（Step 9）
+    const onApproval = (req: ApprovalRequest): void => {
+      addApproval(req);
     };
 
     wsClient.on('event', onEvent);
@@ -30,5 +32,5 @@ export function useWebSocket() {
       wsClient.off('event', onEvent);
       wsClient.off('approval', onApproval);
     };
-  }, [addEvent]);
+  }, [addEvent, addApproval]);
 }

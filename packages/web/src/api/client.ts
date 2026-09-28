@@ -91,6 +91,59 @@ export interface Session {
   updatedAt: string;
 }
 
+export type MemoryCategory = 'preference' | 'environment' | 'project_knowledge' | 'general';
+export type MemoryStatus = 'active' | 'archived';
+
+export interface Memory {
+  id: string;
+  title: string;
+  content: string;
+  category: MemoryCategory;
+  description: string;
+  keywords: string[];
+  status: MemoryStatus;
+  sourceSessionId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type BackgroundTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface BackgroundTask {
+  id: string;
+  sessionId: string;
+  description: string;
+  status: BackgroundTaskStatus;
+  pid: number | null;
+  endReason: string | null;
+  completedAt: string | null;
+  summary: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  cwd: string;
+  model: string;
+}
+
+export interface ModelInfo {
+  provider: string;
+  model: string;
+  contextWindow: number;
+}
+
+export interface ModelRole {
+  role: string;
+  provider: string;
+  model: string;
+}
+
+export interface PendingApproval {
+  approvalId: string;
+  sessionId: string;
+  toolName: string;
+  summary: string;
+  args?: Record<string, unknown>;
+}
+
 export const api = {
   auth: {
     login: (req: LoginRequest) => fetchJson<LoginResponse>('POST', '/auth/login', req),
@@ -108,9 +161,33 @@ export const api = {
     getEvents: (id: string) =>
       fetchJson<{ events: unknown[] }>('GET', `/api/v1/sessions/${id}/events`),
     interrupt: (id: string) => fetchJson<void>('POST', `/api/v1/sessions/${id}/interrupt`),
+    getPendingApprovals: (id: string) =>
+      fetchJson<{ approvals: PendingApproval[] }>('GET', `/api/v1/sessions/${id}/approvals/pending`),
   },
   approvals: {
     resolve: (approvalId: string, approved: boolean, scope?: 'once' | 'session') =>
-      fetchJson<void>('POST', `/api/v1/approvals/${approvalId}/resolve`, { approved, scope }),
+      fetchJson<{ ok: boolean }>('POST', `/api/v1/approvals/${approvalId}/resolve`, { approved, scope }),
+  },
+  memories: {
+    list: () => fetchJson<{ memories: Memory[] }>('GET', '/api/v1/memories'),
+    search: (q: string, category?: MemoryCategory, limit?: number) => {
+      const params = new URLSearchParams({ q });
+      if (category) params.set('category', category);
+      if (limit !== undefined) params.set('limit', String(limit));
+      return fetchJson<{ memories: Memory[] }>('GET', `/api/v1/memories/search?${params}`);
+    },
+    create: (input: { title: string; content: string; category?: MemoryCategory; description?: string; keywords?: string[] }) =>
+      fetchJson<{ memory: Memory }>('POST', '/api/v1/memories', input),
+    update: (id: string, patch: Partial<Pick<Memory, 'title' | 'content' | 'category' | 'description' | 'keywords' | 'status'>>) =>
+      fetchJson<{ memory: Memory }>('PUT', `/api/v1/memories/${id}`, patch),
+    delete: (id: string) => fetchJson<{ ok: boolean }>('DELETE', `/api/v1/memories/${id}`),
+  },
+  tasks: {
+    list: (limit = 20) => fetchJson<{ tasks: BackgroundTask[] }>('GET', `/api/v1/tasks?limit=${limit}`),
+    get: (id: string) => fetchJson<{ task: BackgroundTask }>('GET', `/api/v1/tasks/${id}`),
+    cancel: (id: string) => fetchJson<{ ok: boolean }>('POST', `/api/v1/tasks/${id}/cancel`),
+  },
+  models: {
+    list: () => fetchJson<{ models: ModelInfo[]; roles: ModelRole[] }>('GET', '/api/v1/models'),
   },
 };

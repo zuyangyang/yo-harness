@@ -1,0 +1,486 @@
+/* ─── Reset & Base ─── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  background: #fff;
+}
+
+/* ─── Main Layout ─── */
+.main-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar-container {
+  width: 280px;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.main-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.sidebar-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  margin-right: 12px;
+}
+
+.tab-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.tab-nav button {
+  padding: 6px 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.tab-nav button.tab-active {
+  background: #007bff;
+  color: #fff;
+  border-color: #007bff;
+}
+
+.main-body {
+  flex: 1;
+  overflow: auto;
+}
+
+/* ─── Status Bar ─── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 16px;
+  border-top: 1px solid #e0e0e0;
+  background: #f5f5f5;
+  font-size: 12px;
+  color: #666;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-indicator::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-connected::before {
+  background: #4caf50;
+}
+
+.status-disconnected::before {
+  background: #f44336;
+}
+
+/* ─── Approval Dialog ─── */
+.approval-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.approval-dialog {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.approval-dialog h3 {
+  margin-bottom: 16px;
+  font-size: 18px;
+}
+
+.approval-info {
+  margin-bottom: 16px;
+}
+
+.approval-info p {
+  margin-bottom: 8px;
+}
+
+.approval-info code {
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.approval-scope {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.approval-scope label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.approval-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.approval-actions button {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-approve {
+  background: #4caf50;
+  color: #fff;
+}
+
+.btn-reject {
+  background: #f44336;
+  color: #fff;
+}
+
+/* ─── Memory Manager ─── */
+.memory-manager {
+  padding: 20px;
+}
+
+.memory-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.memory-toolbar input[type='text'] {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.memory-toolbar select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.memory-toolbar button {
+  padding: 6px 14px;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.memory-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  background: #fafafa;
+}
+
+.memory-form input,
+.memory-form textarea,
+.memory-form select {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.memory-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.memory-form-actions button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.memory-list {
+  list-style: none;
+}
+
+.memory-item {
+  padding: 12px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.memory-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.memory-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #e0e0e0;
+}
+
+.memory-badge--preference {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.memory-badge--environment {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.memory-badge--project_knowledge {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.memory-badge--general {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.memory-item-content {
+  color: #555;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+
+.memory-item-keywords {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.memory-keyword {
+  font-size: 11px;
+  padding: 1px 6px;
+  background: #f0f0f0;
+  border-radius: 3px;
+}
+
+.memory-item-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.memory-item-actions button {
+  padding: 4px 10px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* ─── Task List ─── */
+.task-list {
+  padding: 20px;
+}
+
+.task-refresh {
+  padding: 6px 14px;
+  margin-bottom: 16px;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.task-table th,
+.task-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+
+.task-table th {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.task-status {
+  font-weight: 600;
+}
+
+.task-table button {
+  padding: 4px 10px;
+  border: 1px solid #f44336;
+  border-radius: 3px;
+  background: #fff;
+  color: #f44336;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* ─── Plan View ─── */
+.plan-view {
+  padding: 16px;
+}
+
+.plan-objective {
+  margin-bottom: 12px;
+}
+
+.plan-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.plan-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.plan-progress-fill {
+  height: 100%;
+  background: #4caf50;
+  transition: width 0.3s ease;
+}
+
+.plan-progress-text {
+  font-size: 13px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.plan-task-tree {
+  list-style: none;
+}
+
+.plan-task-children {
+  list-style: none;
+  padding-left: 20px;
+}
+
+.plan-task {
+  padding: 4px 0;
+}
+
+.plan-task-icon {
+  margin-right: 6px;
+}
+
+.plan-task--completed .plan-task-title {
+  text-decoration: line-through;
+  color: #888;
+}
+
+.plan-task--skipped .plan-task-title {
+  text-decoration: line-through;
+  color: #bbb;
+}
+
+.plan-verification {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #eee;
+}
+
+.plan-verification h4 {
+  margin-bottom: 8px;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .sidebar-toggle {
+    display: block;
+  }
+
+  .sidebar-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 100;
+    transform: translateX(-100%);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .sidebar-container.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .memory-toolbar {
+    flex-direction: column;
+  }
+
+  .task-table {
+    font-size: 12px;
+  }
+
+  .task-table th,
+  .task-table td {
+    padding: 6px 8px;
+  }
+}
