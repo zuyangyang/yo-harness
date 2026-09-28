@@ -5,6 +5,7 @@
  * Schema 版本演进：
  * - v1（Phase 1）：meta / sessions / events
  * - v2（Phase 2）：+ checkpoints / checkpoint_files
+ * - v3（Phase 3）：+ memories / memories_fts / tasks；sessions +type 列
  */
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -13,7 +14,7 @@ import { FatalError } from '../types/errors.js';
 
 export type SqliteDatabase = Database.Database;
 
-const SCHEMA_VERSION = '2';
+const SCHEMA_VERSION = '3';
 
 export function openDatabase(dbPath: string): SqliteDatabase {
   if (dbPath !== ':memory:') {
@@ -73,9 +74,18 @@ function initSchema(db: SqliteDatabase): void {
 
   if (currentVersion === '1') {
     migrateV1ToV2(db);
-  } else if (currentVersion !== SCHEMA_VERSION) {
+  }
+
+  // v1→v2 迁移完成后（或原本就是 v2），检查是否需要 v2→v3
+  const afterV2 = (
+    db.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }
+  ).value;
+
+  if (afterV2 === '2') {
+    migrateV2ToV3(db);
+  } else if (afterV2 !== SCHEMA_VERSION) {
     throw new FatalError(
-      `database schema version mismatch: db=${currentVersion}, code=${SCHEMA_VERSION}`,
+      `database schema version mismatch: db=${afterV2}, code=${SCHEMA_VERSION}`,
     );
   }
 }
@@ -103,6 +113,77 @@ function migrateV1ToV2(db: SqliteDatabase): void {
       CREATE INDEX IF NOT EXISTS idx_checkpoint_files_cp ON checkpoint_files (checkpoint_id);
     `);
     db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('2', 'schema_version');
+  });
+  migration();
+}
+
+/** v2 → v3：新增记忆（含 FTS5）、后台任务表；sessions 加 type 列 */
+function migrateV2ToV3(db: SqliteDatabase): void {
+  const migration = db.transaction(() => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS memories (
+        id              TEXT PRIMARY KEY,
+        title           TEXT NOT NULL,
+        content         TEXT NOT NULL,
+        category        TEXT NOT NULL,
+        description     TEXT NOT NULL,
+        keywords        TEXT NOT NULL,
+        status          TEXT NOT NULL DEFAULT 'active',
+        source_session_id TEXT,
+        created_at      TEXT NOT NULL,
+        updated_at      TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_memories_status ON memories (status);
+      CREATE INDEX IF NOT EXISTS idx_memories_category ON memories (category);
+
+      CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+        title, description, content, keywords,
+        content='memories', content_rowid='rowid'
+      );
+
+      CREATE TRIGGER IF NOT EXISTS memories_ft_ai AFTER INSERT ON memories BEGIN
+        INSERT INTO memories_fts (rowid, title, description, content, keywords)
+        VALUES (new.rowid, new.title, new.description, new.content, new.keywords);
+      END;
+      CREATE TRIGGER IF NOT EXISTS memories_ft_ad AFTER DELETE ON memories BEGIN
+        INSERT INTO memories_fts (memories_fts, rowid, title, description, content, keywords)
+        VALUES ('delete', old.rowid, old.title, old.description, old.content, old.keywords);
+      END;
+      CREATE TRIGGER IF NOT EXISTS memories_ft_au AFTER UPDATE ON memories BEGIN
+        INSERT INTO memories_fts (memories_fts, rowid, title, description, content, keywords)
+        VALUES ('delete', old.rowid, old.title, old.description, old.content, old.keywords);
+        INSERT INTO memories_fts (rowid, title, description, content, keywords)
+        VALUES (new.rowid, new.title, new.description, new.content, new.keywords);
+      END;
+
+      CREATE TABLE IF NOT EXISTS tasks (
+        id              TEXT PRIMARY KEY,
+        description     TEXT NOT NULL,
+        session_id      TEXT NOT NULL,
+        status          TEXT NOT NULL DEFAULT 'running',
+        pid             INTEGER,
+        cwd             TEXT NOT NULL,
+        model           TEXT NOT NULL,
+        created_at      TEXT NOT NULL,
+        completed_at    TEXT,
+        end_reason      TEXT,
+        summary         TEXT,
+        error_message   TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status);
+    `);
+
+    // sessions 加 type 列（已存在则跳过）
+    const columns = db
+      .prepare("PRAGMA table_info(sessions)")
+      .all() as { name: string }[];
+    if (!columns.some((c) => c.name === 'type')) {
+      db.exec(
+        "ALTER TABLE sessions ADD COLUMN type TEXT NOT NULL DEFAULT 'interactive'",
+      );
+    }
+
+    db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('3', 'schema_version');
   });
   migration();
 }

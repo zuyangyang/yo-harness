@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import Database from 'better-sqlite3';
 
 import type { AgentEvent } from '../src/types/events.js';
 import type { SqliteDatabase } from '../src/storage/db.js';
@@ -105,5 +106,80 @@ describe('SqliteEventStore', () => {
     expect(envelopes).toHaveLength(1);
     expect(envelopes[0]?.payload).toEqual({ type: 'user_input', content: 'persisted' });
     reopened.close();
+  });
+});
+
+describe('Schema v2 → v3 迁移', () => {
+  it('从 v2 升级到 v3：新表存在、旧数据完整、sessions.type 默认 interactive', () => {
+    const dbDir = mkdtempSync(join(tmpdir(), 'yo-migrate-'));
+    const dbPath = join(dbDir, 'test.db');
+
+    // 手动构造一个 v2 数据库
+    const v2 = new Database(dbPath);
+    v2.pragma('journal_mode = WAL');
+    v2.pragma('foreign_keys = ON');
+    v2.exec(`
+      CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      INSERT INTO meta VALUES ('schema_version', '2');
+
+      CREATE TABLE sessions (
+        id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL, cwd TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      CREATE TABLE events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL REFERENCES sessions(id),
+        seq INTEGER NOT NULL, type TEXT NOT NULL, payload TEXT NOT NULL,
+        created_at TEXT NOT NULL, UNIQUE (session_id, seq)
+      );
+      CREATE INDEX idx_events_session ON events (session_id, seq);
+
+      CREATE TABLE checkpoints (
+        id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
+        seq INTEGER NOT NULL, source TEXT NOT NULL, created_at TEXT NOT NULL
+      );
+      CREATE TABLE checkpoint_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, checkpoint_id TEXT NOT NULL REFERENCES checkpoints(id),
+        rel_path TEXT NOT NULL, content BLOB, UNIQUE (checkpoint_id, rel_path)
+      );
+
+      INSERT INTO sessions VALUES ('s1', 'old session', 'claude-x', '/tmp', 'active', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+      INSERT INTO events (session_id, seq, type, payload, created_at) VALUES ('s1', 1, 'user_input', '{"type":"user_input","content":"hello"}', '2026-01-01T00:00:00Z');
+    `);
+    v2.close();
+
+    // 用当前代码打开 → 触发 v2→v3 迁移
+    const v3 = openDatabase(dbPath);
+
+    // schema_version 已升级
+    const version = (v3.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }).value;
+    expect(version).toBe('3');
+
+    // 旧数据完整
+    const session = v3.prepare('SELECT * FROM sessions WHERE id = ?').get('s1') as Record<string, unknown>;
+    expect(session).toBeDefined();
+    expect(session.title).toBe('old session');
+    expect(session.type).toBe('interactive');
+
+    const eventCount = (v3.prepare('SELECT COUNT(*) as cnt FROM events').get() as { cnt: number }).cnt;
+    expect(eventCount).toBe(1);
+
+    // 新表存在
+    const tables = v3.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as { name: string }[];
+    const tableNames = tables.map((t) => t.name);
+    expect(tableNames).toContain('memories');
+    expect(tableNames).toContain('tasks');
+
+    // FTS5 虚拟表存在
+    const fts = v3.prepare("SELECT name FROM sqlite_master WHERE name='memories_fts'").all();
+    expect(fts).toHaveLength(1);
+
+    // sessions.type 列存在且有默认值
+    const columns = v3.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
+    expect(columns.some((c) => c.name === 'type')).toBe(true);
+
+    v3.close();
+    rmSync(dbDir, { recursive: true, force: true });
   });
 });

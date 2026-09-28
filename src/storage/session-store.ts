@@ -10,6 +10,7 @@ interface SessionRow {
   model: string;
   cwd: string;
   status: string;
+  type: string;
   created_at: string;
   updated_at: string;
 }
@@ -21,21 +22,23 @@ interface SessionRow {
 export class SqliteSessionStore implements SessionStore {
   constructor(private readonly db: SqliteDatabase) {}
 
-  async create(input: { model: string; cwd: string; title?: string }): Promise<Session> {
+  async create(input: { model: string; cwd: string; title?: string; type?: 'interactive' | 'background' }): Promise<Session> {
     const id = randomUUID();
     const now = new Date().toISOString();
+    const type = input.type ?? 'interactive';
     this.db
       .prepare(
-        `INSERT INTO sessions (id, title, model, cwd, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+        `INSERT INTO sessions (id, title, model, cwd, status, type, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'active', ?, ?, ?)`,
       )
-      .run(id, input.title ?? '', input.model, input.cwd, now, now);
+      .run(id, input.title ?? '', input.model, input.cwd, type, now, now);
     return {
       id,
       title: input.title ?? '',
       model: input.model,
       cwd: input.cwd,
       status: 'active',
+      type,
       createdAt: now,
       updatedAt: now,
     };
@@ -73,12 +76,14 @@ function mapSession(row: SessionRow): Session {
   if (row.status !== 'active' && row.status !== 'archived') {
     throw new FatalError(`unknown session status '${row.status}' for id=${row.id}`);
   }
+  const type = row.type === 'background' ? 'background' : 'interactive';
   return {
     id: row.id,
     title: row.title,
     model: row.model,
     cwd: row.cwd,
-    status: row.status,
+    status: row.status as 'active' | 'archived',
+    type,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

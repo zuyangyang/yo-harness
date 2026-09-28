@@ -24,6 +24,7 @@ function makeSession(id: string, title = 'test'): Session {
     model: 'anthropic/claude-sonnet-4-5',
     cwd: '/tmp',
     status: 'active',
+    type: 'interactive',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };

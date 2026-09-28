@@ -130,3 +130,60 @@ describe('createBuiltinRegistry', () => {
     expect(res?.content).toMatch(/YO_TEST_ABSENT_KEY/);
   });
 });
+
+describe('ToolRegistry Phase 3 扩展', () => {
+  it('unregister 移除已注册工具', () => {
+    const registry = new ToolRegistry();
+    registry.register(echoTool);
+    expect(registry.unregister('echo')).toBe(true);
+    expect(registry.get('echo')).toBeUndefined();
+    expect(registry.unregister('echo')).toBe(false);
+  });
+
+  it('unregisterByPrefix 按前缀批量移除', () => {
+    const registry = new ToolRegistry();
+    const mcpToolA: Tool = {
+      ...echoTool,
+      name: 'mcp_server_a__read',
+    };
+    const mcpToolB: Tool = {
+      ...echoTool,
+      name: 'mcp_server_a__write',
+    };
+    const otherTool: Tool = {
+      ...echoTool,
+      name: 'other_tool',
+    };
+    registry.register(mcpToolA);
+    registry.register(mcpToolB);
+    registry.register(otherTool);
+
+    const removed = registry.unregisterByPrefix('mcp_server_a__');
+    expect(removed).toBe(2);
+    expect(registry.names()).toEqual(['other_tool']);
+  });
+
+  it('specs() 对 JSON Schema 对象直传、不经过 zod 转换', () => {
+    const registry = new ToolRegistry();
+    const jsonSchemaTool: Tool = {
+      name: 'mcp_remote_tool',
+      description: 'A tool from MCP server',
+      risk: 'read',
+      inputSchema: {
+        type: 'object',
+        properties: { query: { type: 'string' } },
+        required: ['query'],
+      },
+      run: () => Promise.resolve({ ok: true, content: 'done' }),
+    };
+    registry.register(jsonSchemaTool);
+
+    const specs = registry.specs();
+    expect(specs).toHaveLength(1);
+    const schema = specs[0]!.inputSchema;
+    expect(schema.type).toBe('object');
+    expect(schema).toHaveProperty('properties.query');
+    // 不应有 zod 转换产生的 $schema
+    expect(schema.$schema).toBeUndefined();
+  });
+});

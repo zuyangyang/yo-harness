@@ -65,6 +65,12 @@ const sampleEvents = [
   { type: 'plan_rejected', planId: 'plan_1', reason: '任务拆分太粗' },
   { type: 'plan_task_updated', planId: 'plan_1', taskId: '1', status: 'completed' },
   { type: 'goal_reminder', goal: '重构 auth 模块', stepsSinceProgress: 10 },
+  // ─── Phase 3 新增事件 ───
+  { type: 'memory_extracted', count: 3, source: 'session_end' },
+  { type: 'memory_injected', count: 2, memoryIds: ['mem_1', 'mem_2'] },
+  { type: 'task_started', taskId: 'bg-1', description: '跑测试', sessionId: 'sess-1' },
+  { type: 'task_completed', taskId: 'bg-1', reason: 'done', summary: '全部通过' },
+  { type: 'task_failed', taskId: 'bg-2', error: 'OOM' },
 ] as const;
 
 describe('事件 schema', () => {

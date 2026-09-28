@@ -137,6 +137,34 @@ export const AgentEventSchema = z.discriminatedUnion('type', [
     goal: z.string(),
     stepsSinceProgress: z.number().int().nonnegative(),
   }),
+  // ─── Phase 3 新增事件 ───
+  z.object({
+    type: z.literal('memory_extracted'),
+    count: z.number().int().nonnegative(),
+    source: z.enum(['session_end', 'manual']),
+  }),
+  z.object({
+    type: z.literal('memory_injected'),
+    count: z.number().int().nonnegative(),
+    memoryIds: z.array(z.string()),
+  }),
+  z.object({
+    type: z.literal('task_started'),
+    taskId: z.string(),
+    description: z.string(),
+    sessionId: z.string(),
+  }),
+  z.object({
+    type: z.literal('task_completed'),
+    taskId: z.string(),
+    reason: TurnEndReasonSchema,
+    summary: z.string(),
+  }),
+  z.object({
+    type: z.literal('task_failed'),
+    taskId: z.string(),
+    error: z.string(),
+  }),
 ]);
 
 export type AgentEvent = z.infer<typeof AgentEventSchema>;

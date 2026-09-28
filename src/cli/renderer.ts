@@ -181,6 +181,22 @@ export class RenderModel {
           }),
         ];
 
+      // ─── Phase 3 新增事件 ───
+      case 'memory_extracted':
+        return [line(`[memory] extracted ${event.count} memories (${event.source})`, { color: 'cyan', dim: true })];
+
+      case 'memory_injected':
+        return [line(`[memory] injected ${event.count} memories`, { color: 'cyan', dim: true })];
+
+      case 'task_started':
+        return [line(`[bg] task ${event.taskId}: ${event.description}`, { color: 'magenta' })];
+
+      case 'task_completed':
+        return [line(`[bg] task ${event.taskId} completed (${event.reason})`, { color: 'green' })];
+
+      case 'task_failed':
+        return [line(`[bg] task ${event.taskId} failed: ${event.error}`, { color: 'red' })];
+
       default: {
         // 穷尽性检查：新增事件类型时这里编译报错，提醒补渲染
         const exhaustive: never = event;

@@ -38,8 +38,11 @@ export interface Tool {
   /** 英文：一句话作用 + 何时用 + 参数语义 + 典型错误 */
   readonly description: string;
   readonly risk: RiskLevel;
-  /** zod object schema；parse 后的干净参数交给 run */
-  readonly inputSchema: z.ZodType<Record<string, unknown>>;
+  /**
+   * 工具输入 schema。内置工具用 zod（运行时校验），MCP 工具用 JSON Schema 对象
+   * （服务端校验，客户端跳过 parse）。registry.specs() 根据类型分支处理。
+   */
+  readonly inputSchema: z.ZodType<Record<string, unknown>> | Record<string, unknown>;
   run(args: unknown, ctx: ExecutionContext): Promise<ToolResult>;
 }
 

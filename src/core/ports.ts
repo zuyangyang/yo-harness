@@ -6,6 +6,7 @@
  * 由 eslint no-restricted-imports 强制。
  */
 import type { AgentEvent, EventEnvelope } from '../types/events.js';
+import type { Memory, MemoryCategory, MemoryStatus } from '../types/memory.js';
 import type { Tool, ToolSpec } from '../types/tools.js';
 
 export interface EventStore {
@@ -21,12 +22,13 @@ export interface Session {
   model: string;
   cwd: string;
   status: 'active' | 'archived';
+  type: 'interactive' | 'background';
   createdAt: string;
   updatedAt: string;
 }
 
 export interface SessionStore {
-  create(input: { model: string; cwd: string; title?: string }): Promise<Session>;
+  create(input: { model: string; cwd: string; title?: string; type?: 'interactive' | 'background' }): Promise<Session>;
   get(id: string): Promise<Session | undefined>;
   listRecent(limit: number): Promise<Session[]>;
   /** 刷新 updated_at（每次 turn 结束后调用，供 resume 列表排序） */
@@ -83,4 +85,22 @@ export interface CheckpointStore {
     currentSeq: number,
     direction: 'prev' | 'next',
   ): Promise<{ id: string; seq: number } | undefined>;
+}
+
+// ─── Phase 3 新增端口 ───
+
+export interface MemorySearchOptions {
+  category?: MemoryCategory;
+  status?: MemoryStatus;
+  limit?: number;
+}
+
+/** 语义记忆存储端口：core 定义接口，storage 实现 */
+export interface MemoryStore {
+  create(input: Omit<Memory, 'id' | 'createdAt' | 'updatedAt'>): Promise<Memory>;
+  get(id: string): Promise<Memory | undefined>;
+  update(id: string, patch: Partial<Pick<Memory, 'title' | 'content' | 'category' | 'description' | 'keywords' | 'status'>>): Promise<Memory | undefined>;
+  archive(id: string): Promise<void>;
+  listActive(): Promise<Memory[]>;
+  search(query: string, options?: MemorySearchOptions): Promise<Memory[]>;
 }

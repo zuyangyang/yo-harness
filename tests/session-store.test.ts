@@ -98,4 +98,14 @@ describe('SqliteSessionStore', () => {
     expect((await reopenedStore.get(created.id))?.title).toBe('持久化');
     reopened.close();
   });
+
+  it('默认 type 为 interactive', async () => {
+    const created = await store.create({ model: 'm', cwd: '/w' });
+    expect((await store.get(created.id))?.type).toBe('interactive');
+  });
+
+  it('可创建 background 类型的会话', async () => {
+    const created = await store.create({ model: 'm', cwd: '/w', type: 'background' });
+    expect((await store.get(created.id))?.type).toBe('background');
+  });
 });
