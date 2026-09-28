@@ -1,0 +1,35 @@
+# Development: hot reload + SQLite (no external DB needed)
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.server
+    environment:
+      NODE_ENV: development
+      YO_PORT: "3456"
+      YO_JWT_SECRET: dev-secret
+      YO_STORAGE: sqlite
+      YO_SQLITE_PATH: /app/data/dev.db
+      YO_PROVIDER: ${YO_PROVIDER:-fake}
+      YO_MODEL: ${YO_MODEL:-fake}
+    volumes:
+      - ../packages/server/src:/app/packages/server/src
+      - ../packages/core/src:/app/packages/core/src
+      - dev-data:/app/data
+    ports:
+      - "3456:3456"
+    command: ["pnpm", "--filter", "@yo-harness/server", "exec", "tsx", "watch", "packages/server/src/index.ts"]
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    environment:
+      - NODE_ENV=development
+    ports:
+      - "8080:80"
+    depends_on:
+      - server
+
+volumes:
+  dev-data:

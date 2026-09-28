@@ -1,0 +1,29 @@
+# ---- yo-harness server image ----
+# Runs TypeScript directly via tsx (no build step).
+FROM node:20-slim AS base
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy dependency manifests first for layer caching.
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY packages/core/package.json packages/core/
+COPY packages/server/package.json packages/server/
+
+RUN pnpm install --frozen-lockfile
+
+# Copy source code.
+COPY packages/core packages/core
+COPY packages/server packages/server
+
+ENV NODE_ENV=production
+ENV YO_PORT=3456
+
+EXPOSE 3456
+
+CMD ["pnpm", "--filter", "@yo-harness/server", "exec", "tsx", "packages/server/src/index.ts"]

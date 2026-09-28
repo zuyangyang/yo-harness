@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+*.md
+.vscode
+.idea
+coverage
+.env
+.env.*
+data/
+*.db

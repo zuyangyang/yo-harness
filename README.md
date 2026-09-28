@@ -193,23 +193,35 @@ npm run check
 ### 项目结构
 
 ```
-src/
-├── cli/           # TUI 层（ink App、renderer、picker、approval、planner-ui）
-├── config/        # 配置加载与校验
-├── core/          # 内核（AgentLoop、ContextManager、EventBus、Permission、
-│                  #   Compressor、Summarizer、Planner、GoalTracker、Checkpoint）
-├── daemon/        # 后台任务（daemon 进程、TaskRunner、DaemonApiClient）
-├── llm/           # LLM 网关与 Provider 适配
-├── mcp/           # MCP 客户端（传输层、协议客户端、工具适配器、生命周期管理）
-├── memory/        # 语义记忆（提取器、注入器）
-├── router/        # 多模型路由（ModelRouter、CostTracker）
-├── storage/       # SQLite 存储（SessionStore、EventStore、CheckpointStore、
-│                  #   MemoryStore、TaskStore）
-├── tools/         # 工具注册表与 6 个内置工具
-├── types/         # 领域类型与 zod schema（events、plan、checkpoint、memory、router）
-└── utils/         # 工具函数（logger、tokens、paths）
-tests/             # 单元测试（与 src/ 同构）
-examples/          # 手动冒烟脚本（不进 CI）
+yo-harness/                       # pnpm monorepo
+├── packages/
+│   ├── core/                     # 共享内核（AgentLoop、ContextManager、EventBus、
+│   │                             #   Permission、Compressor、Summarizer、Planner、
+│   │                             #   GoalTracker、Checkpoint、LLM Gateway、Tools、
+│   │                             #   MCP、Memory、Router、Sandbox）
+│   ├── cli/                      # 交互式 CLI（ink + React TUI）
+│   ├── server/                   # Headless HTTP + WebSocket 服务端（Hono）
+│   │   ├── src/auth/             #   JWT + Argon2 鉴权
+│   │   ├── src/routes/           #   REST API 路由
+│   │   ├── src/ws/               #   WebSocket Hub + 协议
+│   │   ├── src/sandbox/          #   沙箱管理（Local / Docker / Pool）
+│   │   ├── src/storage/          #   存储后端（SQLite / PostgreSQL）
+│   │   └── src/tenant/           #   多租户隔离
+│   └── web/                      # React SPA（Vite + Zustand）
+│       ├── src/api/              #   HTTP + WebSocket 客户端
+│       ├── src/components/       #   UI 组件（Chat、Sidebar、Approval、Plan、Memory…）
+│       ├── src/hooks/            #   React hooks
+│       ├── src/pages/            #   页面（Login、Register）
+│       ├── src/stores/           #   Zustand 状态管理
+│       └── tests/                #   组件测试
+├── docker/
+│   ├── Dockerfile.server         # Server 镜像（Node 20 + tsx）
+│   ├── Dockerfile.web            # Web 镜像（Nginx + 静态文件）
+│   ├── docker-compose.yml        # 生产部署（server + web + PostgreSQL）
+│   ├── docker-compose.dev.yml    # 开发环境（热重载 + SQLite）
+│   ├── docker-compose.sandbox.yml # Docker 沙箱模式
+│   └── sandbox/                  # 沙箱基础镜像
+└── examples/                     # 手动冒烟脚本
 ```
 
 ### 架构要点
@@ -267,6 +279,93 @@ yo daemon
 yo daemon-stop
 ```
 daemon 监听 Unix socket（`~/.yo-harness/daemon.sock`），空闲 5 分钟自动退出。
+
+### Phase 4 Server + Web UI
+
+**Headless Server**
+`packages/server` 提供 HTTP + WebSocket 服务，基于 Hono 框架。支持 SQLite（开发/单机）和 PostgreSQL（生产）两种存储后端。
+
+```bash
+# 启动服务端（SQLite，默认端口 3456）
+pnpm --filter @yo-harness/server run dev
+
+# 指定 PostgreSQL
+YO_STORAGE=postgres YO_PG_HOST=localhost pnpm --filter @yo-harness/server run dev
+```
+
+**Web UI**
+`packages/web` 是 React SPA，提供会话管理、实时对话、审批交互、记忆管理等功能。
+
+```bash
+# 启动 Web 开发服务器（默认端口 5173，自动代理到 server 3456）
+pnpm --filter @yo-harness/web run dev
+```
+
+**CLI 远程模式**
+CLI 可连接远端 server 而非直接操作本地存储：
+
+```bash
+# 连接远端 server
+yo --server http://localhost:3456
+
+# 带认证
+yo --server https://yo.example.com --token <jwt-token>
+```
+
+**多租户**
+Server 支持多租户隔离，每个租户独立数据空间。通过 `X-Tenant-Id` 请求头或 JWT claim 传递租户标识。
+
+## Docker 部署
+
+### 生产环境（PostgreSQL）
+
+```bash
+cd docker
+# 设置 JWT 密钥（生产环境务必修改）
+export YO_JWT_SECRET=your-production-secret
+
+# 可选：配置 LLM provider
+export YO_PROVIDER=anthropic
+export YO_MODEL=claude-sonnet-4-5
+export YO_API_KEY=sk-xxx
+
+docker compose up -d
+```
+
+服务启动后：
+- Web UI：http://localhost:8080
+- API Server：http://localhost:3456
+
+### 开发环境（SQLite，热重载）
+
+```bash
+cd docker
+docker compose -f docker-compose.dev.yml up -d
+```
+
+### Docker 沙箱模式
+
+启用 Docker-in-Docker 工具执行隔离：
+
+```bash
+cd docker
+export YO_JWT_SECRET=your-secret
+docker compose -f docker-compose.sandbox.yml up -d
+```
+
+### 环境变量
+
+| 变量 | 说明 | 默认值 |
+|---|---|---|
+| `YO_JWT_SECRET` | JWT 签名密钥 | `change-me-in-production` |
+| `YO_PORT` | 服务端口 | `3456` |
+| `YO_STORAGE` | 存储后端（`sqlite` / `postgres`） | `sqlite` |
+| `YO_PG_*` | PostgreSQL 连接参数 | — |
+| `YO_PROVIDER` | LLM Provider | `fake` |
+| `YO_MODEL` | LLM 模型名 | `fake` |
+| `YO_API_KEY` | LLM API Key | — |
+| `YO_BASE_URL` | 自定义 API base URL | — |
+| `YO_SANDBOX_MODE` | 沙箱模式（`local` / `docker`） | `local` |
 
 ## 示例脚本
 
