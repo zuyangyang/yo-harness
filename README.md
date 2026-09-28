@@ -14,6 +14,10 @@
 - **规划器**：复杂任务先只读探索代码库，产出结构化执行计划，用户确认后按计划推进
 - **检查点与撤销**：写操作前自动快照，支持 `/undo` 回滚文件变更
 - **目标追踪**：长任务漂移检测，定期提醒当前目标，防止上下文丢失
+- **MCP 工具集成**：通过 Model Context Protocol 接入外部工具服务器，自动发现并注册
+- **语义记忆**：自动提取用户偏好与事实，FTS5 全文搜索，跨会话持久化
+- **多模型路由**：不同角色（主对话 / 摘要 / 嵌入）可配置不同模型
+- **后台任务**：daemon 进程管理长时间任务，CLI 提交 / 查询 / 取消
 
 ## 安装
 
@@ -116,9 +120,18 @@ npm run dev -- resume <session-id> --fake -p "continue from where we left off"
       "baseURL": "https://api.deepseek.com"
     }
   },
+  "modelRoles": {
+    "summarize": { "provider": "anthropic", "model": "claude-haiku-3-5" }
+  },
   "search": {
     "provider": "tavily",
     "apiKeyEnv": "TAVILY_API_KEY"
+  },
+  "mcp": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    }
   },
   "permission": {
     "shellMode": "ask",
@@ -137,6 +150,9 @@ npm run dev -- resume <session-id> --fake -p "continue from where we left off"
   },
   "goalTracking": {
     "driftThreshold": 8
+  },
+  "daemon": {
+    "idleTimeoutMs": 300000
   }
 }
 ```
@@ -182,10 +198,15 @@ src/
 ├── config/        # 配置加载与校验
 ├── core/          # 内核（AgentLoop、ContextManager、EventBus、Permission、
 │                  #   Compressor、Summarizer、Planner、GoalTracker、Checkpoint）
+├── daemon/        # 后台任务（daemon 进程、TaskRunner、DaemonApiClient）
 ├── llm/           # LLM 网关与 Provider 适配
-├── storage/       # SQLite 存储（SessionStore、EventStore、CheckpointStore）
+├── mcp/           # MCP 客户端（传输层、协议客户端、工具适配器、生命周期管理）
+├── memory/        # 语义记忆（提取器、注入器）
+├── router/        # 多模型路由（ModelRouter、CostTracker）
+├── storage/       # SQLite 存储（SessionStore、EventStore、CheckpointStore、
+│                  #   MemoryStore、TaskStore）
 ├── tools/         # 工具注册表与 6 个内置工具
-├── types/         # 领域类型与 zod schema（events、plan、checkpoint）
+├── types/         # 领域类型与 zod schema（events、plan、checkpoint、memory、router）
 └── utils/         # 工具函数（logger、tokens、paths）
 tests/             # 单元测试（与 src/ 同构）
 examples/          # 手动冒烟脚本（不进 CI）
@@ -214,6 +235,38 @@ examples/          # 手动冒烟脚本（不进 CI）
 
 **自适应压缩**
 上下文接近窗口限制时，自动压缩旧消息：保留最近 N 条完整消息，更早的用 LLM 生成摘要替换。压缩策略分两种：`tool_results`（只压缩工具返回结果）、`turns`（压缩整个 turn）。
+
+### Phase 3 能力扩展
+
+**MCP 工具集成**
+通过 [Model Context Protocol](https://modelcontextprotocol.io) 接入外部工具服务器。在 `~/.yo-harness/config.json` 的 `mcp` 字段配置服务器列表，启动时自动发现并注册工具。工具名格式为 `{serverName}__{toolName}`（双下划线分隔）。参见 `mcp.json.example`。
+
+**语义记忆**
+自动从对话中提取用户偏好与事实（`MemoryExtractor`），存入 SQLite + FTS5 全文索引。新会话开始时，`MemoryInjector` 根据当前上下文搜索相关记忆注入 system prompt。支持 `/memory` 命令手动管理。
+
+**多模型路由**
+不同角色可配置不同模型：主对话用大模型（如 Claude Sonnet），摘要/压缩用小模型（如 Claude Haiku），降低成本。在 `config.json` 的 `modelRoles` 字段配置角色映射。`CostTracker` 实时追踪各模型 token 用量。
+
+**后台任务**
+长时间运行的任务可提交到后台 daemon 进程执行，不阻塞当前会话：
+```bash
+# 提交后台任务
+yo bg "分析这个代码库的架构并生成报告"
+
+# 查看任务列表
+yo tasks
+
+# 查看任务详情
+yo task <task-id>
+
+# 取消任务
+yo task-cancel <task-id>
+
+# 手动启动/停止 daemon
+yo daemon
+yo daemon-stop
+```
+daemon 监听 Unix socket（`~/.yo-harness/daemon.sock`），空闲 5 分钟自动退出。
 
 ## 示例脚本
 

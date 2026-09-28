@@ -42,8 +42,8 @@ export class ModelRouter {
   }
 
   /** 列出全部角色分配（供 /models 命令展示） */
-  listRoles(): Array<{ role: ModelRole; provider: string; model: string }> {
-    const result: Array<{ role: ModelRole; provider: string; model: string }> = [];
+  listRoles(): { role: ModelRole; provider: string; model: string }[] {
+    const result: { role: ModelRole; provider: string; model: string }[] = [];
     for (const [role, client] of this.roleMap.entries()) {
       result.push({ role, provider: this.roleProviderMap.get(role) ?? '', model: client.name });
     }

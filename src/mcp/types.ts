@@ -49,7 +49,7 @@ export interface McpListToolsResult {
 
 /** MCP 工具调用结果 */
 export interface McpCallResult {
-  content: Array<{ type: string; text?: string }>;
+  content: { type: string; text?: string }[];
   isError?: boolean;
 }
 

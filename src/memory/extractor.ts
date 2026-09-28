@@ -43,7 +43,6 @@ export class MemoryExtractor {
           tools: [],
           maxTokens: 2000,
         },
-        { onTextDelta: () => {} },
       );
     } catch (err) {
       this.logger.warn(`memory extraction LLM call failed: ${String(err)}`);
@@ -114,7 +113,7 @@ ${existingTitles.map((t) => `- ${t}`).join('\n') || '(none)'}`,
   }
 
   private parseExtractionResponse(text: string): z.infer<typeof MemoryExtractionSchema> {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonMatch = /\{[\s\S]*\}/.exec(text);
     if (jsonMatch === null) return { memories: [] };
     try {
       return MemoryExtractionSchema.parse(JSON.parse(jsonMatch[0]));

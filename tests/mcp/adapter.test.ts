@@ -7,7 +7,7 @@ import type { ExecutionContext } from '../../src/types/tools.js';
 
 function makeClient(overrides: Partial<Pick<McpClient, 'callTool'>> = {}): McpClient {
   return {
-    callTool: vi.fn(async () => ({ content: [{ type: 'text', text: 'ok' }] })),
+    callTool: vi.fn(() => Promise.resolve({ content: [{ type: 'text', text: 'ok' }] })),
     ...overrides,
   } as unknown as McpClient;
 }
@@ -47,7 +47,7 @@ describe('createMcpTool', () => {
   });
 
   it('run 调 client.callTool 并返回 ToolResult.ok=true', async () => {
-    const callTool = vi.fn(async () => ({
+    const callTool = vi.fn(() => Promise.resolve({
       content: [{ type: 'text', text: 'file contents' }],
     }));
     const tool = createMcpTool({
@@ -62,7 +62,7 @@ describe('createMcpTool', () => {
   });
 
   it('MCP server 返回 isError → ToolResult.ok=false + [TRANSIENT] 标记', async () => {
-    const callTool = vi.fn(async () => ({
+    const callTool = vi.fn(() => Promise.resolve({
       content: [{ type: 'text', text: 'permission denied' }],
       isError: true,
     }));
@@ -79,9 +79,7 @@ describe('createMcpTool', () => {
   });
 
   it('callTool throw → ToolResult.ok=false + [TRANSIENT] 标记', async () => {
-    const callTool = vi.fn(async () => {
-      throw new Error('process exited');
-    });
+    const callTool = vi.fn(() => Promise.reject(new Error('process exited')));
     const tool = createMcpTool({
       serverName: 'fs',
       definition,
@@ -100,7 +98,7 @@ describe('createMcpTool', () => {
   });
 
   it('content 多条 text 块拼接', async () => {
-    const callTool = vi.fn(async () => ({
+    const callTool = vi.fn(() => Promise.resolve({
       content: [
         { type: 'text', text: 'line1' },
         { type: 'text', text: 'line2' },

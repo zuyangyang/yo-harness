@@ -170,6 +170,16 @@ function validate(events: EventEnvelope[]): CheckResult[] {
     results.push(check('Phase 2 events', true, phase2Counts.join(' ')));
   }
 
+  // 7b. Phase 3 事件统计
+  const phase3Events = ['memory_extracted', 'memory_injected', 'task_started', 'task_completed', 'task_failed'];
+  const phase3Counts = phase3Events.map((type) => {
+    const count = events.filter((e) => e.payload.type === type).length;
+    return count > 0 ? `${type}:${count}` : null;
+  }).filter((s): s is string => s !== null);
+  if (phase3Counts.length > 0) {
+    results.push(check('Phase 3 events', true, phase3Counts.join(' ')));
+  }
+
   // 8. 事件类型分布统计
   const typeCounts = new Map<string, number>();
   for (const env of events) {

@@ -13,7 +13,7 @@ vi.mock('../../src/mcp/client.js', () => {
     startCalls = 0;
     stopCalls = 0;
     startError: Error | null = null;
-    listToolsResult: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }> = [];
+    listToolsResult: { name: string; description: string; inputSchema: Record<string, unknown> }[] = [];
     listToolsError: Error | null = null;
 
     constructor(serverName: string) {
@@ -22,19 +22,20 @@ vi.mock('../../src/mcp/client.js', () => {
       if (configFn !== undefined) configFn(this);
       instances.push(this);
     }
-    async start(): Promise<void> {
+    start(): void {
       this.startCalls += 1;
       if (this.startError !== null) throw this.startError;
     }
-    async listTools() {
+    listTools() {
       if (this.listToolsError !== null) throw this.listToolsError;
       return this.listToolsResult;
     }
-    async callTool(_name: string, _args: Record<string, unknown>) {
+    callTool(_name: string, _args: Record<string, unknown>) {
       return { content: [{ type: 'text', text: 'ok' }] };
     }
-    async stop(): Promise<void> {
+    stop(): Promise<void> {
       this.stopCalls += 1;
+      return Promise.resolve();
     }
   }
   return {
@@ -55,7 +56,7 @@ interface MockClientInstance {
   startCalls: number;
   stopCalls: number;
   startError: Error | null;
-  listToolsResult: Array<{ name: string; description: string; inputSchema: Record<string, unknown> }>;
+  listToolsResult: { name: string; description: string; inputSchema: Record<string, unknown> }[];
   listToolsError: Error | null;
 }
 

@@ -101,7 +101,7 @@ export class SqliteTaskStore implements TaskStore {
     return row === undefined ? undefined : mapTask(row);
   }
 
-  async list(limit: number = 50): Promise<BackgroundTask[]> {
+  async list(limit = 50): Promise<BackgroundTask[]> {
     const rows = this.db
       .prepare('SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?')
       .all(limit) as TaskRow[];

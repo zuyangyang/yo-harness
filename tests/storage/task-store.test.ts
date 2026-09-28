@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import Database from 'better-sqlite3';
 
 import type { SqliteDatabase } from '../../src/storage/db.js';
 import { openDatabase } from '../../src/storage/db.js';

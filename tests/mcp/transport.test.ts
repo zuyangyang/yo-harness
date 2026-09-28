@@ -60,7 +60,7 @@ describe('StdioTransport', () => {
 
   it('request 发 JSON-RPC → 收到正确响应 → resolve', async () => {
     const transport = new StdioTransport(SIMPLE_CONFIG, SILENT_LOGGER);
-    await transport.start();
+    transport.start();
 
     const requestPromise = transport.request('test/method', { foo: 'bar' });
 
@@ -92,7 +92,7 @@ describe('StdioTransport', () => {
 
   it('超时 → reject', async () => {
     const transport = new StdioTransport(SIMPLE_CONFIG, SILENT_LOGGER);
-    await transport.start();
+    transport.start();
 
     await expect(transport.request('test/method', {}, 50)).rejects.toThrow('timed out');
 
@@ -101,7 +101,7 @@ describe('StdioTransport', () => {
 
   it('子进程异常退出 → pending requests 全部 reject', async () => {
     const transport = new StdioTransport(SIMPLE_CONFIG, SILENT_LOGGER);
-    await transport.start();
+    transport.start();
 
     const requestPromise = transport.request('test/method', {}, 5000);
 
@@ -115,7 +115,7 @@ describe('StdioTransport', () => {
 
   it('stdout 多行消息正确分割', async () => {
     const transport = new StdioTransport(SIMPLE_CONFIG, SILENT_LOGGER);
-    await transport.start();
+    transport.start();
 
     const promise1 = transport.request('method1', {}, 5000);
     const promise2 = transport.request('method2', {}, 5000);
@@ -138,7 +138,7 @@ describe('StdioTransport', () => {
 
   it('error 响应 → reject with error message', async () => {
     const transport = new StdioTransport(SIMPLE_CONFIG, SILENT_LOGGER);
-    await transport.start();
+    transport.start();
 
     const requestPromise = transport.request('test/method', {}, 5000);
 
@@ -161,7 +161,7 @@ describe('StdioTransport', () => {
 
     expect(transport.alive).toBe(false);
 
-    await transport.start();
+    transport.start();
     expect(transport.alive).toBe(true);
 
     await transport.stop();

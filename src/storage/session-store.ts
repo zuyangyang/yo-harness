@@ -82,7 +82,7 @@ function mapSession(row: SessionRow): Session {
     title: row.title,
     model: row.model,
     cwd: row.cwd,
-    status: row.status as 'active' | 'archived',
+    status: row.status,
     type,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

@@ -12,16 +12,11 @@
  */
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cwd as getCwd } from 'node:process';
 
 import { Hono } from 'hono';
 import { createAdaptorServer } from '@hono/node-server';
 
-import { loadConfig, activeApiKey, type ProviderConfig, type ProviderName } from '../config/config.js';
-import { TurnBudget } from '../core/budget.js';
-import { ContextManager } from '../core/context-manager.js';
-import { EventBus } from '../core/event-bus.js';
-import { createNonInteractivePermission } from '../core/permission.js';
+import { loadConfig, activeApiKey } from '../config/config.js';
 import { LLMGateway } from '../llm/gateway.js';
 import { AnthropicLLMClient } from '../llm/providers/anthropic.js';
 import { FakeLLMClient } from '../llm/providers/fake.js';
@@ -34,7 +29,6 @@ import { SqliteSessionStore } from '../storage/session-store.js';
 import { SqliteTaskStore } from '../storage/task-store.js';
 import { createBuiltinRegistry } from '../tools/registry.js';
 import { FatalError } from '../types/errors.js';
-import type { Logger } from '../types/common.js';
 import { createLogger, parseLogLevel } from '../utils/logger.js';
 import { yoHome } from '../utils/paths.js';
 import { TaskRunner } from './task-runner.js';
@@ -49,7 +43,7 @@ export interface DaemonConfig {
   idleTimeoutMs?: number;
 }
 
-export async function startDaemon(config: DaemonConfig = {}): Promise<void> {
+export function startDaemon(config: DaemonConfig = {}): void {
   const socketPath = config.socketPath ?? DEFAULT_SOCKET_PATH;
   const lockPath = config.lockPath ?? DEFAULT_LOCK_PATH;
   const idleTimeoutMs = config.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
@@ -151,7 +145,7 @@ export async function startDaemon(config: DaemonConfig = {}): Promise<void> {
     return c.json({ ok: true });
   });
 
-  app.post('/daemon/stop', async (c) => {
+  app.post('/daemon/stop', (c) => {
     cleanup();
     setTimeout(() => process.exit(0), 100);
     return c.json({ ok: true });

@@ -11,7 +11,6 @@ import { LLMGateway } from '../../src/llm/gateway.js';
 import { ModelRouter } from '../../src/router/model-router.js';
 import { CostTracker } from '../../src/router/cost-tracker.js';
 import { ToolRegistry } from '../../src/tools/registry.js';
-import { EventBus } from '../../src/core/event-bus.js';
 import { openDatabase } from '../../src/storage/db.js';
 import { SqliteEventStore } from '../../src/storage/event-store.js';
 import { SqliteSessionStore } from '../../src/storage/session-store.js';
@@ -143,7 +142,7 @@ describe('TaskRunner', () => {
       description: 'Echo tool',
       risk: 'read',
       inputSchema: {},
-      run: async () => ({ ok: true, content: 'echo' }),
+      run: () => Promise.resolve({ ok: true, content: 'echo' }),
     });
 
     const runner = new TaskRunner({

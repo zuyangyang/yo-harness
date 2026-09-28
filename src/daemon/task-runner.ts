@@ -69,7 +69,7 @@ export class TaskRunner {
   constructor(private readonly deps: TaskRunnerDeps) {}
 
   async run(input: RunTaskInput): Promise<RunTaskResult> {
-    const { taskStore, sessionStore, eventStore, tools, router, costTracker, logger } = this.deps;
+    const { taskStore, eventStore, tools, router, costTracker, logger } = this.deps;
 
     const task = await taskStore.get(input.taskId);
     if (task === undefined) {
@@ -111,7 +111,7 @@ export class TaskRunner {
     };
     bus.on('event', onEvent);
 
-    let endReason: TurnEndReason = 'done';
+    let endReason: TurnEndReason;
     let errorMessage: string | undefined;
     try {
       endReason = await loop.runTurn(input.prompt);
@@ -122,6 +122,7 @@ export class TaskRunner {
     } finally {
       bus.off('event', onEvent);
     }
+    endReason ??= 'error';
 
     const status = endReason === 'done' ? 'completed' : endReason === 'error' ? 'failed' : 'cancelled';
     const taskEndReason = endReason === 'done' ? 'end_turn' : endReason === 'max_steps' ? 'budget' : endReason === 'budget' ? 'budget' : endReason === 'interrupted' ? 'cancelled' : 'error';

@@ -8,7 +8,6 @@ import { openDatabase } from '../../src/storage/db.js';
 import { SqliteMemoryStore } from '../../src/storage/memory-store.js';
 import { MemoryInjector } from '../../src/memory/injector.js';
 import type { SqliteDatabase } from '../../src/storage/db.js';
-import type { MemoryCategory } from '../../src/types/memory.js';
 
 let dir: string;
 let db: SqliteDatabase;

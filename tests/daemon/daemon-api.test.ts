@@ -1,15 +1,15 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 
 import { DaemonApiClient } from '../../src/daemon/daemon-api.js';
 import { FatalError } from '../../src/types/errors.js';
 
-function mockFetch(status: number, body: unknown): typeof globalThis.fetch {
-  return vi.fn(async () =>
-    new Response(typeof body === 'string' ? body : JSON.stringify(body), {
+function mockFetch(status: number, body: unknown) {
+  return vi.fn(() =>
+    Promise.resolve(new Response(typeof body === 'string' ? body : JSON.stringify(body), {
       status,
       statusText: status === 200 ? 'OK' : 'Error',
-    }),
-  ) as typeof globalThis.fetch;
+    })),
+  );
 }
 
 describe('DaemonApiClient', () => {
@@ -79,7 +79,7 @@ describe('DaemonApiClient', () => {
   });
 
   it('throws FatalError on fetch failure (daemon not running)', async () => {
-    fetchSpy = vi.fn(async () => { throw new TypeError('connection refused'); });
+    fetchSpy = vi.fn(() => Promise.reject(new TypeError('connection refused')));
     vi.stubGlobal('fetch', fetchSpy);
 
     const client = new DaemonApiClient({ socketPath: '/tmp/test.sock' });

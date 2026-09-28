@@ -28,7 +28,7 @@ export class McpClient {
 
   /** 启动 + 握手（initialize + initialized 通知） */
   async start(): Promise<void> {
-    await this.transport.start();
+    this.transport.start();
 
     const startupTimeout = this.config.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
     const result = (await this.transport.request(

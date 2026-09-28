@@ -81,8 +81,8 @@ program
 program
   .command('daemon')
   .description('启动 daemon 进程（后台任务调度器）')
-  .action(async () => {
-    await startDaemon();
+  .action(() => {
+    startDaemon();
   });
 
 program

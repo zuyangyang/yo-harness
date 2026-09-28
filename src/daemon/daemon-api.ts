@@ -53,7 +53,7 @@ export class DaemonApiClient {
     return this.request<StartTaskResponse>('POST', '/tasks/start', req);
   }
 
-  async listTasks(limit: number = 20): Promise<TaskInfo[]> {
+  async listTasks(limit = 20): Promise<TaskInfo[]> {
     return this.request<TaskInfo[]>('GET', `/tasks?limit=${limit}`);
   }
 

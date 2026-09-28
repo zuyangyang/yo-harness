@@ -34,7 +34,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-function makeEvents(sessionId: string, pairs: Array<[string, string]>): EventEnvelope[] {
+function makeEvents(sessionId: string, pairs: [string, string][]): EventEnvelope[] {
   const events: EventEnvelope[] = [];
   let seq = 0;
   for (const [user, assistant] of pairs) {

@@ -35,7 +35,7 @@ export class StdioTransport {
   ) {}
 
   /** 启动子进程 */
-  async start(): Promise<void> {
+  start(): void {
     const env = this.config.env !== undefined
       ? { ...process.env, ...this.config.env }
       : process.env;
