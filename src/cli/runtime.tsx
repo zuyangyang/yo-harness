@@ -39,6 +39,7 @@ import { FakeLLMClient } from '../llm/providers/fake.js';
 import { OpenAICompatLLMClient } from '../llm/providers/openai-compat.js';
 import { ModelRouter } from '../router/model-router.js';
 import { CostTracker } from '../router/cost-tracker.js';
+import { McpManager } from '../mcp/manager.js';
 import { openDatabase, type SqliteDatabase } from '../storage/db.js';
 import { SqliteEventStore } from '../storage/event-store.js';
 import { SqliteSessionStore } from '../storage/session-store.js';
@@ -220,6 +221,7 @@ async function launch(
   priorEvents: AgentEvent[],
 ): Promise<void> {
   const { config, providerName, providerConf, llm, logger, db, sessionStore, eventStore } = boot;
+  let mcpManager: McpManager | undefined;
   try {
     // 1) 网关
     const gateway = new LLMGateway(new Map([[providerName, llm]]), { defaultProvider: providerName });
@@ -232,6 +234,19 @@ async function launch(
     const registry = createBuiltinRegistry({
       ...(config.search !== undefined ? { search: config.search } : {}),
     });
+
+    // 2b) MCP 管理器：并行启动配置的 server，注册工具到 registry
+    mcpManager = new McpManager({
+      servers: config.mcp,
+      registry,
+      logger,
+    });
+    await mcpManager.startAll();
+    if (mcpManager.failed.length > 0) {
+      logger.warn('mcp servers failed to start', {
+        failed: mcpManager.failed.map((f) => f.serverName),
+      });
+    }
 
     // 3) 总线 + 渲染折叠器；priorEvents 在 render 前消费进 renderer，
     //    其输出行作为 Static 区初始内容（bus 订阅发生在 App 挂载之后）
@@ -359,6 +374,9 @@ async function launch(
     );
     await instance.waitUntilExit();
   } finally {
+    await mcpManager?.stopAll().catch((err: unknown) => {
+      logger.warn('mcp stopAll failed', { error: String(err) });
+    });
     db.close();
   }
 }

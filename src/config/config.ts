@@ -13,6 +13,7 @@ import { join } from 'node:path';
 
 import { z } from 'zod';
 
+import type { McpServerConfig } from '../mcp/types.js';
 import type { BudgetLimits } from '../core/budget.js';
 import { DEFAULT_BUDGET_LIMITS } from '../core/budget.js';
 import type { PermissionSettings } from '../core/permission.js';
@@ -80,6 +81,8 @@ export interface AppConfig {
   goalTracking: GoalTrackingSettings | undefined;
   /** Phase 3: 角色 → 模型映射（可选，未配置的角色回退默认 provider） */
   modelRoles: ModelRoleMap | undefined;
+  /** Phase 3: MCP server 配置（可选，未配置则不启动任何 MCP client） */
+  mcp: Record<string, McpServerConfig>;
 }
 
 /** 内置默认：不写任何配置文件也能跑（当然，调用真实 API 还需要环境变量里有 key） */
@@ -157,6 +160,17 @@ const configFileSchema = z.strictObject({
       compressor: z.strictObject({ provider: z.string().min(1), model: z.string().min(1) }).optional(),
       extractor: z.strictObject({ provider: z.string().min(1), model: z.string().min(1) }).optional(),
     })
+    .optional(),
+  mcp: z
+    .record(
+      z.string().min(1),
+      z.strictObject({
+        command: z.string().min(1),
+        args: z.array(z.string()),
+        env: z.record(z.string().min(1), z.string()).optional(),
+        startupTimeoutMs: z.number().int().positive().optional(),
+      }),
+    )
     .optional(),
 });
 
@@ -318,6 +332,20 @@ function buildModelRoles(file: ConfigFile | undefined): ModelRoleMap | undefined
   return result;
 }
 
+/** Phase 3: 构建 MCP server 配置（未配置返回空对象） */
+function buildMcp(file: ConfigFile | undefined): Record<string, McpServerConfig> {
+  const fromFile = file?.mcp;
+  if (fromFile === undefined) return {};
+  const result: Record<string, McpServerConfig> = {};
+  for (const [name, conf] of Object.entries(fromFile)) {
+    const server: McpServerConfig = { command: conf.command, args: conf.args };
+    if (conf.env !== undefined) server.env = conf.env;
+    if (conf.startupTimeoutMs !== undefined) server.startupTimeoutMs = conf.startupTimeoutMs;
+    result[name] = server;
+  }
+  return result;
+}
+
 /** 读取并合并全部配置来源；任何失败都是 FatalError（进程应立即退出） */
 export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
   const env = overrides.env ?? process.env;
@@ -357,6 +385,7 @@ export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
     planner: buildPlanner(file),
     goalTracking: buildGoalTracking(file),
     modelRoles: buildModelRoles(file),
+    mcp: buildMcp(file),
   };
 }
 
