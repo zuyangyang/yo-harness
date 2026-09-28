@@ -82,14 +82,14 @@ export async function createServer(options: CreateServerOptions) {
     permission: serverConfig.permission,
   });
 
-  const app = createApp({
+  const { app, wsHub, injectWebSocket } = createApp({
     storage,
     sessionManager,
     jwtConfig,
     serverConfig,
   });
 
-  return { app, sessionManager, storage };
+  return { app, wsHub, injectWebSocket, sessionManager, storage };
 }
 
 export interface StartServerOptions extends CreateServerOptions {
@@ -98,9 +98,11 @@ export interface StartServerOptions extends CreateServerOptions {
 
 export async function startServer(options: StartServerOptions): Promise<void> {
   const port = options.port ?? Number(process.env.YO_PORT ?? 3456);
-  const { app, sessionManager, storage } = await createServer(options);
+  const result = await createServer(options);
+  const { app, injectWebSocket, sessionManager, storage } = result;
 
   const server = serve({ fetch: app.fetch, port });
+  injectWebSocket(server as unknown as import('node:http').Server);
 
   console.log(`[yo-server] listening on http://localhost:${port}`);
   console.log(`[yo-server] mode: ${options.serverConfig?.mode ?? 'single'}`);

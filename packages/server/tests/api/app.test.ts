@@ -61,12 +61,12 @@ beforeEach(async () => {
     modelRoles: { main: { provider: 'test', model: 'test-model' } },
   });
 
-  app = createApp({
+  ({ app } = createApp({
     storage,
     sessionManager: mockSessionManager(),
     jwtConfig,
     serverConfig,
-  });
+  }));
 });
 
 describe('health checks', () => {
