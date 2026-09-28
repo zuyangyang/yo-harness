@@ -37,6 +37,8 @@ import { LLMGateway } from '../llm/gateway.js';
 import { AnthropicLLMClient } from '../llm/providers/anthropic.js';
 import { FakeLLMClient } from '../llm/providers/fake.js';
 import { OpenAICompatLLMClient } from '../llm/providers/openai-compat.js';
+import { ModelRouter } from '../router/model-router.js';
+import { CostTracker } from '../router/cost-tracker.js';
 import { openDatabase, type SqliteDatabase } from '../storage/db.js';
 import { SqliteEventStore } from '../storage/event-store.js';
 import { SqliteSessionStore } from '../storage/session-store.js';
@@ -222,6 +224,10 @@ async function launch(
     // 1) 网关
     const gateway = new LLMGateway(new Map([[providerName, llm]]), { defaultProvider: providerName });
 
+    // 1b) 路由器 + 成本追踪
+    const router = new ModelRouter(gateway, config.modelRoles ?? {});
+    const costTracker = new CostTracker();
+
     // 2) 工具注册表
     const registry = createBuiltinRegistry({
       ...(config.search !== undefined ? { search: config.search } : {}),
@@ -267,7 +273,8 @@ async function launch(
     const loop = new AgentLoop({
       sessionId: session.id,
       cwd: session.cwd,
-      llm: gateway,
+      router,
+      costTracker,
       store: eventStore,
       tools: registry,
       permission,

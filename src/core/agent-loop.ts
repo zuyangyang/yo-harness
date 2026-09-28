@@ -28,7 +28,7 @@ import type {
   Usage,
 } from '../types/events.js';
 import { BudgetStop, isTransientError, TransientError } from '../types/errors.js';
-import type { ChatMessage, ChatRequest, ChatResponse, LLMClient } from '../types/llm.js';
+import type { ChatMessage, ChatRequest, ChatResponse } from '../types/llm.js';
 import type { ToolResult } from '../types/tools.js';
 import { logTokenCalibration } from '../utils/tokens.js';
 import type { TurnBudget } from './budget.js';
@@ -36,12 +36,15 @@ import type { ContextBuildResult, ContextManager } from './context-manager.js';
 import type { EventBus } from './event-bus.js';
 import type { EventStore, ToolResolver } from './ports.js';
 import type { PermissionManager } from './permission.js';
+import type { ModelRouter } from '../router/model-router.js';
+import type { CostTracker } from '../router/cost-tracker.js';
 
 export interface AgentLoopDeps {
   sessionId: string;
   /** 会话工作目录，工具执行的相对路径基准 */
   cwd: string;
-  llm: LLMClient;
+  router: ModelRouter;
+  costTracker: CostTracker;
   store: EventStore;
   tools: ToolResolver;
   permission: PermissionManager;
@@ -141,9 +144,18 @@ export class AgentLoop {
 
   private async chat(messages: ChatMessage[]): Promise<ChatResponse> {
     try {
-      return await this.deps.llm.chat(this.toRequest(messages), {
+      const client = this.deps.router.getClient('main');
+      const resp = await client.chat(this.toRequest(messages), {
         onTextDelta: (delta) => this.deps.bus.emit('llm_delta', delta),
       });
+      this.deps.costTracker.record({
+        role: 'main',
+        provider: this.deps.router.getProvider('main'),
+        model: client.name,
+        inputTokens: resp.usage.inputTokens,
+        outputTokens: resp.usage.outputTokens,
+      });
+      return resp;
     } catch (err) {
       // 防御：熔断异常不该在这儿抛，别包丢 reason
       if (err instanceof BudgetStop) throw err;

@@ -16,6 +16,7 @@ import { z } from 'zod';
 import type { BudgetLimits } from '../core/budget.js';
 import { DEFAULT_BUDGET_LIMITS } from '../core/budget.js';
 import type { PermissionSettings } from '../core/permission.js';
+import type { ModelRoleMap } from '../types/router.js';
 import type { WebSearchSettings } from '../tools/web.js';
 import { FatalError } from '../types/errors.js';
 import { yoHome } from '../utils/paths.js';
@@ -77,6 +78,8 @@ export interface AppConfig {
   planner: PlannerSettings | undefined;
   /** Phase 2: 目标追踪配置（可选） */
   goalTracking: GoalTrackingSettings | undefined;
+  /** Phase 3: 角色 → 模型映射（可选，未配置的角色回退默认 provider） */
+  modelRoles: ModelRoleMap | undefined;
 }
 
 /** 内置默认：不写任何配置文件也能跑（当然，调用真实 API 还需要环境变量里有 key） */
@@ -145,6 +148,14 @@ const configFileSchema = z.strictObject({
   goalTracking: z
     .strictObject({
       driftThreshold: z.number().int().positive().optional(),
+    })
+    .optional(),
+  modelRoles: z
+    .strictObject({
+      main: z.strictObject({ provider: z.string().min(1), model: z.string().min(1) }).optional(),
+      planner: z.strictObject({ provider: z.string().min(1), model: z.string().min(1) }).optional(),
+      compressor: z.strictObject({ provider: z.string().min(1), model: z.string().min(1) }).optional(),
+      extractor: z.strictObject({ provider: z.string().min(1), model: z.string().min(1) }).optional(),
     })
     .optional(),
 });
@@ -294,6 +305,19 @@ function buildGoalTracking(file: ConfigFile | undefined): GoalTrackingSettings |
   };
 }
 
+/** Phase 3: 构建角色 → 模型映射 */
+function buildModelRoles(file: ConfigFile | undefined): ModelRoleMap | undefined {
+  const fromFile = file?.modelRoles;
+  if (fromFile === undefined) return undefined;
+  const result: ModelRoleMap = {};
+  if (fromFile.main !== undefined) result.main = fromFile.main;
+  if (fromFile.planner !== undefined) result.planner = fromFile.planner;
+  if (fromFile.compressor !== undefined) result.compressor = fromFile.compressor;
+  if (fromFile.extractor !== undefined) result.extractor = fromFile.extractor;
+  if (Object.keys(result).length === 0) return undefined;
+  return result;
+}
+
 /** 读取并合并全部配置来源；任何失败都是 FatalError（进程应立即退出） */
 export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
   const env = overrides.env ?? process.env;
@@ -332,6 +356,7 @@ export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
     checkpointing: buildCheckpointing(file),
     planner: buildPlanner(file),
     goalTracking: buildGoalTracking(file),
+    modelRoles: buildModelRoles(file),
   };
 }
 

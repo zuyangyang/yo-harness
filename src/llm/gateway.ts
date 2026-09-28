@@ -55,6 +55,15 @@ export class LLMGateway {
     return this.clients.get(providerName);
   }
 
+  /** Phase 3: 返回默认 provider 对应的 LLMClient（ModelRouter 回退用） */
+  getDefaultClient(): LLMClient {
+    const client = this.clients.get(this.config.defaultProvider);
+    if (client === undefined) {
+      throw new FatalError(`unknown llm provider '${this.config.defaultProvider}'`);
+    }
+    return client;
+  }
+
   async chat(req: ChatRequest, opts?: ChatOptions): Promise<ChatResponse> {
     const client = this.clients.get(this.config.defaultProvider);
     // 构造函数已校验，此处仅防御

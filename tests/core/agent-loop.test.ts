@@ -16,6 +16,9 @@ import {
 } from '../../src/core/permission.js';
 import type { ApprovalAsk, PermissionManager } from '../../src/core/permission.js';
 import { FakeLLMClient } from '../../src/llm/providers/fake.js';
+import { LLMGateway } from '../../src/llm/gateway.js';
+import { ModelRouter } from '../../src/router/model-router.js';
+import { CostTracker } from '../../src/router/cost-tracker.js';
 import { ToolRegistry } from '../../src/tools/registry.js';
 import type { Logger } from '../../src/types/common.js';
 import type {
@@ -120,6 +123,7 @@ interface LoopHarness {
   bus: EventBus;
   rec: BusRecording;
   contextConfig: ContextManagerConfig;
+  costTracker: CostTracker;
 }
 
 function makeLoop(options: LoopOptions): LoopHarness {
@@ -137,10 +141,15 @@ function makeLoop(options: LoopOptions): LoopHarness {
         )
       : createNonInteractivePermission());
   const contextConfig = options.contextConfig ?? { contextWindow: 100_000 };
+  const client = options.llm ?? fake;
+  const gateway = new LLMGateway(new Map([[client.name, client]]), { defaultProvider: client.name });
+  const router = new ModelRouter(gateway, {});
+  const costTracker = new CostTracker();
   const loop = new AgentLoop({
     sessionId: 's1',
     cwd: process.cwd(),
-    llm: options.llm ?? fake,
+    router,
+    costTracker,
     store,
     tools: registry,
     permission,
@@ -151,7 +160,7 @@ function makeLoop(options: LoopOptions): LoopHarness {
     maxTokens: 1024,
     logger: SILENT_LOGGER,
   });
-  return { loop, store, fake, bus, rec, contextConfig };
+  return { loop, store, fake, bus, rec, contextConfig, costTracker };
 }
 
 function types(events: EventEnvelope[]): string[] {
