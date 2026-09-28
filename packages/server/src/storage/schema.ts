@@ -111,6 +111,39 @@ export function createTenantSchema(schemaName: string) {
     ],
   );
 
+  const users = schema.table(
+    'users',
+    {
+      id: text('id').primaryKey(),
+      tenantId: text('tenant_id').notNull(),
+      username: text('username').notNull(),
+      passwordHash: text('password_hash').notNull(),
+      role: text('role').notNull().default('member'),
+      createdAt: text('created_at').notNull(),
+      updatedAt: text('updated_at').notNull(),
+    },
+    (table) => [
+      uniqueIndex('users_tenant_username_idx').on(table.tenantId, table.username),
+    ],
+  );
+
+  const apiKeys = schema.table(
+    'api_keys',
+    {
+      id: text('id').primaryKey(),
+      tenantId: text('tenant_id').notNull(),
+      userId: text('user_id').notNull(),
+      name: text('name').notNull(),
+      keyHash: text('key_hash').notNull(),
+      role: text('role').notNull(),
+      createdAt: text('created_at').notNull(),
+      lastUsedAt: text('last_used_at'),
+    },
+    (table) => [
+      index('api_keys_user_idx').on(table.userId),
+    ],
+  );
+
   return {
     sessions,
     events,
@@ -118,6 +151,8 @@ export function createTenantSchema(schemaName: string) {
     checkpointFiles,
     memories,
     tasks,
+    users,
+    apiKeys,
   };
 }
 

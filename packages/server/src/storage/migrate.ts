@@ -92,4 +92,31 @@ export async function runMigrations(client: PoolClient, schemaName: string): Pro
     )
   `);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status)`);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            TEXT PRIMARY KEY,
+      tenant_id     TEXT NOT NULL,
+      username      TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      role          TEXT NOT NULL DEFAULT 'member',
+      created_at    TEXT NOT NULL,
+      updated_at    TEXT NOT NULL
+    )
+  `);
+  await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_username ON users (tenant_id, username)`);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id           TEXT PRIMARY KEY,
+      tenant_id    TEXT NOT NULL,
+      user_id      TEXT NOT NULL,
+      name         TEXT NOT NULL,
+      key_hash     TEXT NOT NULL,
+      role         TEXT NOT NULL,
+      created_at   TEXT NOT NULL,
+      last_used_at TEXT
+    )
+  `);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys (user_id)`);
 }

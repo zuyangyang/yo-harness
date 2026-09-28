@@ -152,9 +152,9 @@ describe('Schema v2 → v3 迁移', () => {
     // 用当前代码打开 → 触发 v2→v3 迁移
     const v3 = openDatabase(dbPath);
 
-    // schema_version 已升级
+    // schema_version 已升级到最新版
     const version = (v3.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }).value;
-    expect(version).toBe('3');
+    expect(version).toBe('4');
 
     // 旧数据完整
     const session = v3.prepare('SELECT * FROM sessions WHERE id = ?').get('s1') as Record<string, unknown>;
@@ -170,6 +170,8 @@ describe('Schema v2 → v3 迁移', () => {
     const tableNames = tables.map((t) => t.name);
     expect(tableNames).toContain('memories');
     expect(tableNames).toContain('tasks');
+    expect(tableNames).toContain('users');
+    expect(tableNames).toContain('api_keys');
 
     // FTS5 虚拟表存在
     const fts = v3.prepare("SELECT name FROM sqlite_master WHERE name='memories_fts'").all();

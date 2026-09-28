@@ -11,6 +11,8 @@ import type {
   MemoryStore,
   TaskStore,
 } from '@yo-harness/core/core/ports.js';
+import type { UserStore } from './user-store.js';
+import type { ApiKeyStore } from './api-key-store.js';
 
 export type {
   EventStore,
@@ -20,12 +22,17 @@ export type {
   TaskStore,
 } from '@yo-harness/core/core/ports.js';
 
+export type { UserStore } from './user-store.js';
+export type { ApiKeyStore } from './api-key-store.js';
+
 export interface StorageBackend {
   sessions: SessionStore;
   events: EventStore;
   checkpoints: CheckpointStore;
   memories: MemoryStore;
   tasks: TaskStore;
+  users: UserStore;
+  apiKeys: ApiKeyStore;
 
   initialize(): Promise<void>;
   close(): Promise<void>;

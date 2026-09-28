@@ -10,6 +10,8 @@ import { SqliteSessionStore } from '@yo-harness/core/storage/session-store.js';
 import { SqliteCheckpointStore } from '@yo-harness/core/storage/checkpoint-store.js';
 import { SqliteMemoryStore } from '@yo-harness/core/storage/memory-store.js';
 import { SqliteTaskStore } from '@yo-harness/core/storage/task-store.js';
+import { SqliteUserStore } from './sqlite-user-store.js';
+import { SqliteApiKeyStore } from './sqlite-api-key-store.js';
 import type { StorageBackend } from './interface.js';
 
 export class SqliteBackend implements StorageBackend {
@@ -18,6 +20,8 @@ export class SqliteBackend implements StorageBackend {
   readonly checkpoints: SqliteCheckpointStore;
   readonly memories: SqliteMemoryStore;
   readonly tasks: SqliteTaskStore;
+  readonly users: SqliteUserStore;
+  readonly apiKeys: SqliteApiKeyStore;
 
   constructor(private readonly db: SqliteDatabase) {
     this.sessions = new SqliteSessionStore(db);
@@ -25,6 +29,8 @@ export class SqliteBackend implements StorageBackend {
     this.checkpoints = new SqliteCheckpointStore(db);
     this.memories = new SqliteMemoryStore(db);
     this.tasks = new SqliteTaskStore(db);
+    this.users = new SqliteUserStore(db);
+    this.apiKeys = new SqliteApiKeyStore(db);
   }
 
   async initialize(): Promise<void> {

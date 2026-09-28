@@ -29,6 +29,8 @@ import type { BackgroundTask, BackgroundTaskStatus, CreateTaskInput } from '@yo-
 import type { StorageBackend } from './interface.js';
 import { createTenantSchema, type TenantTables } from './schema.js';
 import { runMigrations } from './migrate.js';
+import { PostgresUserStore } from './user-store.js';
+import { PostgresApiKeyStore } from './api-key-store.js';
 
 export interface PostgresConfig {
   host: string;
@@ -46,6 +48,8 @@ export class PostgresBackend implements StorageBackend {
   readonly checkpoints: PostgresCheckpointStore;
   readonly memories: PostgresMemoryStore;
   readonly tasks: PostgresTaskStore;
+  readonly users: PostgresUserStore;
+  readonly apiKeys: PostgresApiKeyStore;
 
   private readonly pool: Pool;
   private readonly tables: TenantTables;
@@ -70,6 +74,8 @@ export class PostgresBackend implements StorageBackend {
     this.checkpoints = new PostgresCheckpointStore(this);
     this.memories = new PostgresMemoryStore(this);
     this.tasks = new PostgresTaskStore(this);
+    this.users = new PostgresUserStore(this.db, this.tables);
+    this.apiKeys = new PostgresApiKeyStore(this.db, this.tables);
   }
 
   async initialize(): Promise<void> {

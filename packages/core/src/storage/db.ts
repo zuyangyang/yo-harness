@@ -14,7 +14,7 @@ import { FatalError } from '../types/errors.js';
 
 export type SqliteDatabase = Database.Database;
 
-const SCHEMA_VERSION = '3';
+const SCHEMA_VERSION = '4';
 
 export function openDatabase(dbPath: string): SqliteDatabase {
   if (dbPath !== ':memory:') {
@@ -76,16 +76,29 @@ function initSchema(db: SqliteDatabase): void {
     migrateV1ToV2(db);
   }
 
-  // v1→v2 迁移完成后（或原本就是 v2），检查是否需要 v2→v3
+  const afterV1 = (
+    db.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }
+  ).value;
+
+  if (afterV1 === '2') {
+    migrateV2ToV3(db);
+  }
+
   const afterV2 = (
     db.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }
   ).value;
 
-  if (afterV2 === '2') {
-    migrateV2ToV3(db);
-  } else if (afterV2 !== SCHEMA_VERSION) {
+  if (afterV2 === '3') {
+    migrateV3ToV4(db);
+  }
+
+  const finalVersion = (
+    db.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }
+  ).value;
+
+  if (finalVersion !== SCHEMA_VERSION) {
     throw new FatalError(
-      `database schema version mismatch: db=${afterV2}, code=${SCHEMA_VERSION}`,
+      `database schema version mismatch: db=${finalVersion}, code=${SCHEMA_VERSION}`,
     );
   }
 }
@@ -184,6 +197,39 @@ function migrateV2ToV3(db: SqliteDatabase): void {
     }
 
     db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('3', 'schema_version');
+  });
+  migration();
+}
+
+/** v3 → v4：新增用户和 API Key 表（Phase 4 鉴权） */
+function migrateV3ToV4(db: SqliteDatabase): void {
+  const migration = db.transaction(() => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id            TEXT PRIMARY KEY,
+        tenant_id     TEXT NOT NULL,
+        username      TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        role          TEXT NOT NULL DEFAULT 'member',
+        created_at    TEXT NOT NULL,
+        updated_at    TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_username ON users (tenant_id, username);
+
+      CREATE TABLE IF NOT EXISTS api_keys (
+        id           TEXT PRIMARY KEY,
+        tenant_id    TEXT NOT NULL,
+        user_id      TEXT NOT NULL,
+        name         TEXT NOT NULL,
+        key_hash     TEXT NOT NULL,
+        role         TEXT NOT NULL,
+        created_at   TEXT NOT NULL,
+        last_used_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys (user_id);
+    `);
+
+    db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('4', 'schema_version');
   });
   migration();
 }
