@@ -1,5 +1,5 @@
 /**
- * 消息列表 + 输入框。
+ * Chat area: message list + input form.
  */
 import { useState, type FormEvent } from 'react';
 
@@ -28,25 +28,27 @@ export function ChatArea(): JSX.Element {
 
   if (!currentSession) {
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
-        Select or create a session to start
+      <div className="chat-empty">
+        <div className="chat-empty-icon"></div>
+        <div className="chat-empty-text">Select or create a session to start</div>
       </div>
     );
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <div style={{ padding: 15, borderBottom: '1px solid #e0e0e0', background: '#fff' }}>
-        <h2 style={{ margin: 0, fontSize: 16 }}>{currentSession.title ?? '(untitled)'}</h2>
-        <div style={{ fontSize: 12, color: '#666' }}>
+    <div className="chat-area">
+      <div className="chat-header">
+        <h2 className="chat-title">{currentSession.title ?? '(untitled)'}</h2>
+        <div className="chat-meta">
           {currentSession.model} · {currentSession.cwd}
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: 20, background: '#fafafa' }}>
+      <div className="chat-messages">
         {currentEvents.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#999', marginTop: 50 }}>
-            Start a conversation by sending a message
+          <div className="chat-empty">
+            <div className="chat-empty-icon">✨</div>
+            <div className="chat-empty-text">Start a conversation by sending a message</div>
           </div>
         ) : (
           currentEvents.map((envelope) => (
@@ -55,42 +57,25 @@ export function ChatArea(): JSX.Element {
         )}
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        style={{ padding: 15, borderTop: '1px solid #e0e0e0', background: '#fff' }}
-      >
-        <div style={{ display: 'flex', gap: 10 }}>
+      <div className="chat-input-area">
+        <form className="chat-input-form" onSubmit={handleSubmit}>
           <input
+            className="chat-input"
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type a message..."
             disabled={isSending}
-            style={{
-              flex: 1,
-              padding: 10,
-              border: '1px solid #ddd',
-              borderRadius: 4,
-              fontSize: 14,
-            }}
           />
           <button
+            className="chat-send-btn"
             type="submit"
             disabled={isSending || !input.trim()}
-            style={{
-              padding: '10px 20px',
-              background: '#007bff',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 4,
-              cursor: isSending || !input.trim() ? 'not-allowed' : 'pointer',
-              fontSize: 14,
-            }}
           >
             {isSending ? 'Sending...' : 'Send'}
           </button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

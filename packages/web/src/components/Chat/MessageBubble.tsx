@@ -1,5 +1,5 @@
 /**
- * 消息气泡：根据事件类型渲染不同内容。
+ * Message bubble: renders different content based on event type.
  */
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,17 +17,8 @@ export function MessageBubble({ envelope }: MessageBubbleProps): JSX.Element | n
   switch (payload.type) {
     case 'user_input':
       return (
-        <div style={{ marginBottom: 15, display: 'flex', justifyContent: 'flex-end' }}>
-          <div
-            style={{
-              maxWidth: '70%',
-              padding: 12,
-              background: '#007bff',
-              color: '#fff',
-              borderRadius: 12,
-              borderBottomRightRadius: 4,
-            }}
-          >
+        <div className="message-row message-row--user">
+          <div className="message-bubble message-bubble--user">
             {payload.content}
           </div>
         </div>
@@ -35,17 +26,8 @@ export function MessageBubble({ envelope }: MessageBubbleProps): JSX.Element | n
 
     case 'assistant_text':
       return (
-        <div style={{ marginBottom: 15, display: 'flex' }}>
-          <div
-            style={{
-              maxWidth: '70%',
-              padding: 12,
-              background: '#fff',
-              border: '1px solid #e0e0e0',
-              borderRadius: 12,
-              borderBottomLeftRadius: 4,
-            }}
-          >
+        <div className="message-row message-row--assistant">
+          <div className="message-bubble message-bubble--assistant">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{payload.text}</ReactMarkdown>
           </div>
         </div>
@@ -55,12 +37,14 @@ export function MessageBubble({ envelope }: MessageBubbleProps): JSX.Element | n
       return <ToolCallCard key={payload.callId} callId={payload.callId} toolName={payload.toolName} args={payload.args} />;
 
     case 'tool_result':
-      return null; // Tool results are shown inline in ToolCallCard
+      return null;
 
     case 'error':
       return (
-        <div style={{ marginBottom: 15, padding: 12, background: '#fee', border: '1px solid #fcc', borderRadius: 4, color: '#c00' }}>
-          <strong>Error ({payload.stage}):</strong> {payload.message}
+        <div className="message-row">
+          <div className="message-bubble message-bubble--error">
+            <strong>Error ({payload.stage}):</strong> {payload.message}
+          </div>
         </div>
       );
 

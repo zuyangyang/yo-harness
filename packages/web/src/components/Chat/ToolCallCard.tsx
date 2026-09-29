@@ -1,5 +1,5 @@
 /**
- * 工具调用卡片：展示工具名称、参数、执行状态。
+ * Tool call card: displays tool name, args, and execution status.
  */
 
 interface ToolCallCardProps {
@@ -17,24 +17,20 @@ export function ToolCallCard({ toolName, args }: ToolCallCardProps): JSX.Element
     .join(', ');
 
   return (
-    <div
-      style={{
-        marginBottom: 15,
-        padding: 12,
-        background: '#f5f5f5',
-        border: '1px solid #ddd',
-        borderRadius: 8,
-        fontSize: 13,
-      }}
-    >
-      <div style={{ fontWeight: 600, marginBottom: 5, color: '#333' }}>
-        🔧 {toolName}
-      </div>
-      {argsPreview && (
-        <div style={{ color: '#666', fontFamily: 'monospace', fontSize: 12 }}>
-          {argsPreview}
+    <div className="message-row message-row--assistant">
+      <div className="message-bubble message-bubble--assistant">
+        <div className="tool-call-card">
+          <div className="tool-call-header">
+            <span className="tool-call-icon"></span>
+            <span>{toolName}</span>
+          </div>
+          {argsPreview && (
+            <div className="tool-call-args">
+              {argsPreview}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
