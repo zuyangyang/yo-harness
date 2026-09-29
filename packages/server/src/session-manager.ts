@@ -30,6 +30,7 @@ import type { ModelRouter } from '@yo-harness/core/router/model-router.js';
 import type { Logger } from '@yo-harness/core/types/common.js';
 import type { AgentEvent, EventEnvelope, TurnEndReason } from '@yo-harness/core/types/events.js';
 import type { SandboxProvider } from '@yo-harness/core/types/sandbox.js';
+import type { WebSocketHub } from './ws/hub.js';
 
 export interface PendingApproval {
   id: string;
@@ -65,6 +66,7 @@ export interface SessionManagerDeps {
   contextWindow: number;
   budgetLimits: { maxStepsPerTurn: number; maxTokensPerTurn: number; maxTurnDurationMs: number };
   permission: PermissionSettings;
+  wsHub?: WebSocketHub;
 }
 
 export class SessionManager {
@@ -72,6 +74,10 @@ export class SessionManager {
   private readonly pendingApprovals = new Map<string, DeferredApproval>();
 
   constructor(private readonly deps: SessionManagerDeps) {}
+
+  setWebSocketHub(hub: WebSocketHub): void {
+    (this.deps as { wsHub: WebSocketHub }).wsHub = hub;
+  }
 
   async sendMessage(sessionId: string, message: string): Promise<{ accepted: true }> {
     const active = await this.getOrCreate(sessionId);
@@ -146,6 +152,9 @@ export class SessionManager {
     const priorEvents = envelopes.map((e) => e.payload);
 
     const bus = new EventBus();
+    bus.on('event', (envelope: EventEnvelope) => {
+      this.deps.wsHub?.broadcast(sessionId, envelope);
+    });
     const context = ContextManager.fromEvents(priorEvents, {
       contextWindow: this.deps.contextWindow,
     });

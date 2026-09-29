@@ -6,12 +6,17 @@
  * 2. 命令行：tsx src/index.ts（直接启动 HTTP 服务）
  */
 import { serve } from '@hono/node-server';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 import type { ToolResolver } from '@yo-harness/core/core/ports.js';
 import { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
 import { ModelRouter } from '@yo-harness/core/router/model-router.js';
 import { LLMGateway } from '@yo-harness/core/llm/gateway.js';
 import { FakeLLMClient } from '@yo-harness/core/llm/providers/fake.js';
+import { AnthropicLLMClient } from '@yo-harness/core/llm/providers/anthropic.js';
+import { OpenAICompatLLMClient } from '@yo-harness/core/llm/providers/openai-compat.js';
+import type { LLMClient } from '@yo-harness/core/types/llm.js';
 import { createBuiltinRegistry } from '@yo-harness/core/tools/registry.js';
 import { createLogger } from '@yo-harness/core/utils/logger.js';
 import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
@@ -19,7 +24,8 @@ import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
 import { createApp } from './app.js';
 import { SessionManager } from './session-manager.js';
 import { createJwtConfig } from './auth/jwt.js';
-import { createDefaultServerConfig, type ServerConfig } from './config.js';
+import { createDefaultServerConfig, type ServerConfig, type ModelProviderConfig } from './config.js';
+import { WebSocketHub } from './ws/hub.js';
 import {
   SqliteBackend,
   createSqliteBackend,
@@ -62,8 +68,9 @@ export async function createServer(options: CreateServerOptions) {
   const tools: ToolResolver = createBuiltinRegistry();
 
   const providerName = serverConfig.providers[0]?.provider ?? 'fake';
-  const fakeClient = new FakeLLMClient([{ text: 'ok', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 0, outputTokens: 0 } }]);
-  const gateway = new LLMGateway(new Map([[providerName, fakeClient]]), {
+  const providerConf = serverConfig.providers[0];
+  const client = buildServerLlmClient(providerName, providerConf);
+  const gateway = new LLMGateway(new Map([[providerName, client]]), {
     defaultProvider: providerName,
   });
   const router = new ModelRouter(gateway, serverConfig.modelRoles);
@@ -84,11 +91,15 @@ export async function createServer(options: CreateServerOptions) {
     permission: serverConfig.permission,
   });
 
-  const { app, wsHub, injectWebSocket } = createApp({
+  const wsHub = new WebSocketHub({ sessionManager });
+  sessionManager.setWebSocketHub(wsHub);
+
+  const { app, injectWebSocket } = createApp({
     storage,
     sessionManager,
     jwtConfig,
     serverConfig,
+    wsHub,
   });
 
   return { app, wsHub, injectWebSocket, sessionManager, storage };
@@ -96,6 +107,39 @@ export async function createServer(options: CreateServerOptions) {
 
 export interface StartServerOptions extends CreateServerOptions {
   port?: number;
+}
+
+const API_KEY_ENV: Record<string, string> = {
+  anthropic: 'ANTHROPIC_API_KEY',
+  'openai-compat': 'OPENAI_COMPAT_API_KEY',
+};
+
+function buildServerLlmClient(providerName: string, conf?: ModelProviderConfig): LLMClient {
+  if (!conf || providerName === 'fake') {
+    return new FakeLLMClient([{ text: 'ok', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 0, outputTokens: 0 } }]);
+  }
+  const apiKeyEnvName = API_KEY_ENV[providerName] ?? `${providerName.toUpperCase().replace(/-/g, '_')}_API_KEY`;
+  const apiKey = process.env[apiKeyEnvName];
+  if (!apiKey) {
+    console.warn(`[yo-server] no API key found for provider "${providerName}" (env ${apiKeyEnvName}), falling back to fake`);
+    return new FakeLLMClient([{ text: 'ok', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 0, outputTokens: 0 } }]);
+  }
+  if (providerName === 'anthropic') {
+    return AnthropicLLMClient.create({ model: conf.model, apiKey, ...(conf.baseURL ? { baseURL: conf.baseURL } : {}) });
+  }
+  return OpenAICompatLLMClient.create({ name: providerName, model: conf.model, apiKey, ...(conf.baseURL ? { baseURL: conf.baseURL } : {}) });
+}
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const PROJECT_ROOT = join(__dirname, '..', '..', '..');
+
+function loadDotEnv(): void {
+  try {
+    process.loadEnvFile(join(PROJECT_ROOT, '.env'));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
 }
 
 export async function startServer(options: StartServerOptions): Promise<void> {
@@ -123,6 +167,7 @@ export async function startServer(options: StartServerOptions): Promise<void> {
 
 // ─── CLI 入口 ───
 async function main() {
+  loadDotEnv();
   const storageType = process.env.YO_STORAGE ?? 'sqlite';
   const port = Number(process.env.YO_PORT ?? 3456);
 
@@ -143,14 +188,19 @@ async function main() {
   const serverConfig = createDefaultServerConfig({
     mode: (process.env.YO_MODE as 'single' | 'multi') ?? 'single',
     providers: process.env.YO_PROVIDER
-      ? [{ provider: process.env.YO_PROVIDER, model: process.env.YO_MODEL ?? 'gpt-4', contextWindow: 200_000, baseURL: process.env.YO_BASE_URL }]
+      ? [{
+          provider: process.env.YO_PROVIDER,
+          model: process.env.YO_MODEL ?? 'gpt-4',
+          contextWindow: 200_000,
+          ...(process.env.YO_BASE_URL ? { baseURL: process.env.YO_BASE_URL } : {}),
+        }]
       : [],
   });
 
   await startServer({
     storage,
     serverConfig,
-    jwtSecret: process.env.YO_JWT_SECRET,
+    ...(process.env.YO_JWT_SECRET ? { jwtSecret: process.env.YO_JWT_SECRET } : {}),
     port,
   });
 }

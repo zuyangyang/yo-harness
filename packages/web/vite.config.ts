@@ -4,7 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
+    port: 8080,
     proxy: {
       '/api': 'http://localhost:3456',
       '/auth': 'http://localhost:3456',

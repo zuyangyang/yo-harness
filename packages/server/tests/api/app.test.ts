@@ -9,6 +9,7 @@ import { hashPassword } from '../../src/auth/password.js';
 import { createApp } from '../../src/app.js';
 import { createDefaultServerConfig } from '../../src/config.js';
 import type { SessionManager } from '../../src/session-manager.js';
+import { WebSocketHub } from '../../src/ws/hub.js';
 import type { Hono } from 'hono';
 import type { ServerEnv } from '../../src/types.js';
 
@@ -61,11 +62,15 @@ beforeEach(async () => {
     modelRoles: { main: { provider: 'test', model: 'test-model' } },
   });
 
+  const mockSm = mockSessionManager();
+  const wsHub = new WebSocketHub({ sessionManager: mockSm });
+
   ({ app } = createApp({
     storage,
-    sessionManager: mockSessionManager(),
+    sessionManager: mockSm,
     jwtConfig,
     serverConfig,
+    wsHub,
   }));
 });
 

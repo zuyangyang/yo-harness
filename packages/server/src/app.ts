@@ -35,6 +35,7 @@ export interface AppDeps {
   sessionManager: SessionManager;
   jwtConfig: JwtConfig;
   serverConfig: ServerConfig;
+  wsHub: WebSocketHub;
   tenantManager?: TenantManager;
 }
 
@@ -45,10 +46,9 @@ export interface AppResult {
 }
 
 export function createApp(deps: AppDeps): AppResult {
-  const { storage, sessionManager, jwtConfig, serverConfig, tenantManager } = deps;
+  const { storage, sessionManager, jwtConfig, serverConfig, wsHub, tenantManager } = deps;
   const app = new Hono<ServerEnv>();
 
-  const wsHub = new WebSocketHub({ sessionManager });
   const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
 
   app.use('*', cors());
