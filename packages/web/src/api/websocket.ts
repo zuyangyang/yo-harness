@@ -49,7 +49,7 @@ const PING_INTERVAL_MS = 30_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
 function getWsBaseUrl(): string {
-  const httpBase = import.meta.env['VITE_API_BASE_URL'] ?? 'http://localhost:3000';
+  const httpBase = import.meta.env['VITE_API_BASE_URL'] ?? window.location.origin;
   return httpBase.replace(/^http/, 'ws');
 }
 

@@ -31,7 +31,7 @@ export function getToken(): string {
   return accessToken;
 }
 
-const DEFAULT_BASE_URL = 'http://localhost:3000';
+const DEFAULT_BASE_URL = '';
 
 function getBaseUrl(): string {
   return import.meta.env['VITE_API_BASE_URL'] ?? DEFAULT_BASE_URL;

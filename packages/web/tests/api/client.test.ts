@@ -42,7 +42,7 @@ describe('API client', () => {
       expect(result.data).toBe('test');
 
       const call = lastFetchCall();
-      expect(call?.url).toBe('http://localhost:3000/test');
+      expect(call?.url).toBe('/test');
       expect(call?.init.method).toBe('GET');
       expect(call?.init.body).toBeUndefined();
     });
@@ -99,7 +99,7 @@ describe('API client', () => {
       await api.auth.login({ tenantId: 't1', username: 'alice', password: 'secret' });
 
       const call = lastFetchCall();
-      expect(call?.url).toBe('http://localhost:3000/auth/login');
+      expect(call?.url).toBe('/auth/login');
       const body = JSON.parse(call!.init.body as string);
       expect(body).toEqual({ tenantId: 't1', username: 'alice', password: 'secret' });
     });
@@ -114,7 +114,7 @@ describe('API client', () => {
       await api.auth.register({ tenantId: 't1', username: 'alice', password: 'secret', email: 'alice@example.com' });
 
       const call = lastFetchCall();
-      expect(call?.url).toBe('http://localhost:3000/auth/register');
+      expect(call?.url).toBe('/auth/register');
       const body = JSON.parse(call!.init.body as string);
       expect(body).toEqual({ tenantId: 't1', username: 'alice', password: 'secret', email: 'alice@example.com' });
     });
@@ -126,7 +126,7 @@ describe('API client', () => {
       await api.sessions.list(10);
 
       const call = lastFetchCall();
-      expect(call?.url).toBe('http://localhost:3000/api/v1/sessions?limit=10');
+      expect(call?.url).toBe('/api/v1/sessions?limit=10');
     });
 
     it('create 发送 model/cwd', async () => {
@@ -134,7 +134,7 @@ describe('API client', () => {
       await api.sessions.create('gpt-4', '/tmp');
 
       const call = lastFetchCall();
-      expect(call?.url).toBe('http://localhost:3000/api/v1/sessions');
+      expect(call?.url).toBe('/api/v1/sessions');
       const body = JSON.parse(call!.init.body as string);
       expect(body).toEqual({ model: 'gpt-4', cwd: '/tmp' });
     });
@@ -144,7 +144,7 @@ describe('API client', () => {
       await api.sessions.sendMessage('s1', 'hello');
 
       const call = lastFetchCall();
-      expect(call?.url).toBe('http://localhost:3000/api/v1/sessions/s1/messages');
+      expect(call?.url).toBe('/api/v1/sessions/s1/messages');
       const body = JSON.parse(call!.init.body as string);
       expect(body).toEqual({ content: 'hello' });
     });
