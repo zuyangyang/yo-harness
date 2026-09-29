@@ -5,6 +5,8 @@
 ## 特性
 
 - **交互式 CLI**：基于 ink + React 的终端 UI，流式输出，实时状态显示
+- **Web UI**：React SPA，提供会话管理、实时对话、审批交互、记忆管理等功能
+- **Headless Server**：HTTP + WebSocket 服务，基于 Hono 框架，支持 SQLite 和 PostgreSQL
 - **双 Provider 支持**：Anthropic + OpenAI 兼容（DeepSeek / 豆包 Ark / Kimi / OpenRouter 等）
 - **6 个内置工具**：`read_file`、`write_file`、`list_dir`、`shell`、`web_fetch`、`web_search`
 - **审批系统**：写操作和危险命令需用户确认，支持"本次放行"和"会话内始终允许"
@@ -18,6 +20,7 @@
 - **语义记忆**：自动提取用户偏好与事实，FTS5 全文搜索，跨会话持久化
 - **多模型路由**：不同角色（主对话 / 摘要 / 嵌入）可配置不同模型
 - **后台任务**：daemon 进程管理长时间任务，CLI 提交 / 查询 / 取消
+- **多租户**：Server 支持多租户隔离，每个租户独立数据空间
 
 ## 安装
 
@@ -231,7 +234,7 @@ yo-harness/                       # pnpm monorepo
 - **纯函数渲染**：RenderModel 把事件折叠为 RenderLine，不依赖 ink / React
 - **密钥纪律**：API key 只从环境读取，不进配置对象、不落库、不进事件流
 
-### Phase 2 可靠性特性
+### 核心能力
 
 **规划器（Planner）**
 复杂任务直接丢给 ReAct 循环容易目标漂移。规划器让模型先用只读工具探索代码库，产出结构化计划（JSON），用户确认后交给执行者按计划推进。规划阶段只能用只读工具（`read_file`、`list_dir`），确保不会意外修改代码。
@@ -247,8 +250,6 @@ yo-harness/                       # pnpm monorepo
 
 **自适应压缩**
 上下文接近窗口限制时，自动压缩旧消息：保留最近 N 条完整消息，更早的用 LLM 生成摘要替换。压缩策略分两种：`tool_results`（只压缩工具返回结果）、`turns`（压缩整个 turn）。
-
-### Phase 3 能力扩展
 
 **MCP 工具集成**
 通过 [Model Context Protocol](https://modelcontextprotocol.io) 接入外部工具服务器。在 `~/.yo-harness/config.json` 的 `mcp` 字段配置服务器列表，启动时自动发现并注册工具。工具名格式为 `{serverName}__{toolName}`（双下划线分隔）。参见 `mcp.json.example`。
@@ -280,7 +281,7 @@ yo daemon-stop
 ```
 daemon 监听 Unix socket（`~/.yo-harness/daemon.sock`），空闲 5 分钟自动退出。
 
-### Phase 4 Server + Web UI
+### Server & Web UI
 
 **Headless Server**
 `packages/server` 提供 HTTP + WebSocket 服务，基于 Hono 框架。支持 SQLite（开发/单机）和 PostgreSQL（生产）两种存储后端。
@@ -311,9 +312,6 @@ yo --server http://localhost:3456
 # 带认证
 yo --server https://yo.example.com --token <jwt-token>
 ```
-
-**多租户**
-Server 支持多租户隔离，每个租户独立数据空间。通过 `X-Tenant-Id` 请求头或 JWT claim 传递租户标识。
 
 ## Docker 部署
 
