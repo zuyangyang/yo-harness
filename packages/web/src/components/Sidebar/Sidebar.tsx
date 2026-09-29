@@ -11,7 +11,7 @@ export function Sidebar(): JSX.Element {
 
   const handleNewSession = async (): Promise<void> => {
     try {
-      const session = await createSession(undefined, process.cwd());
+      const session = await createSession();
       await selectSession(session.id);
     } catch {
       // Error is handled by session store

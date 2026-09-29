@@ -10,7 +10,10 @@ import { RegisterPage } from './pages/RegisterPage.js';
 import { MainLayout } from './components/MainLayout.js';
 
 function ProtectedRoute({ children }: { children: JSX.Element }): JSX.Element {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isChecking } = useAuth();
+  if (isChecking) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>;
+  }
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
