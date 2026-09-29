@@ -1,5 +1,5 @@
 /**
- * 会话条目。
+ * Session item in sidebar.
  */
 import type { Session } from '../../api/client.js';
 
@@ -16,39 +16,28 @@ export function SessionItem({ session, isActive, onSelect, onDelete }: SessionIt
 
   return (
     <div
+      className={`session-item ${isActive ? 'session-item--active' : ''}`}
       onClick={onSelect}
-      style={{
-        padding: 12,
-        borderBottom: '1px solid #e0e0e0',
-        cursor: 'pointer',
-        background: isActive ? '#e7f3ff' : 'transparent',
-      }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 500, marginBottom: 4 }}>{title}</div>
-          <div style={{ fontSize: 11, color: '#666' }}>
+      <div className="session-item-content">
+        <div className="session-item-icon">💬</div>
+        <div className="session-item-info">
+          <div className="session-item-title">{title}</div>
+          <div className="session-item-meta">
             {session.model} · {updatedAt}
           </div>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          style={{
-            padding: '2px 6px',
-            background: 'none',
-            border: 'none',
-            color: '#999',
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
-          title="Delete session"
-        >
-          ×
-        </button>
       </div>
+      <button
+        className="session-item-delete"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        title="Delete session"
+      >
+        ×
+      </button>
     </div>
   );
 }

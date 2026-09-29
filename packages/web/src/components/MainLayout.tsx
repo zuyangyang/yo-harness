@@ -1,6 +1,6 @@
 /**
- * 主页面布局：Sidebar + ChatArea + StatusBar + ApprovalDialog overlay。
- * 响应式：移动端 sidebar 可折叠。
+ * Main page layout: TopBar + Sidebar + Content + StatusBar + ApprovalDialog overlay.
+ * Responsive: sidebar collapses on mobile.
  */
 import { useCallback, useState } from 'react';
 
@@ -10,16 +10,21 @@ import { StatusBar } from './StatusBar/StatusBar.js';
 import { MemoryManager } from './Memory/MemoryManager.js';
 import { TaskList } from './Task/TaskList.js';
 import { ApprovalDialog } from './Approval/ApprovalDialog.js';
+import { TopBar } from './TopBar/TopBar.js';
 import { useApprovalStore } from '../stores/approval.js';
+import { useSessionStore } from '../stores/session.js';
 
 type ViewTab = 'chat' | 'memory' | 'tasks';
 
 export function MainLayout(): JSX.Element {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ViewTab>('chat');
+  const [selectedModel, setSelectedModel] = useState('');
 
   const pendingApprovals = useApprovalStore((s) => s.pendingApprovals);
   const removeApproval = useApprovalStore((s) => s.removeApproval);
+  const createSession = useSessionStore((s) => s.createSession);
+  const selectSession = useSessionStore((s) => s.selectSession);
 
   const handleDismissApproval = useCallback(
     (approvalId: string) => {
@@ -30,42 +35,28 @@ export function MainLayout(): JSX.Element {
 
   const currentApproval = pendingApprovals[0] ?? null;
 
+  const handleNewSession = async (): Promise<void> => {
+    try {
+      const session = await createSession(selectedModel);
+      await selectSession(session.id);
+    } catch {
+      // Error is handled by session store
+    }
+  };
+
   return (
     <div className="main-layout">
       <div className={`sidebar-container ${sidebarOpen ? 'sidebar-open' : ''}`}>
-        <Sidebar />
+        <Sidebar onNewSession={handleNewSession} />
       </div>
 
       <div className="main-content">
-        <div className="main-header">
-          <button
-            className="sidebar-toggle"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            aria-label="Toggle sidebar"
-          >
-            ☰
-          </button>
-          <nav className="tab-nav">
-            <button
-              className={activeTab === 'chat' ? 'tab-active' : ''}
-              onClick={() => setActiveTab('chat')}
-            >
-              Chat
-            </button>
-            <button
-              className={activeTab === 'memory' ? 'tab-active' : ''}
-              onClick={() => setActiveTab('memory')}
-            >
-              Memory
-            </button>
-            <button
-              className={activeTab === 'tasks' ? 'tab-active' : ''}
-              onClick={() => setActiveTab('tasks')}
-            >
-              Tasks
-            </button>
-          </nav>
-        </div>
+        <TopBar
+          activeTab={activeTab}
+          onTabChange={(tab) => setActiveTab(tab as ViewTab)}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+        />
 
         <div className="main-body">
           {activeTab === 'chat' && <ChatArea />}
