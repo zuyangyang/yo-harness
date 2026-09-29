@@ -1200,3 +1200,221 @@ body {
     padding: 6px 8px;
   }
 }
+
+/* ─── Turn Block ─── */
+.turn-block {
+  margin-bottom: var(--space-6);
+}
+
+.turn-thinking {
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  font-size: var(--font-size-lg);
+  color: var(--text-secondary);
+}
+
+.turn-thinking__summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  user-select: none;
+}
+
+.turn-thinking__arrow {
+  transition: transform 0.15s ease;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.turn-thinking__arrow--expanded {
+  transform: rotate(90deg);
+}
+
+.turn-thinking__label {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.turn-thinking__meta {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.turn-thinking__content {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.turn-thinking__content p {
+  margin-bottom: var(--space-2);
+}
+
+.turn-thinking__content p:last-child {
+  margin-bottom: 0;
+}
+
+/* ─── Tool Steps ─── */
+.turn-tools {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+  overflow: hidden;
+}
+
+.turn-tools__summary {
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.turn-tools__icon {
+  font-size: var(--font-size-lg);
+}
+
+.turn-tools__label {
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.turn-tools__stats {
+  margin-left: auto;
+  display: flex;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.turn-tools__stat--success {
+  color: var(--success);
+}
+
+.turn-tools__stat--error {
+  color: var(--danger);
+}
+
+.turn-tools__stat--pending {
+  color: var(--info);
+}
+
+.turn-tools__stat--warning {
+  color: var(--warning);
+}
+
+.turn-tools__list {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.tool-step {
+  border-top: 1px solid var(--border-subtle);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-primary);
+}
+
+.tool-step:first-child {
+  border-top: none;
+}
+
+.tool-step__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+}
+
+.tool-step__status {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tool-step__status--success {
+  color: var(--success);
+}
+
+.tool-step__status--error {
+  color: var(--danger);
+}
+
+.tool-step__status--pending {
+  color: var(--info);
+}
+
+.tool-step__status--warning {
+  color: var(--warning);
+}
+
+.tool-step__name {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  color: var(--text-primary);
+}
+
+.tool-step__duration {
+  margin-left: auto;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+}
+
+.tool-step__args {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.tool-step__waiting {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background: #fff8e1;
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.tool-step__result {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  color: var(--text-secondary);
+  max-height: 200px;
+  overflow-y: auto;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.tool-step__result--error {
+  background: #fee;
+  color: var(--danger);
+}
+
+/* ─── Turn Reply ─── */
+.turn-reply {
+  font-size: var(--font-size-lg);
+  line-height: 1.7;
+}
+
+/* ─── Turn Meta ─── */
+.turn-meta {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  text-align: right;
+  margin-top: var(--space-2);
+  padding-right: var(--space-2);
+}
