@@ -63,14 +63,14 @@ export function ApprovalDialog({ request, onDismiss }: ApprovalDialogProps): JSX
 
         <div className="approval-actions">
           <button
-            className="btn-approve"
+            className="btn btn-success"
             disabled={resolving}
             onClick={() => handleResolve(true)}
           >
             Approve
           </button>
           <button
-            className="btn-reject"
+            className="btn btn-danger"
             disabled={resolving}
             onClick={() => handleResolve(false)}
           >

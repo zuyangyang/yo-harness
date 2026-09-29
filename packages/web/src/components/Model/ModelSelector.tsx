@@ -1,5 +1,5 @@
 /**
- * 模型选择器：从 /api/v1/models 拉取可用模型列表，用于创建会话时选择。
+ * Model selector: fetches available models from /api/v1/models.
  */
 import { useCallback, useEffect, useState } from 'react';
 
@@ -31,11 +31,11 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps): JSX.Elem
   }, [loadModels]);
 
   if (isLoading) {
-    return <select disabled><option>Loading...</option></select>;
+    return <select className="select" disabled><option>Loading...</option></select>;
   }
 
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}>
+    <select className="select" value={value} onChange={(e) => onChange(e.target.value)}>
       {models.length === 0 && <option value="">No models available</option>}
       {models.map((m) => (
         <option key={`${m.provider}/${m.model}`} value={m.model}>

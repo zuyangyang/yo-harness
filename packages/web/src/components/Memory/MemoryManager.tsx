@@ -131,6 +131,7 @@ export function MemoryManager(): JSX.Element {
 
       <div className="memory-toolbar">
         <input
+          className="input"
           type="text"
           placeholder="Search memories..."
           value={searchQuery}
@@ -138,6 +139,7 @@ export function MemoryManager(): JSX.Element {
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
         />
         <select
+          className="select"
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value as MemoryCategory | '')}
         >
@@ -148,7 +150,7 @@ export function MemoryManager(): JSX.Element {
             </option>
           ))}
         </select>
-        <button onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_FORM); }}>
+        <button className="btn btn-primary" onClick={() => { setShowForm(true); setEditingId(null); setForm(EMPTY_FORM); }}>
           + New
         </button>
       </div>
@@ -156,18 +158,21 @@ export function MemoryManager(): JSX.Element {
       {showForm && (
         <div className="memory-form">
           <input
+            className="input"
             type="text"
             placeholder="Title"
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
           />
           <textarea
+            className="input"
             placeholder="Content"
             value={form.content}
             onChange={(e) => setForm({ ...form, content: e.target.value })}
             rows={4}
           />
           <select
+            className="select"
             value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value as MemoryCategory })}
           >
@@ -178,22 +183,24 @@ export function MemoryManager(): JSX.Element {
             ))}
           </select>
           <input
+            className="input"
             type="text"
             placeholder="Description"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
           <input
+            className="input"
             type="text"
             placeholder="Keywords (comma-separated)"
             value={form.keywords}
             onChange={(e) => setForm({ ...form, keywords: e.target.value })}
           />
           <div className="memory-form-actions">
-            <button onClick={editingId ? handleUpdate : handleCreate}>
+            <button className="btn btn-primary" onClick={editingId ? handleUpdate : handleCreate}>
               {editingId ? 'Update' : 'Create'}
             </button>
-            <button onClick={() => { setShowForm(false); setEditingId(null); }}>Cancel</button>
+            <button className="btn btn-secondary" onClick={() => { setShowForm(false); setEditingId(null); }}>Cancel</button>
           </div>
         </div>
       )}
@@ -219,8 +226,8 @@ export function MemoryManager(): JSX.Element {
                 </div>
               )}
               <div className="memory-item-actions">
-                <button onClick={() => startEdit(mem)}>Edit</button>
-                <button onClick={() => handleDelete(mem.id)}>Delete</button>
+                <button className="btn btn-sm btn-secondary" onClick={() => startEdit(mem)}>Edit</button>
+                <button className="btn btn-sm btn-danger" onClick={() => handleDelete(mem.id)}>Delete</button>
               </div>
             </li>
           ))}

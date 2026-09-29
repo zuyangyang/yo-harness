@@ -49,7 +49,7 @@ export function TaskList(): JSX.Element {
     <div className="task-list">
       <h2>Background Tasks</h2>
 
-      <button className="task-refresh" onClick={() => void loadTasks()}>
+      <button className="btn btn-primary" onClick={() => void loadTasks()}>
         Refresh
       </button>
 
@@ -86,7 +86,7 @@ export function TaskList(): JSX.Element {
                 <td>{new Date(task.createdAt).toLocaleString()}</td>
                 <td>
                   {(task.status === 'pending' || task.status === 'running') && (
-                    <button onClick={() => handleCancel(task.id)}>Cancel</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => handleCancel(task.id)}>Cancel</button>
                   )}
                 </td>
               </tr>
