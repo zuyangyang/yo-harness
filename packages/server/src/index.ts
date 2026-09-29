@@ -120,3 +120,42 @@ export async function startServer(options: StartServerOptions): Promise<void> {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }
+
+// ─── CLI 入口 ───
+async function main() {
+  const storageType = process.env.YO_STORAGE ?? 'sqlite';
+  const port = Number(process.env.YO_PORT ?? 3456);
+
+  let storage: StorageBackend;
+  if (storageType === 'postgres') {
+    storage = createPostgresBackend({
+      host: process.env.YO_PG_HOST ?? 'localhost',
+      port: Number(process.env.YO_PG_PORT ?? 5432),
+      database: process.env.YO_PG_DATABASE ?? 'yo_harness',
+      user: process.env.YO_PG_USER ?? 'postgres',
+      password: process.env.YO_PG_PASSWORD ?? 'postgres',
+    }, 'public');
+  } else {
+    const dbPath = process.env.YO_SQLITE_PATH ?? 'data/yo-harness.db';
+    storage = createSqliteBackend(dbPath);
+  }
+
+  const serverConfig = createDefaultServerConfig({
+    mode: (process.env.YO_MODE as 'single' | 'multi') ?? 'single',
+    providers: process.env.YO_PROVIDER
+      ? [{ provider: process.env.YO_PROVIDER, model: process.env.YO_MODEL ?? 'gpt-4', contextWindow: 200_000, baseURL: process.env.YO_BASE_URL }]
+      : [],
+  });
+
+  await startServer({
+    storage,
+    serverConfig,
+    jwtSecret: process.env.YO_JWT_SECRET,
+    port,
+  });
+}
+
+main().catch((err) => {
+  console.error('[yo-server] failed to start:', err);
+  process.exit(1);
+});

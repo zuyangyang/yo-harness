@@ -50,11 +50,14 @@ export function createAuthRoutes(deps: AuthRouteDeps): Hono {
       role: body.role ?? 'member',
     });
 
+    const tokenPayload = { userId: user.id, tenantId: user.tenantId, role: user.role };
+    const accessToken = await signAccessToken(tokenPayload, jwtConfig);
+    const refreshToken = await signRefreshToken({ userId: user.id, tenantId: user.tenantId }, jwtConfig);
+
     return c.json({
-      id: user.id,
-      tenantId: user.tenantId,
-      username: user.username,
-      role: user.role,
+      accessToken,
+      refreshToken,
+      user: { id: user.id, username: user.username, role: user.role },
     }, 201);
   });
 
@@ -118,9 +121,13 @@ export function createAuthRoutes(deps: AuthRouteDeps): Hono {
   app.use('/api-keys/*', authMiddleware({ storage, jwtConfig }));
 
   // ─── 当前用户信息 ───
-  app.get('/me', (c) => {
+  app.get('/me', authMiddleware({ storage, jwtConfig }), async (c) => {
     const auth = getAuth(c);
-    return c.json(auth);
+    const user = await storage.users.get(auth.userId);
+    if (!user) {
+      return c.json({ error: 'user not found' }, 404);
+    }
+    return c.json({ user: { id: user.id, username: user.username, role: user.role } });
   });
 
   // ─── 创建 API Key ───

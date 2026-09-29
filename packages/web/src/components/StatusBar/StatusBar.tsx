@@ -26,9 +26,8 @@ function extractStats(events: EventEnvelope[]): { steps: number; tokens: number 
 export function StatusBar(): JSX.Element {
   const [connected, setConnected] = useState(false);
   const currentSessionId = useSessionStore((s) => s.currentSessionId);
-  const events = useSessionStore((s) =>
-    currentSessionId ? s.events.get(currentSessionId) ?? [] : [],
-  );
+  const eventsMap = useSessionStore((s) => s.events);
+  const events = currentSessionId ? eventsMap.get(currentSessionId) ?? [] : [];
 
   useEffect(() => {
     const onConnected = () => setConnected(true);
