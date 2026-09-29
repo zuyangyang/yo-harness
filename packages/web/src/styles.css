@@ -207,6 +207,24 @@ body {
   gap: var(--space-3);
 }
 
+.theme-toggle-btn {
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-subtle);
+}
+
 .sidebar-toggle {
   display: none;
   background: none;

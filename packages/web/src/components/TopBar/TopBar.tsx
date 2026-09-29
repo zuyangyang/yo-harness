@@ -1,7 +1,8 @@
 /**
- * TopBar: Logo + Tab navigation + Model selector.
+ * TopBar: Logo + Tab navigation + Model selector + Theme toggle.
  */
 import { ModelSelector } from '../Model/ModelSelector.js';
+import { useTheme } from '../../hooks/useTheme.js';
 
 interface TopBarProps {
   activeTab: string;
@@ -11,6 +12,8 @@ interface TopBarProps {
 }
 
 export function TopBar({ activeTab, onTabChange, selectedModel, onModelChange }: TopBarProps): JSX.Element {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <div className="topbar">
       <div className="topbar-left">
@@ -32,6 +35,9 @@ export function TopBar({ activeTab, onTabChange, selectedModel, onModelChange }:
       </div>
       <div className="topbar-right">
         <ModelSelector value={selectedModel} onChange={onModelChange} />
+        <button className="theme-toggle-btn" onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+          {theme === 'dark' ? '☀️' : '🌙'}
+        </button>
       </div>
     </div>
   );
