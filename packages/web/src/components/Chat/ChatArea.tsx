@@ -3,9 +3,9 @@
  */
 import { useState, type FormEvent } from 'react';
 
-import type { EventEnvelope } from '@yo-harness/core/types/events.js';
 import { useSession } from '../../hooks/useSession.js';
-import { MessageBubble } from './MessageBubble.js';
+import { groupEventsIntoTurns } from '../../utils/turn-grouping.js';
+import { TurnBlock } from './TurnBlock.js';
 
 export function ChatArea(): JSX.Element {
   const { currentSession, currentEvents, sendMessage } = useSession();
@@ -51,9 +51,10 @@ export function ChatArea(): JSX.Element {
             <div className="chat-empty-text">Start a conversation by sending a message</div>
           </div>
         ) : (
-          currentEvents.map((envelope) => (
-            <MessageBubble key={envelope.id} envelope={envelope} />
-          ))
+          (() => {
+            const turns = groupEventsIntoTurns(currentEvents);
+            return turns.map((turn) => <TurnBlock key={turn.id} turn={turn} />);
+          })()
         )}
       </div>
 
