@@ -1,5 +1,5 @@
 /**
- * 登录页面。
+ * Login page.
  */
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -24,66 +24,68 @@ export function LoginPage(): JSX.Element {
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: '100px auto', padding: 20 }}>
-      <h1>Login</h1>
-      {error && (
-        <div style={{ padding: 10, marginBottom: 10, background: '#fee', color: '#c00', borderRadius: 4 }}>
-          {error}
-          <button onClick={clearError} style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer' }}>
-            ×
+    <div className="auth-page">
+      <div className="auth-card">
+        <div className="auth-header">
+          <div className="auth-logo">
+            <span className="auth-logo-icon"></span>
+            <span>Yo-Harness</span>
+          </div>
+          <h1 className="auth-title">Welcome back</h1>
+          <p className="auth-subtitle">Sign in to your account</p>
+        </div>
+
+        {error && (
+          <div className="auth-error">
+            <span>{error}</span>
+            <button className="auth-error-close" onClick={clearError}>×</button>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="auth-form">
+          <div className="auth-field">
+            <label className="auth-label">Tenant ID</label>
+            <input
+              className="input"
+              type="text"
+              value={tenantId}
+              onChange={(e) => setTenantId(e.target.value)}
+              required
+            />
+          </div>
+          <div className="auth-field">
+            <label className="auth-label">Username</label>
+            <input
+              className="input"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
+          </div>
+          <div className="auth-field">
+            <label className="auth-label">Password</label>
+            <input
+              className="input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button
+            className="btn btn-primary auth-submit"
+            type="submit"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Signing in...' : 'Sign in'}
           </button>
-        </div>
-      )}
-      <form onSubmit={handleSubmit}>
-        <div style={{ marginBottom: 15 }}>
-          <label style={{ display: 'block', marginBottom: 5 }}>Tenant ID</label>
-          <input
-            type="text"
-            value={tenantId}
-            onChange={(e) => setTenantId(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
-          />
-        </div>
-        <div style={{ marginBottom: 15 }}>
-          <label style={{ display: 'block', marginBottom: 5 }}>Username</label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
-          />
-        </div>
-        <div style={{ marginBottom: 15 }}>
-          <label style={{ display: 'block', marginBottom: 5 }}>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={isLoading}
-          style={{
-            width: '100%',
-            padding: 10,
-            background: '#007bff',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 4,
-            cursor: isLoading ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {isLoading ? 'Logging in...' : 'Login'}
-        </button>
-      </form>
-      <p style={{ marginTop: 15, textAlign: 'center' }}>
-        Don't have an account? <Link to="/register">Register</Link>
-      </p>
+        </form>
+
+        <p className="auth-footer">
+          Don't have an account? <Link to="/register">Create account</Link>
+        </p>
+      </div>
     </div>
   );
 }
