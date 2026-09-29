@@ -5,10 +5,8 @@
  * - 单例连接：connect() 建立连接，disconnect() 关闭
  * - 自动重连：断连后指数退避重试（1s → 2s → 4s → 8s → 最大 30s）
  * - 心跳：每 30s 发送 ping，服务端回复 pong
- * - 事件发射：继承 EventEmitter，发射 'event' / 'approval' / 'error' / 'connected' / 'disconnected'
+ * - 事件发射：内部简易 EventEmitter，发射 'event' / 'approval' / 'error' / 'connected' / 'disconnected'
  */
-import { EventEmitter } from 'node:events';
-
 import type { EventEnvelope } from '@yo-harness/core/types/events.js';
 import { getToken } from './client.js';
 
@@ -24,6 +22,29 @@ export interface RemoteError {
   message: string;
 }
 
+type Listener = (...args: any[]) => void;
+
+class SimpleEmitter {
+  private handlers = new Map<string, Set<Listener>>();
+
+  on(event: string, fn: Listener): void {
+    if (!this.handlers.has(event)) this.handlers.set(event, new Set());
+    this.handlers.get(event)!.add(fn);
+  }
+
+  off(event: string, fn: Listener): void {
+    this.handlers.get(event)?.delete(fn);
+  }
+
+  emit(event: string, ...args: unknown[]): void {
+    this.handlers.get(event)?.forEach((fn) => fn(...args));
+  }
+
+  listenerCount(event: string): number {
+    return this.handlers.get(event)?.size ?? 0;
+  }
+}
+
 const PING_INTERVAL_MS = 30_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
@@ -32,7 +53,7 @@ function getWsBaseUrl(): string {
   return httpBase.replace(/^http/, 'ws');
 }
 
-export class WebSocketClient extends EventEmitter {
+export class WebSocketClient extends SimpleEmitter {
   private ws: WebSocket | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;

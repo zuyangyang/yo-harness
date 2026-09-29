@@ -37,8 +37,8 @@ export function StatusBar(): JSX.Element {
     wsClient.on('connected', onConnected);
     wsClient.on('disconnected', onDisconnected);
 
-    // Check initial state
-    setConnected(wsClient.listenerCount('connected') > 0 || false);
+    // Check initial state — assume disconnected until 'connected' event fires
+    setConnected(false);
 
     return () => {
       wsClient.off('connected', onConnected);
