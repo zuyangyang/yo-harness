@@ -39,7 +39,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps): JSX.Elem
       {models.length === 0 && <option value="">No models available</option>}
       {models.map((m) => (
         <option key={`${m.provider}/${m.model}`} value={m.model}>
-          {m.provider}/{m.model} ({m.contextWindow.toLocaleString()} ctx)
+          {m.model}
         </option>
       ))}
     </select>

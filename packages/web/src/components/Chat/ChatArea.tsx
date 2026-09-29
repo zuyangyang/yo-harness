@@ -1,13 +1,19 @@
 /**
- * Chat area: message list + input form.
+ * Chat area: message list + DeepSeek-style input form.
  */
 import { useState, type FormEvent } from 'react';
 
 import { useSession } from '../../hooks/useSession.js';
 import { groupEventsIntoTurns } from '../../utils/turn-grouping.js';
 import { TurnBlock } from './TurnBlock.js';
+import { ModelSelector } from '../Model/ModelSelector.js';
 
-export function ChatArea(): JSX.Element {
+interface ChatAreaProps {
+  selectedModel: string;
+  onModelChange: (model: string) => void;
+}
+
+export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.Element {
   const { currentSession, currentEvents, sendMessage } = useSession();
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -60,21 +66,33 @@ export function ChatArea(): JSX.Element {
 
       <div className="chat-input-area">
         <form className="chat-input-form" onSubmit={handleSubmit}>
-          <input
+          <button type="button" className="chat-input-plus" title="Add">+</button>
+          <textarea
             className="chat-input"
-            type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message..."
+            placeholder="发消息或创建任务，/ 调用指令，@ 文件或对话"
             disabled={isSending}
+            rows={1}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const form = e.currentTarget.form;
+                if (form) form.requestSubmit();
+              }
+            }}
           />
-          <button
-            className="chat-send-btn"
-            type="submit"
-            disabled={isSending || !input.trim()}
-          >
-            {isSending ? 'Sending...' : 'Send'}
-          </button>
+          <div className="chat-input-right">
+            <ModelSelector value={selectedModel} onChange={onModelChange} />
+            <button
+              className="chat-send-btn"
+              type="submit"
+              disabled={isSending || !input.trim()}
+              title="Send"
+            >
+              ↑
+            </button>
+          </div>
         </form>
       </div>
     </div>

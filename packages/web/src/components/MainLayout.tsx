@@ -54,12 +54,10 @@ export function MainLayout(): JSX.Element {
         <TopBar
           activeTab={activeTab}
           onTabChange={(tab) => setActiveTab(tab as ViewTab)}
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
         />
 
         <div className="main-body">
-          {activeTab === 'chat' && <ChatArea />}
+          {activeTab === 'chat' && <ChatArea selectedModel={selectedModel} onModelChange={setSelectedModel} />}
           {activeTab === 'memory' && <MemoryManager />}
           {activeTab === 'tasks' && <TaskList />}
         </div>
