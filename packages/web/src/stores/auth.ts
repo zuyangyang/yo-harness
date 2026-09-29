@@ -21,6 +21,7 @@ export interface User {
 interface AuthState {
   user: User | null;
   token: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -37,6 +38,7 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       token: null,
+      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -50,6 +52,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: res.user,
             token: res.accessToken,
+            refreshToken: res.refreshToken,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -71,6 +74,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: res.user,
             token: res.accessToken,
+            refreshToken: res.refreshToken,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -89,12 +93,13 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           token: null,
+          refreshToken: null,
           isAuthenticated: false,
         });
       },
 
       loadUser: async () => {
-        const { token } = get();
+        const { token, refreshToken } = get();
         if (!token) return;
 
         setToken(token);
@@ -106,13 +111,25 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
           });
         } catch {
-          // Token invalid/expired — clear auth state
-          clearToken();
-          set({
-            user: null,
-            token: null,
-            isAuthenticated: false,
-          });
+          if (!refreshToken) {
+            clearToken();
+            set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
+            return;
+          }
+          try {
+            const refreshRes = await api.auth.refresh(refreshToken);
+            setToken(refreshRes.accessToken);
+            const meRes = await api.auth.me();
+            wsClient.connect();
+            set({
+              user: meRes.user,
+              token: refreshRes.accessToken,
+              isAuthenticated: true,
+            });
+          } catch {
+            clearToken();
+            set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
+          }
         }
       },
 
@@ -120,7 +137,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'yo-auth',
-      partialize: (state) => ({ token: state.token }),
+      partialize: (state) => ({ token: state.token, refreshToken: state.refreshToken }),
     },
   ),
 );

@@ -148,6 +148,8 @@ export const api = {
   auth: {
     login: (req: LoginRequest) => fetchJson<LoginResponse>('POST', '/auth/login', req),
     register: (req: RegisterRequest) => fetchJson<LoginResponse>('POST', '/auth/register', req),
+    refresh: (refreshToken: string) =>
+      fetchJson<{ accessToken: string }>('POST', '/auth/refresh', { refreshToken }),
     me: () => fetchJson<{ user: { id: string; username: string; role: string } }>('GET', '/auth/me'),
   },
   sessions: {
