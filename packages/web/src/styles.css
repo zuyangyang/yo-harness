@@ -783,6 +783,27 @@ body {
   justify-content: center;
   background: var(--bg-primary);
   padding: var(--space-6);
+  position: relative;
+}
+
+.auth-theme-toggle {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-theme-toggle:hover {
+  background: var(--bg-active);
 }
 
 .auth-card {
