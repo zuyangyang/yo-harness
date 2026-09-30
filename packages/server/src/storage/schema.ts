@@ -9,12 +9,30 @@ import {
   text,
   integer,
   bigint,
+  boolean,
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 export function createTenantSchema(schemaName: string) {
   const schema = pgSchema(schemaName);
+
+  const workspaces = schema.table(
+    'workspaces',
+    {
+      id: text('id').primaryKey(),
+      name: text('name').notNull(),
+      description: text('description').notNull().default(''),
+      color: text('color'),
+      icon: text('icon'),
+      sortOrder: integer('sort_order').notNull().default(0),
+      createdAt: text('created_at').notNull(),
+      updatedAt: text('updated_at').notNull(),
+    },
+    (table) => [
+      index('workspaces_sort_idx').on(table.sortOrder, table.createdAt),
+    ],
+  );
 
   const sessions = schema.table(
     'sessions',
@@ -25,9 +43,16 @@ export function createTenantSchema(schemaName: string) {
       cwd: text('cwd').notNull(),
       status: text('status').notNull().default('active'),
       type: text('type').notNull().default('interactive'),
+      workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null' }),
+      pinned: boolean('pinned').notNull().default(false),
+      titleIsCustom: boolean('title_is_custom').notNull().default(false),
       createdAt: text('created_at').notNull(),
       updatedAt: text('updated_at').notNull(),
     },
+    (table) => [
+      index('sessions_workspace_idx').on(table.workspaceId, table.updatedAt),
+      index('sessions_status_idx').on(table.status, table.updatedAt),
+    ],
   );
 
   const events = schema.table(
@@ -145,6 +170,7 @@ export function createTenantSchema(schemaName: string) {
   );
 
   return {
+    workspaces,
     sessions,
     events,
     checkpoints,

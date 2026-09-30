@@ -11,17 +11,41 @@ export async function runMigrations(client: PoolClient, schemaName: string): Pro
   await client.query(`SET search_path TO "${schemaName}", public`);
 
   await client.query(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id         TEXT PRIMARY KEY,
-      title      TEXT NOT NULL DEFAULT '',
-      model      TEXT NOT NULL,
-      cwd        TEXT NOT NULL,
-      status     TEXT NOT NULL DEFAULT 'active',
-      type       TEXT NOT NULL DEFAULT 'interactive',
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+    CREATE TABLE IF NOT EXISTS workspaces (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      color       TEXT,
+      icon        TEXT,
+      sort_order  INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
     )
   `);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_workspaces_sort ON workspaces (sort_order, created_at)`);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id              TEXT PRIMARY KEY,
+      title           TEXT NOT NULL DEFAULT '',
+      model           TEXT NOT NULL,
+      cwd             TEXT NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'active',
+      type            TEXT NOT NULL DEFAULT 'interactive',
+      workspace_id    TEXT REFERENCES workspaces(id) ON DELETE SET NULL,
+      pinned          BOOLEAN NOT NULL DEFAULT FALSE,
+      title_is_custom BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at      TEXT NOT NULL,
+      updated_at      TEXT NOT NULL
+    )
+  `);
+
+  // 存量库升级：新列幂等追加（ADD COLUMN IF NOT EXISTS 不校验类型，此处仅追加缺失列）
+  await client.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL`);
+  await client.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE`);
+  await client.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS title_is_custom BOOLEAN NOT NULL DEFAULT FALSE`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_sessions_workspace ON sessions (workspace_id, updated_at DESC)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions (status, updated_at DESC)`);
 
   await client.query(`
     CREATE TABLE IF NOT EXISTS events (
