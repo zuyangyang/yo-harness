@@ -5,6 +5,7 @@ import { App } from './App.js';
 import './styles/tokens.css';
 import './styles.css';
 import './styles/components.css';
+import './styles/layout.css';
 
 const STORAGE_KEY = 'yo-theme';
 try {

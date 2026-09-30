@@ -1,0 +1,91 @@
+/* ─────────────────────────────────────────────────────────────
+ * App shell & navigation layout
+ * ───────────────────────────────────────────────────────────── */
+
+.app-shell {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ─── NavRail ─── */
+.nav-rail {
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+}
+
+.nav-rail__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  transition: background var(--motion-fast) var(--ease-standard);
+}
+
+.nav-rail__logo:hover {
+  background: var(--bg-hover);
+}
+
+.nav-rail__logo-icon {
+  width: 26px;
+  height: 26px;
+}
+
+.nav-rail__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.nav-rail__spacer {
+  flex: 1;
+}
+
+.nav-rail__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.nav-rail__item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nav-rail__item .icon-svg {
+  width: 20px;
+  height: 20px;
+}
+
+.nav-rail__item--active,
+.nav-rail__item--active:hover {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.nav-rail .ui-icon-btn {
+  color: var(--text-secondary);
+}
+.nav-rail .ui-icon-btn .icon-svg {
+  width: 18px;
+  height: 18px;
+}
