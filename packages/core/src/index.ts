@@ -29,6 +29,7 @@ export * from './daemon/types.js';
 
 export * from './llm/gateway.js';
 export * from './llm/provider-errors.js';
+export * from './llm/model-catalog.js';
 export * from './llm/providers/anthropic.js';
 export * from './llm/providers/fake.js';
 export * from './llm/providers/openai-compat.js';
