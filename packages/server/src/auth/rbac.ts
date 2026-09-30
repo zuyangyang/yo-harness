@@ -13,6 +13,8 @@ import { getAuth, type AuthInfo } from './middleware.js';
 export type Permission =
   | 'sessions:read'
   | 'sessions:write'
+  | 'workspaces:read'
+  | 'workspaces:write'
   | 'memories:read'
   | 'memories:write'
   | 'tasks:read'
@@ -22,14 +24,16 @@ export type Permission =
   | 'admin';
 
 const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  viewer: ['sessions:read', 'memories:read', 'tasks:read'],
+  viewer: ['sessions:read', 'workspaces:read', 'memories:read', 'tasks:read'],
   member: [
     'sessions:read', 'sessions:write',
+    'workspaces:read', 'workspaces:write',
     'memories:read', 'memories:write',
     'tasks:read', 'tasks:write',
   ],
   admin: [
     'sessions:read', 'sessions:write',
+    'workspaces:read', 'workspaces:write',
     'memories:read', 'memories:write',
     'tasks:read', 'tasks:write',
     'users:manage', 'api_keys:manage',

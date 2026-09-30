@@ -25,6 +25,7 @@ import {
   type PermissionSettings,
 } from '@yo-harness/core/core/permission.js';
 import type { EventStore, SessionStore, Session, ToolResolver } from '@yo-harness/core/core/ports.js';
+import { deriveTitle } from '@yo-harness/core/utils/title.js';
 import type { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
 import type { ModelRouter } from '@yo-harness/core/router/model-router.js';
 import type { Logger } from '@yo-harness/core/types/common.js';
@@ -157,6 +158,23 @@ export class SessionManager {
     bus.on('event', (envelope: EventEnvelope) => {
       this.deps.wsHub?.broadcast(sessionId, envelope);
     });
+
+    // 首个 user_input 落库后自动补标题（仅当尚未命名且非自定义）
+    let autoTitled = false;
+    bus.on('event', (envelope: EventEnvelope) => {
+      if (autoTitled) return;
+      if (envelope.payload.type !== 'user_input') return;
+      autoTitled = true;
+      if (session.title !== '' || session.titleIsCustom) return;
+      const title = deriveTitle(envelope.payload.content);
+      if (title === '') return;
+      void this.deps.sessionStore
+        .updateTitle(session.id, title)
+        .catch((err: unknown) =>
+          this.deps.logger.warn('failed to auto-title session', { sessionId, error: String(err) }),
+        );
+    });
+
     const context = ContextManager.fromEvents(priorEvents, {
       contextWindow: this.deps.contextWindow,
     });

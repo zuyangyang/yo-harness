@@ -25,6 +25,7 @@ import type { WebSocketHub } from './ws/hub.js';
 import { createAuthRoutes } from './routes/auth.js';
 import { createAdminRoutes } from './routes/admin.js';
 import { createSessionRoutes } from './routes/sessions.js';
+import { createWorkspaceRoutes } from './routes/workspaces.js';
 import { createConversationRoutes } from './routes/conversations.js';
 import { createApprovalRoutes } from './routes/approvals.js';
 import { createTaskRoutes } from './routes/tasks.js';
@@ -115,6 +116,7 @@ export function createApp(deps: AppDeps): AppResult {
   // ─── 业务路由 ───
   app.route('/api/v1/sessions', createSessionRoutes({ storage, sessionManager }));
   app.route('/api/v1/sessions', createConversationRoutes({ storage, sessionManager }));
+  app.route('/api/v1/workspaces', createWorkspaceRoutes({ sessionManager }));
   app.route('/api/v1', createApprovalRoutes({ sessionManager }));
   app.route('/api/v1/tasks', createTaskRoutes({ storage }));
   app.route('/api/v1/memories', createMemoryRoutes({ storage }));
