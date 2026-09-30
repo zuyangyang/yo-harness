@@ -24,9 +24,9 @@ export function AppShell(): JSX.Element {
 
   const currentApproval = pendingApprovals[0] ?? null;
 
-  const handleNewSession = useCallback(async (): Promise<void> => {
+  const handleNewSession = useCallback(async (workspaceId?: string | null): Promise<void> => {
     try {
-      const session = await createSession(model);
+      const session = await createSession(model, undefined, workspaceId);
       await selectSession(session.id);
     } catch {
       // 错误由 session store 记录
@@ -56,7 +56,7 @@ export function AppShell(): JSX.Element {
   return (
     <div className="app-shell">
       <NavRail />
-      <SidebarPane onNewSession={() => { void handleNewSession(); }} />
+      <SidebarPane onNewSession={(workspaceId) => { void handleNewSession(workspaceId); }} />
       <main className="app-main">
         <HeaderBar />
         <div className="main-body">
