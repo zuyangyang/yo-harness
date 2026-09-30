@@ -109,8 +109,8 @@ describe('SqliteEventStore', () => {
   });
 });
 
-describe('Schema v2 → v3 迁移', () => {
-  it('从 v2 升级到 v3：新表存在、旧数据完整、sessions.type 默认 interactive', () => {
+describe('Schema v2 → 最新版 迁移', () => {
+  it('从 v2 升级到最新版：新表存在、旧数据完整、sessions.type 默认 interactive', () => {
     const dbDir = mkdtempSync(join(tmpdir(), 'yo-migrate-'));
     const dbPath = join(dbDir, 'test.db');
 
@@ -154,7 +154,7 @@ describe('Schema v2 → v3 迁移', () => {
 
     // schema_version 已升级到最新版
     const version = (v3.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }).value;
-    expect(version).toBe('4');
+    expect(version).toBe('5');
 
     // 旧数据完整
     const session = v3.prepare('SELECT * FROM sessions WHERE id = ?').get('s1') as Record<string, unknown>;
@@ -172,14 +172,18 @@ describe('Schema v2 → v3 迁移', () => {
     expect(tableNames).toContain('tasks');
     expect(tableNames).toContain('users');
     expect(tableNames).toContain('api_keys');
+    expect(tableNames).toContain('workspaces');
 
     // FTS5 虚拟表存在
     const fts = v3.prepare("SELECT name FROM sqlite_master WHERE name='memories_fts'").all();
     expect(fts).toHaveLength(1);
 
-    // sessions.type 列存在且有默认值
+    // sessions.type 列存在且有默认值；v5 新列也已就位
     const columns = v3.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
     expect(columns.some((c) => c.name === 'type')).toBe(true);
+    expect(columns.some((c) => c.name === 'workspace_id')).toBe(true);
+    expect(columns.some((c) => c.name === 'pinned')).toBe(true);
+    expect(columns.some((c) => c.name === 'title_is_custom')).toBe(true);
 
     v3.close();
     rmSync(dbDir, { recursive: true, force: true });

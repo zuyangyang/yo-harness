@@ -6,6 +6,8 @@
  * - v1（Phase 1）：meta / sessions / events
  * - v2（Phase 2）：+ checkpoints / checkpoint_files
  * - v3（Phase 3）：+ memories / memories_fts / tasks；sessions +type 列
+ * - v4（Phase 4）：+ users / api_keys
+ * - v5（Phase 5）：+ workspaces；sessions +workspace_id/pinned/title_is_custom 列
  */
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -14,7 +16,7 @@ import { FatalError } from '../types/errors.js';
 
 export type SqliteDatabase = Database.Database;
 
-const SCHEMA_VERSION = '4';
+const SCHEMA_VERSION = '5';
 
 export function openDatabase(dbPath: string): SqliteDatabase {
   if (dbPath !== ':memory:') {
@@ -90,6 +92,14 @@ function initSchema(db: SqliteDatabase): void {
 
   if (afterV2 === '3') {
     migrateV3ToV4(db);
+  }
+
+  const afterV3 = (
+    db.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }
+  ).value;
+
+  if (afterV3 === '4') {
+    migrateV4ToV5(db);
   }
 
   const finalVersion = (
@@ -230,6 +240,51 @@ function migrateV3ToV4(db: SqliteDatabase): void {
     `);
 
     db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('4', 'schema_version');
+  });
+  migration();
+}
+
+/** v4 → v5：新增工作区（workspaces）表；sessions 加 workspace_id / pinned / title_is_custom 列 */
+function migrateV4ToV5(db: SqliteDatabase): void {
+  const migration = db.transaction(() => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS workspaces (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        color       TEXT,
+        icon        TEXT,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_workspaces_sort ON workspaces (sort_order, created_at);
+    `);
+
+    // sessions 加新列（已存在则跳过；workspace_id 引用 workspaces，删工作区时置 NULL）
+    const columns = db
+      .prepare("PRAGMA table_info(sessions)")
+      .all() as { name: string }[];
+    if (!columns.some((c) => c.name === 'workspace_id')) {
+      db.exec(
+        'ALTER TABLE sessions ADD COLUMN workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL',
+      );
+    }
+    if (!columns.some((c) => c.name === 'pinned')) {
+      db.exec('ALTER TABLE sessions ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!columns.some((c) => c.name === 'title_is_custom')) {
+      db.exec(
+        'ALTER TABLE sessions ADD COLUMN title_is_custom INTEGER NOT NULL DEFAULT 0',
+      );
+    }
+
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_sessions_workspace ON sessions (workspace_id, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions (status, updated_at DESC);
+    `);
+
+    db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('5', 'schema_version');
   });
   migration();
 }
