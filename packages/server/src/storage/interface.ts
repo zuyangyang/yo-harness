@@ -10,6 +10,7 @@ import type {
   CheckpointStore,
   MemoryStore,
   TaskStore,
+  WorkspaceStore,
 } from '@yo-harness/core/core/ports.js';
 import type { UserStore } from './user-store.js';
 import type { ApiKeyStore } from './api-key-store.js';
@@ -20,6 +21,7 @@ export type {
   CheckpointStore,
   MemoryStore,
   TaskStore,
+  WorkspaceStore,
 } from '@yo-harness/core/core/ports.js';
 
 export type { UserStore } from './user-store.js';
@@ -27,6 +29,7 @@ export type { ApiKeyStore } from './api-key-store.js';
 
 export interface StorageBackend {
   sessions: SessionStore;
+  workspaces: WorkspaceStore;
   events: EventStore;
   checkpoints: CheckpointStore;
   memories: MemoryStore;

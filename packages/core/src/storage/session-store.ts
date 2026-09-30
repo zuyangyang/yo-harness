@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Session, SessionStore } from '../core/ports.js';
+import type { Session, SessionListFilter, SessionStore, SessionUpdate } from '../core/ports.js';
 import { FatalError } from '../types/errors.js';
 import type { SqliteDatabase } from './db.js';
 
@@ -11,6 +11,9 @@ interface SessionRow {
   cwd: string;
   status: string;
   type: string;
+  workspace_id: string | null;
+  pinned: number;
+  title_is_custom: number;
   created_at: string;
   updated_at: string;
 }
@@ -22,16 +25,38 @@ interface SessionRow {
 export class SqliteSessionStore implements SessionStore {
   constructor(private readonly db: SqliteDatabase) {}
 
-  async create(input: { model: string; cwd: string; title?: string; type?: 'interactive' | 'background' }): Promise<Session> {
+  async create(input: {
+    model: string;
+    cwd: string;
+    title?: string;
+    titleIsCustom?: boolean;
+    workspaceId?: string | null;
+    type?: 'interactive' | 'background';
+  }): Promise<Session> {
     const id = randomUUID();
     const now = new Date().toISOString();
     const type = input.type ?? 'interactive';
+    const workspaceId = input.workspaceId ?? null;
+    const titleIsCustom = input.titleIsCustom ?? false;
+
     this.db
       .prepare(
-        `INSERT INTO sessions (id, title, model, cwd, status, type, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'active', ?, ?, ?)`,
+        `INSERT INTO sessions
+         (id, title, model, cwd, status, type, workspace_id, pinned, title_is_custom, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'active', ?, ?, 0, ?, ?, ?)`,
       )
-      .run(id, input.title ?? '', input.model, input.cwd, type, now, now);
+      .run(
+        id,
+        input.title ?? '',
+        input.model,
+        input.cwd,
+        type,
+        workspaceId,
+        titleIsCustom ? 1 : 0,
+        now,
+        now,
+      );
+
     return {
       id,
       title: input.title ?? '',
@@ -39,6 +64,9 @@ export class SqliteSessionStore implements SessionStore {
       cwd: input.cwd,
       status: 'active',
       type,
+      workspaceId,
+      pinned: false,
+      titleIsCustom,
       createdAt: now,
       updatedAt: now,
     };
@@ -51,14 +79,45 @@ export class SqliteSessionStore implements SessionStore {
     return row === undefined ? undefined : mapSession(row);
   }
 
-  async listRecent(limit: number): Promise<Session[]> {
+  async list(filter: SessionListFilter = {}): Promise<Session[]> {
+    const conditions: string[] = [];
+    const params: (string | number | null)[] = [];
+
+    if (filter.workspaceId === 'none') {
+      conditions.push('workspace_id IS NULL');
+    } else if (filter.workspaceId !== undefined) {
+      conditions.push('workspace_id = ?');
+      params.push(filter.workspaceId);
+    }
+
+    conditions.push('status = ?');
+    params.push(filter.status ?? 'active');
+
+    if (filter.pinned !== undefined) {
+      conditions.push('pinned = ?');
+      params.push(filter.pinned ? 1 : 0);
+    }
+
+    if (filter.query !== undefined && filter.query.trim() !== '') {
+      conditions.push('title LIKE ?');
+      params.push(`%${filter.query.trim()}%`);
+    }
+
+    const limit = Math.min(filter.limit ?? 50, 200);
+    const offset = filter.offset ?? 0;
+    params.push(limit, offset);
+
     const rows = this.db
       .prepare(
-        `SELECT * FROM sessions WHERE status = 'active'
-         ORDER BY updated_at DESC, rowid DESC LIMIT ?`,
+        `SELECT * FROM sessions WHERE ${conditions.join(' AND ')}
+         ORDER BY pinned DESC, updated_at DESC, rowid DESC LIMIT ? OFFSET ?`,
       )
-      .all(limit) as SessionRow[];
+      .all(...params) as SessionRow[];
     return rows.map(mapSession);
+  }
+
+  async listRecent(limit: number): Promise<Session[]> {
+    return this.list({ status: 'active', limit });
   }
 
   async touch(id: string): Promise<void> {
@@ -67,8 +126,66 @@ export class SqliteSessionStore implements SessionStore {
       .run(new Date().toISOString(), id);
   }
 
+  async update(id: string, patch: SessionUpdate): Promise<Session | undefined> {
+    const existing = await this.get(id);
+    if (existing === undefined) return undefined;
+
+    const sets: string[] = [];
+    const params: (string | number | null)[] = [];
+
+    if (patch.title !== undefined) {
+      sets.push('title = ?');
+      params.push(patch.title);
+    }
+    if (patch.titleIsCustom !== undefined) {
+      sets.push('title_is_custom = ?');
+      params.push(patch.titleIsCustom ? 1 : 0);
+    }
+    if (patch.workspaceId !== undefined) {
+      sets.push('workspace_id = ?');
+      params.push(patch.workspaceId);
+    }
+    if (patch.pinned !== undefined) {
+      sets.push('pinned = ?');
+      params.push(patch.pinned ? 1 : 0);
+    }
+    if (patch.status !== undefined) {
+      sets.push('status = ?');
+      params.push(patch.status);
+    }
+
+    sets.push('updated_at = ?');
+    params.push(new Date().toISOString());
+    params.push(id);
+
+    this.db
+      .prepare(`UPDATE sessions SET ${sets.join(', ')} WHERE id = ?`)
+      .run(...params);
+
+    return this.get(id);
+  }
+
   async updateTitle(id: string, title: string): Promise<void> {
-    this.db.prepare('UPDATE sessions SET title = ? WHERE id = ?').run(title, id);
+    await this.update(id, { title });
+  }
+
+  async delete(id: string): Promise<void> {
+    const txn = this.db.transaction(() => {
+      // FK 依赖顺序：checkpoint_files → checkpoints → events → sessions
+      this.db
+        .prepare(
+          'DELETE FROM checkpoint_files WHERE checkpoint_id IN (SELECT id FROM checkpoints WHERE session_id = ?)',
+        )
+        .run(id);
+      this.db.prepare('DELETE FROM checkpoints WHERE session_id = ?').run(id);
+      this.db.prepare('DELETE FROM events WHERE session_id = ?').run(id);
+      this.db
+        .prepare('UPDATE memories SET source_session_id = NULL WHERE source_session_id = ?')
+        .run(id);
+      this.db.prepare('DELETE FROM tasks WHERE session_id = ?').run(id);
+      this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+    });
+    txn();
   }
 }
 
@@ -84,6 +201,9 @@ function mapSession(row: SessionRow): Session {
     cwd: row.cwd,
     status: row.status,
     type,
+    workspaceId: row.workspace_id,
+    pinned: row.pinned === 1,
+    titleIsCustom: row.title_is_custom === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

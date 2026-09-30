@@ -6,7 +6,7 @@
  */
 import { Pool } from 'pg';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and, desc, asc, sql, count, or, like } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, count, or, like, isNull, inArray } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 
 import type {
@@ -15,7 +15,11 @@ import type {
   CheckpointStore,
   MemoryStore,
   TaskStore,
+  WorkspaceStore,
   Session,
+  SessionListFilter,
+  SessionUpdate,
+  Workspace,
   CheckpointDetail,
   CheckpointFileInfo,
   CheckpointSummary,
@@ -44,6 +48,7 @@ type Db = NodePgDatabase<Record<string, never>>;
 
 export class PostgresBackend implements StorageBackend {
   readonly sessions: PostgresSessionStore;
+  readonly workspaces: PostgresWorkspaceStore;
   readonly events: PostgresEventStore;
   readonly checkpoints: PostgresCheckpointStore;
   readonly memories: PostgresMemoryStore;
@@ -70,6 +75,7 @@ export class PostgresBackend implements StorageBackend {
     this.db = drizzle(this.pool);
 
     this.sessions = new PostgresSessionStore(this);
+    this.workspaces = new PostgresWorkspaceStore(this);
     this.events = new PostgresEventStore(this);
     this.checkpoints = new PostgresCheckpointStore(this);
     this.memories = new PostgresMemoryStore(this);
@@ -109,10 +115,19 @@ class PostgresSessionStore implements SessionStore {
   private get t() { return this.backend.getTables(); }
   private get db() { return this.backend.getDb(); }
 
-  async create(input: { model: string; cwd: string; title?: string; type?: 'interactive' | 'background' }): Promise<Session> {
+  async create(input: {
+    model: string;
+    cwd: string;
+    title?: string;
+    titleIsCustom?: boolean;
+    workspaceId?: string | null;
+    type?: 'interactive' | 'background';
+  }): Promise<Session> {
     const id = randomUUID();
     const now = new Date().toISOString();
     const type = input.type ?? 'interactive';
+    const workspaceId = input.workspaceId ?? null;
+    const titleIsCustom = input.titleIsCustom ?? false;
 
     await this.db.insert(this.t.sessions).values({
       id,
@@ -121,11 +136,26 @@ class PostgresSessionStore implements SessionStore {
       cwd: input.cwd,
       status: 'active',
       type,
+      workspaceId,
+      pinned: false,
+      titleIsCustom,
       createdAt: now,
       updatedAt: now,
     });
 
-    return { id, title: input.title ?? '', model: input.model, cwd: input.cwd, status: 'active', type, createdAt: now, updatedAt: now };
+    return {
+      id,
+      title: input.title ?? '',
+      model: input.model,
+      cwd: input.cwd,
+      status: 'active',
+      type,
+      workspaceId,
+      pinned: false,
+      titleIsCustom,
+      createdAt: now,
+      updatedAt: now,
+    };
   }
 
   async get(id: string): Promise<Session | undefined> {
@@ -133,12 +163,41 @@ class PostgresSessionStore implements SessionStore {
     return rows[0] ? mapSession(rows[0]) : undefined;
   }
 
-  async listRecent(limit: number): Promise<Session[]> {
-    const rows = await this.db.select().from(this.t.sessions)
-      .where(eq(this.t.sessions.status, 'active'))
-      .orderBy(desc(this.t.sessions.updatedAt))
-      .limit(limit);
+  async list(filter: SessionListFilter = {}): Promise<Session[]> {
+    const conditions = [];
+
+    if (filter.workspaceId === 'none') {
+      conditions.push(isNull(this.t.sessions.workspaceId));
+    } else if (filter.workspaceId !== undefined) {
+      conditions.push(eq(this.t.sessions.workspaceId, filter.workspaceId));
+    }
+
+    conditions.push(eq(this.t.sessions.status, filter.status ?? 'active'));
+
+    if (filter.pinned !== undefined) {
+      conditions.push(eq(this.t.sessions.pinned, filter.pinned));
+    }
+
+    if (filter.query !== undefined && filter.query.trim() !== '') {
+      conditions.push(like(this.t.sessions.title, `%${filter.query.trim()}%`));
+    }
+
+    const limit = Math.min(filter.limit ?? 50, 200);
+    const offset = filter.offset ?? 0;
+
+    const rows = await this.db
+      .select()
+      .from(this.t.sessions)
+      .where(and(...conditions))
+      .orderBy(desc(this.t.sessions.pinned), desc(this.t.sessions.updatedAt))
+      .limit(limit)
+      .offset(offset);
+
     return rows.map(mapSession);
+  }
+
+  async listRecent(limit: number): Promise<Session[]> {
+    return this.list({ status: 'active', limit });
   }
 
   async touch(id: string): Promise<void> {
@@ -147,14 +206,51 @@ class PostgresSessionStore implements SessionStore {
       .where(eq(this.t.sessions.id, id));
   }
 
-  async updateTitle(id: string, title: string): Promise<void> {
-    await this.db.update(this.t.sessions)
-      .set({ title })
+  async update(id: string, patch: SessionUpdate): Promise<Session | undefined> {
+    const existing = await this.get(id);
+    if (existing === undefined) return undefined;
+
+    await this.db
+      .update(this.t.sessions)
+      .set({
+        ...(patch.title !== undefined ? { title: patch.title } : {}),
+        ...(patch.titleIsCustom !== undefined ? { titleIsCustom: patch.titleIsCustom } : {}),
+        ...(patch.workspaceId !== undefined ? { workspaceId: patch.workspaceId } : {}),
+        ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        updatedAt: new Date().toISOString(),
+      })
       .where(eq(this.t.sessions.id, id));
+
+    return this.get(id);
+  }
+
+  async updateTitle(id: string, title: string): Promise<void> {
+    await this.update(id, { title });
+  }
+
+  async delete(id: string): Promise<void> {
+    const t = this.t;
+    const db = this.db;
+
+    await db
+      .delete(t.checkpointFiles)
+      .where(inArray(
+        t.checkpointFiles.checkpointId,
+        db.select({ id: t.checkpoints.id }).from(t.checkpoints).where(eq(t.checkpoints.sessionId, id)),
+      ));
+    await db.delete(t.checkpoints).where(eq(t.checkpoints.sessionId, id));
+    await db.delete(t.events).where(eq(t.events.sessionId, id));
+    await db.update(t.memories).set({ sourceSessionId: null }).where(eq(t.memories.sourceSessionId, id));
+    await db.delete(t.tasks).where(eq(t.tasks.sessionId, id));
+    await db.delete(t.sessions).where(eq(t.sessions.id, id));
   }
 }
 
-function mapSession(row: { id: string; title: string; model: string; cwd: string; status: string; type: string; createdAt: string; updatedAt: string }): Session {
+function mapSession(row: {
+  id: string; title: string; model: string; cwd: string; status: string; type: string;
+  workspaceId: string | null; pinned: boolean; titleIsCustom: boolean; createdAt: string; updatedAt: string;
+}): Session {
   return {
     id: row.id,
     title: row.title,
@@ -162,6 +258,131 @@ function mapSession(row: { id: string; title: string; model: string; cwd: string
     cwd: row.cwd,
     status: row.status as Session['status'],
     type: row.type as Session['type'],
+    workspaceId: row.workspaceId,
+    pinned: row.pinned,
+    titleIsCustom: row.titleIsCustom,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+// ─── WorkspaceStore ───
+
+class PostgresWorkspaceStore implements WorkspaceStore {
+  constructor(private readonly backend: PostgresBackend) {}
+
+  private get t() { return this.backend.getTables(); }
+  private get db() { return this.backend.getDb(); }
+
+  async create(input: {
+    name: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+    sortOrder?: number;
+  }): Promise<Workspace> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const description = input.description ?? '';
+    const color = input.color ?? null;
+    const icon = input.icon ?? null;
+    const sortOrder = input.sortOrder ?? 0;
+
+    await this.db.insert(this.t.workspaces).values({
+      id,
+      name: input.name,
+      description,
+      color,
+      icon,
+      sortOrder,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return { id, name: input.name, description, color, icon, sortOrder, createdAt: now, updatedAt: now };
+  }
+
+  async get(id: string): Promise<Workspace | undefined> {
+    const rows = await this.db.select().from(this.t.workspaces).where(eq(this.t.workspaces.id, id)).limit(1);
+    return rows[0] ? mapWorkspace(rows[0]) : undefined;
+  }
+
+  async update(
+    id: string,
+    patch: Partial<Pick<Workspace, 'name' | 'description' | 'color' | 'icon' | 'sortOrder'>>,
+  ): Promise<Workspace | undefined> {
+    const existing = await this.get(id);
+    if (existing === undefined) return undefined;
+
+    await this.db
+      .update(this.t.workspaces)
+      .set({
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.description !== undefined ? { description: patch.description } : {}),
+        ...(patch.color !== undefined ? { color: patch.color } : {}),
+        ...(patch.icon !== undefined ? { icon: patch.icon } : {}),
+        ...(patch.sortOrder !== undefined ? { sortOrder: patch.sortOrder } : {}),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(this.t.workspaces.id, id));
+
+    return this.get(id);
+  }
+
+  async delete(id: string): Promise<void> {
+    // sessions.workspace_id 通过 FK ON DELETE SET NULL 自动解绑为独立会话
+    await this.db.delete(this.t.workspaces).where(eq(this.t.workspaces.id, id));
+  }
+
+  async list(): Promise<Workspace[]> {
+    const t = this.t;
+    const rows = await this.db
+      .select({
+        id: t.workspaces.id,
+        name: t.workspaces.name,
+        description: t.workspaces.description,
+        color: t.workspaces.color,
+        icon: t.workspaces.icon,
+        sortOrder: t.workspaces.sortOrder,
+        createdAt: t.workspaces.createdAt,
+        updatedAt: t.workspaces.updatedAt,
+        sessionCount: count(t.sessions.id),
+      })
+      .from(t.workspaces)
+      .leftJoin(
+        t.sessions,
+        and(eq(t.sessions.workspaceId, t.workspaces.id), eq(t.sessions.status, 'active')),
+      )
+      .groupBy(
+        t.workspaces.id,
+        t.workspaces.name,
+        t.workspaces.description,
+        t.workspaces.color,
+        t.workspaces.icon,
+        t.workspaces.sortOrder,
+        t.workspaces.createdAt,
+        t.workspaces.updatedAt,
+      )
+      .orderBy(asc(t.workspaces.sortOrder), asc(t.workspaces.createdAt));
+
+    return rows.map((r) => ({
+      ...mapWorkspace(r),
+      sessionCount: r.sessionCount,
+    }));
+  }
+}
+
+function mapWorkspace(row: {
+  id: string; name: string; description: string; color: string | null; icon: string | null;
+  sortOrder: number; createdAt: string; updatedAt: string;
+}): Workspace {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    color: row.color,
+    icon: row.icon,
+    sortOrder: row.sortOrder,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

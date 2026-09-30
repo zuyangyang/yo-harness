@@ -11,9 +11,12 @@ function mockStore(sessions: Session[]): SessionStore {
   return {
     create: () => Promise.reject(new Error('not implemented')),
     get: (id: string) => Promise.resolve(sessions.find((s) => s.id === id)),
+    list: () => Promise.resolve(sessions),
     listRecent: (limit: number) => Promise.resolve(sessions.slice(0, limit)),
     touch: () => Promise.resolve(),
+    update: () => Promise.resolve(undefined),
     updateTitle: () => Promise.resolve(),
+    delete: () => Promise.resolve(),
   };
 }
 
@@ -25,6 +28,9 @@ function makeSession(id: string, title = 'test'): Session {
     cwd: '/tmp',
     status: 'active',
     type: 'interactive',
+    workspaceId: null,
+    pinned: false,
+    titleIsCustom: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };

@@ -10,12 +10,14 @@ import { SqliteSessionStore } from '@yo-harness/core/storage/session-store.js';
 import { SqliteCheckpointStore } from '@yo-harness/core/storage/checkpoint-store.js';
 import { SqliteMemoryStore } from '@yo-harness/core/storage/memory-store.js';
 import { SqliteTaskStore } from '@yo-harness/core/storage/task-store.js';
+import { SqliteWorkspaceStore } from '@yo-harness/core/storage/workspace-store.js';
 import { SqliteUserStore } from './sqlite-user-store.js';
 import { SqliteApiKeyStore } from './sqlite-api-key-store.js';
 import type { StorageBackend } from './interface.js';
 
 export class SqliteBackend implements StorageBackend {
   readonly sessions: SqliteSessionStore;
+  readonly workspaces: SqliteWorkspaceStore;
   readonly events: SqliteEventStore;
   readonly checkpoints: SqliteCheckpointStore;
   readonly memories: SqliteMemoryStore;
@@ -25,6 +27,7 @@ export class SqliteBackend implements StorageBackend {
 
   constructor(private readonly db: SqliteDatabase) {
     this.sessions = new SqliteSessionStore(db);
+    this.workspaces = new SqliteWorkspaceStore(db);
     this.events = new SqliteEventStore(db);
     this.checkpoints = new SqliteCheckpointStore(db);
     this.memories = new SqliteMemoryStore(db);

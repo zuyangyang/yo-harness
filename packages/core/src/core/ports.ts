@@ -24,17 +24,85 @@ export interface Session {
   cwd: string;
   status: 'active' | 'archived';
   type: 'interactive' | 'background';
+  workspaceId: string | null;
+  pinned: boolean;
+  titleIsCustom: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface SessionListFilter {
+  /** 'none' = 仅独立会话（workspace_id IS NULL）；缺省 = 全部 */
+  workspaceId?: string | 'none';
+  /** 缺省 = active */
+  status?: 'active' | 'archived';
+  /** 标题模糊匹配 */
+  query?: string;
+  pinned?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export interface SessionUpdate {
+  title?: string;
+  titleIsCustom?: boolean;
+  workspaceId?: string | null;
+  pinned?: boolean;
+  status?: 'active' | 'archived';
+}
+
 export interface SessionStore {
-  create(input: { model: string; cwd: string; title?: string; type?: 'interactive' | 'background' }): Promise<Session>;
+  create(input: {
+    model: string;
+    cwd: string;
+    title?: string;
+    titleIsCustom?: boolean;
+    workspaceId?: string | null;
+    type?: 'interactive' | 'background';
+  }): Promise<Session>;
   get(id: string): Promise<Session | undefined>;
+  /** 带过滤/分页的列表（listRecent 的泛化） */
+  list(filter?: SessionListFilter): Promise<Session[]>;
+  /** 最近 N 个 active 会话（兼容 CLI） */
   listRecent(limit: number): Promise<Session[]>;
   /** 刷新 updated_at（每次 turn 结束后调用，供 resume 列表排序） */
   touch(id: string): Promise<void>;
+  update(id: string, patch: SessionUpdate): Promise<Session | undefined>;
+  /** 仅设置标题，不改变 titleIsCustom（供自动命名使用）；用户改名请走 update + titleIsCustom:true */
   updateTitle(id: string, title: string): Promise<void>;
+  /** 物理删除 + 级联清理关联数据（events / checkpoints / tasks；memories 解绑） */
+  delete(id: string): Promise<void>;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  description: string;
+  color: string | null;
+  icon: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  /** 该工作区下 active 会话数（仅列表接口返回） */
+  sessionCount?: number;
+}
+
+export interface WorkspaceStore {
+  create(input: {
+    name: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+    sortOrder?: number;
+  }): Promise<Workspace>;
+  get(id: string): Promise<Workspace | undefined>;
+  update(
+    id: string,
+    patch: Partial<Pick<Workspace, 'name' | 'description' | 'color' | 'icon' | 'sortOrder'>>,
+  ): Promise<Workspace | undefined>;
+  /** 删除工作区；其下会话 workspace_id → NULL（不删会话） */
+  delete(id: string): Promise<void>;
+  list(): Promise<Workspace[]>;
 }
 
 /** 工具解析端口：AgentLoop 经此取工具与规格，不依赖具体注册表 */

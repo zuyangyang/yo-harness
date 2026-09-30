@@ -54,6 +54,7 @@ export * from './storage/event-store.js';
 export * from './storage/memory-store.js';
 export * from './storage/session-store.js';
 export * from './storage/task-store.js';
+export * from './storage/workspace-store.js';
 
 export * from './tools/fs.js';
 export * from './tools/registry.js';
