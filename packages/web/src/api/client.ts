@@ -173,6 +173,59 @@ export interface ModelRole {
   model: string;
 }
 
+export type ProviderKind = 'openai-compat' | 'anthropic';
+export type ConfigSource = 'web' | 'env' | 'file' | 'default';
+
+export interface ModelDescriptor {
+  id: string;
+  contextWindow?: number;
+}
+
+export interface ProviderProfile {
+  id: string;
+  displayName: string;
+  kind: ProviderKind;
+  baseURL: string | undefined;
+  hasKey: boolean;
+  apiKeyHint: string | undefined;
+  models: ModelDescriptor[];
+  sortOrder: number;
+}
+
+export interface ModelSelection {
+  providerId: string;
+  model: string;
+}
+
+export interface ModelConfigView {
+  source: ConfigSource;
+  active: ModelSelection;
+  providers: ProviderProfile[];
+  warnings: string[];
+  /** 旧字段：服务端 config 里声明的模型，保留兼容 */
+  models: ModelInfo[];
+  roles: ModelRole[];
+}
+
+export interface SaveProviderInput {
+  kind: ProviderKind;
+  displayName?: string;
+  baseURL?: string;
+  /** 非空 = 覆盖密钥；空/缺省 = 保留已有密钥 */
+  apiKey?: string;
+  apiKeyEnv?: string | null;
+  models?: ModelDescriptor[];
+  defaultContextWindow?: number;
+  sortOrder?: number;
+}
+
+export interface DiscoverModelsInput {
+  providerId?: string;
+  kind?: ProviderKind;
+  baseURL?: string;
+  apiKey?: string;
+}
+
 export interface PendingApproval {
   approvalId: string;
   sessionId: string;
@@ -249,6 +302,14 @@ export const api = {
     cancel: (id: string) => fetchJson<{ ok: boolean }>('POST', `/api/v1/tasks/${id}/cancel`),
   },
   models: {
-    list: () => fetchJson<{ models: ModelInfo[]; roles: ModelRole[] }>('GET', '/api/v1/models'),
+    list: () => fetchJson<ModelConfigView>('GET', '/api/v1/models'),
+    saveProvider: (id: string, input: SaveProviderInput) =>
+      fetchJson<{ provider: ProviderProfile }>('PUT', `/api/v1/models/providers/${encodeURIComponent(id)}`, input),
+    deleteProvider: (id: string) =>
+      fetchJson<{ ok: boolean }>('DELETE', `/api/v1/models/providers/${encodeURIComponent(id)}`),
+    saveActive: (selection: ModelSelection) =>
+      fetchJson<{ ok: boolean; active: ModelSelection }>('PUT', '/api/v1/models/active', selection),
+    discover: (input: DiscoverModelsInput) =>
+      fetchJson<{ models: ModelDescriptor[] }>('POST', '/api/v1/models/discover', input),
   },
 };

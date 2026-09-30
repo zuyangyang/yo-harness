@@ -188,4 +188,66 @@ describe('API client', () => {
       expect(call?.url).toBe('/api/v1/workspaces/w1?purge=true');
     });
   });
+
+  describe('api.models', () => {
+    it('list 返回 provider / active / source', async () => {
+      mockFetchResponse({
+        source: 'web',
+        active: { providerId: 'wlyd', model: 'deepseek-v4-pro' },
+        providers: [{ id: 'wlyd' }],
+        warnings: [],
+        models: [],
+        roles: [],
+      });
+      const view = await api.models.list();
+
+      expect(lastFetchCall()?.url).toBe('/api/v1/models');
+      expect(view.source).toBe('web');
+      expect(view.active.providerId).toBe('wlyd');
+    });
+
+    it('saveProvider 用 PUT 并转义 id', async () => {
+      mockFetchResponse({ provider: { id: 'a b' } });
+      await api.models.saveProvider('a b', { kind: 'openai-compat', baseURL: 'https://x.test/v1', apiKey: 'sk-1' });
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/models/providers/a%20b');
+      expect(call?.init.method).toBe('PUT');
+      expect(JSON.parse(call!.init.body as string)).toEqual({
+        kind: 'openai-compat',
+        baseURL: 'https://x.test/v1',
+        apiKey: 'sk-1',
+      });
+    });
+
+    it('deleteProvider 用 DELETE', async () => {
+      mockFetchResponse({ ok: true });
+      await api.models.deleteProvider('wlyd');
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/models/providers/wlyd');
+      expect(call?.init.method).toBe('DELETE');
+    });
+
+    it('saveActive 提交当前选择', async () => {
+      mockFetchResponse({ ok: true, active: { providerId: 'wlyd', model: 'm' } });
+      await api.models.saveActive({ providerId: 'wlyd', model: 'm' });
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/models/active');
+      expect(call?.init.method).toBe('PUT');
+      expect(JSON.parse(call!.init.body as string)).toEqual({ providerId: 'wlyd', model: 'm' });
+    });
+
+    it('discover 用 POST 并返回模型列表', async () => {
+      mockFetchResponse({ models: [{ id: 'deepseek-flash' }] });
+      const res = await api.models.discover({ providerId: 'wlyd' });
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/models/discover');
+      expect(call?.init.method).toBe('POST');
+      expect(JSON.parse(call!.init.body as string)).toEqual({ providerId: 'wlyd' });
+      expect(res.models).toEqual([{ id: 'deepseek-flash' }]);
+    });
+  });
 });
