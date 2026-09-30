@@ -269,7 +269,8 @@ export class ModelConfigService {
       sortOrder: input.sortOrder ?? existing?.sortOrder ?? 0,
     });
 
-    this.logger?.info('model provider saved', { id, kind, hasKey: newKey !== undefined || existing !== undefined });
+    const hasKey = newKey !== undefined || record.apiKeyCipher !== undefined || firstNonEmpty(record.apiKeyEnv !== undefined ? this.env[record.apiKeyEnv] : undefined) !== undefined;
+    this.logger?.info('model provider saved', { id, kind, hasKey });
 
     const records = await this.store.listProviders();
     const profile = this.toProfile(records, record);
