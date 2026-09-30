@@ -1,0 +1,189 @@
+/* ─────────────────────────────────────────────────────────────
+ * Yo-Harness Design Tokens
+ * 语义化设计令牌 —— 组件样式的唯一取值来源。
+ *
+ * 迁移约定：
+ * 1. 新组件只允许引用「语义令牌」（--bg-canvas / --accent / ...）。
+ * 2. 底部「legacy aliases」把旧变量名映射到新令牌，
+ *    用于在拆解 styles.css 的过程中保持现有组件可用。
+ * 3. 本文件在 main.tsx 中先于 styles.css 引入；在旧样式移除前，
+ *    旧变量仍由 styles.css 覆盖，保证视觉不变。
+ * ───────────────────────────────────────────────────────────── */
+
+/* ─── Light ─── */
+:root {
+  color-scheme: light;
+
+  /* Background elevations */
+  --bg-canvas: #ffffff;
+  --bg-surface: #f7f7f8;
+  --bg-surface-raised: #ffffff;
+  --bg-surface-sunken: #f0f0f2;
+  --bg-hover: #f0f0f2;
+  --bg-active: #e8e8ec;
+  --bg-overlay: rgba(15, 15, 20, 0.45);
+
+  /* Borders */
+  --border-subtle: #ececf0;
+  --border-default: #e0e0e6;
+  --border-strong: #c9c9d2;
+
+  /* Text */
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-tertiary: #a1a1aa;
+  --text-disabled: #d4d4d8;
+  --text-inverse: #ffffff;
+
+  /* Brand accent */
+  --accent: #4f6ef7;
+  --accent-hover: #3b5de7;
+  --accent-active: #2f4cd4;
+  --accent-subtle: #eef1ff;
+  --accent-contrast: #ffffff;
+
+  /* Semantic */
+  --success: #16a34a;
+  --success-subtle: #ecfdf3;
+  --warning: #d97706;
+  --warning-subtle: #fffbeb;
+  --danger: #dc2626;
+  --danger-subtle: #fef2f2;
+  --info: #2563eb;
+  --focus-ring: rgba(79, 110, 247, 0.45);
+
+  /* Content / code / terminal / diff */
+  --code-bg: #f4f4f5;
+  --code-text: #27272a;
+  --terminal-bg: #0b0b0f;
+  --terminal-fg: #e4e4e7;
+  --diff-add-bg: #dcfce7;
+  --diff-add-text: #166534;
+  --diff-del-bg: #fee2e2;
+  --diff-del-text: #991b1b;
+  --diff-context-text: #52525b;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.14);
+  --focus-ring-style: 0 0 0 2px var(--bg-canvas), 0 0 0 4px var(--focus-ring);
+
+  /* Spacing (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 999px;
+
+  /* Typography */
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace;
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --leading-tight: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 260ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0, 0.6, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ─── Legacy aliases（过渡期，映射到新令牌） ─── */
+  --bg-primary: var(--bg-canvas);
+  --bg-secondary: var(--bg-surface);
+  --bg-tertiary: var(--bg-surface-sunken);
+  --bg-user-bubble: var(--accent-subtle);
+  --bg-code: var(--code-bg);
+  --bg-input: var(--bg-surface-sunken);
+  --accent-light: var(--accent-subtle);
+  --font-family: var(--font-sans);
+  --font-size-xs: var(--text-2xs);
+  --font-size-sm: var(--text-xs);
+  --font-size-base: var(--text-sm);
+  --font-size-lg: var(--text-base);
+  --font-size-xl: var(--text-lg);
+  --line-height: var(--leading-normal);
+}
+
+/* ─── Dark ─── */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-canvas: #0b0b0f;
+  --bg-surface: #131318;
+  --bg-surface-raised: #1a1a21;
+  --bg-surface-sunken: #0f0f14;
+  --bg-hover: #1e1e26;
+  --bg-active: #2a2a34;
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+
+  --border-subtle: #1e1e26;
+  --border-default: #2a2a34;
+  --border-strong: #3a3a46;
+
+  --text-primary: #ececf1;
+  --text-secondary: #a1a1ab;
+  --text-tertiary: #6b6b76;
+  --text-disabled: #4a4a55;
+  --text-inverse: #0b0b0f;
+
+  --accent: #6b83ff;
+  --accent-hover: #8095ff;
+  --accent-active: #5a74f0;
+  --accent-subtle: #1c2140;
+  --accent-contrast: #0b0b0f;
+
+  --success: #34d399;
+  --success-subtle: rgba(52, 211, 153, 0.14);
+  --warning: #fbbf24;
+  --warning-subtle: rgba(251, 191, 36, 0.14);
+  --danger: #f87171;
+  --danger-subtle: rgba(248, 113, 113, 0.14);
+  --info: #60a5fa;
+  --focus-ring: rgba(107, 131, 255, 0.55);
+
+  --code-bg: #12121a;
+  --code-text: #e4e4e7;
+  --terminal-bg: #0b0b0f;
+  --terminal-fg: #e4e4e7;
+  --diff-add-bg: rgba(52, 211, 153, 0.14);
+  --diff-add-text: #6ee7b7;
+  --diff-del-bg: rgba(248, 113, 113, 0.14);
+  --diff-del-text: #fca5a5;
+  --diff-context-text: #a1a1ab;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  /* Legacy aliases already reference semantic tokens above via var(). */
+}
