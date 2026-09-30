@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
 import './styles/tokens.css';
 import './styles.css';
+import './styles/components.css';
 
 const STORAGE_KEY = 'yo-theme';
 try {
