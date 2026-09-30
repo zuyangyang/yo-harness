@@ -66,6 +66,7 @@ export * from './types/errors.js';
 export * from './types/events.js';
 export * from './types/llm.js';
 export * from './types/memory.js';
+export * from './types/model-config.js';
 export * from './types/plan.js';
 export * from './types/router.js';
 export * from './types/sandbox.js';
