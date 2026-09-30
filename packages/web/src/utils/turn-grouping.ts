@@ -21,6 +21,15 @@ export interface ToolStep {
   };
 }
 
+export type TurnMetaKind = 'context' | 'checkpoint' | 'memory' | 'goal';
+
+export interface TurnMetaItem {
+  key: string;
+  kind: TurnMetaKind;
+  label: string;
+  detail: string;
+}
+
 export interface Turn {
   id: string;
   userMessage: string;
@@ -28,6 +37,7 @@ export interface Turn {
   toolSteps: ToolStep[];
   finalText: string;
   errors: { stage: string; message: string; recoverable: boolean }[];
+  meta: TurnMetaItem[];
   usage?: {
     inputTokens: number;
     outputTokens: number;
@@ -76,9 +86,15 @@ function buildTurn(raw: RawTurn, index: number): Turn {
   const allAssistantTexts: { text: string; hasToolCalls: boolean }[] = [];
   const toolStepMap = new Map<string, ToolStep>();
   const errors: Turn['errors'] = [];
+  const meta: TurnMetaItem[] = [];
+  let metaSeq = 0;
   let usage: Turn['usage'];
   let endTime: string | undefined;
   let endReason: string | undefined;
+
+  const addMeta = (kind: TurnMetaKind, label: string, detail: string): void => {
+    meta.push({ key: kind + '-' + metaSeq++, kind, label, detail });
+  };
 
   for (const envelope of raw.events) {
     const event = envelope.payload;
@@ -128,18 +144,58 @@ function buildTurn(raw: RawTurn, index: number): Turn {
         endTime = envelope.ts;
         endReason = event.reason;
         break;
+
+      case 'context_compressed':
+        addMeta(
+          'context',
+          '压缩上下文',
+          event.beforeTokens + '→' + event.afterTokens + ' tokens',
+        );
+        break;
+
+      case 'context_elided':
+        addMeta('context', '裁剪上下文', '释放 ~' + event.freedEstTokens + ' tokens');
+        break;
+
+      case 'checkpoint_created':
+        addMeta('checkpoint', '创建检查点', event.files.length + ' 文件 · ' + event.source);
+        break;
+
+      case 'checkpoint_restored':
+        addMeta(
+          'checkpoint',
+          event.direction === 'undo' ? '撤销变更' : '重做变更',
+          event.files.length + ' 文件',
+        );
+        break;
+
+      case 'memory_extracted':
+        addMeta('memory', '提取记忆', event.count + ' 条');
+        break;
+
+      case 'memory_injected':
+        addMeta('memory', '注入记忆', event.count + ' 条');
+        break;
+
+      case 'goal_reminder':
+        addMeta('goal', '目标提醒', event.goal.slice(0, 60));
+        break;
+
+      default:
+        break;
     }
   }
 
   const finalText = determineFinalText(allAssistantTexts);
 
   return {
-    id: `turn-${index}`,
+    id: 'turn-' + index,
     userMessage: raw.userMessage,
     thinkingTexts,
     toolSteps: Array.from(toolStepMap.values()),
     finalText,
     errors,
+    meta,
     ...(usage ? { usage } : {}),
     startTime: raw.startTime,
     ...(endTime ? { endTime } : {}),

@@ -385,6 +385,44 @@
   height: 14px;
 }
 
+/* ─── Turn meta chips ─── */
+.turn-meta-wrap {
+  margin-top: var(--space-2);
+}
+
+.turn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
+}
+
+.turn-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-2xs);
+  line-height: 1.5;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  cursor: default;
+}
+
+.turn-chip--context {
+  color: var(--info);
+}
+.turn-chip--checkpoint {
+  color: var(--warning);
+}
+.turn-chip--memory {
+  color: var(--success);
+}
+.turn-chip--goal {
+  color: var(--accent);
+}
+
 /* ─── Tooltip ─── */
 .ui-tooltip {
   position: relative;

@@ -81,9 +81,23 @@ function TurnMeta({ turn, durationMs }: { turn: Turn; durationMs?: number }): JS
     }
   }
 
-  if (parts.length === 0) return null;
+  const hasChips = turn.meta.length > 0;
+  if (parts.length === 0 && !hasChips) return null;
 
-  return <div className="turn-meta">{parts.join(' · ')}</div>;
+  return (
+    <div className="turn-meta-wrap">
+      {hasChips && (
+        <div className="turn-chips">
+          {turn.meta.map((m) => (
+            <span key={m.key} className={'turn-chip turn-chip--' + m.kind} title={m.detail}>
+              {m.label}
+            </span>
+          ))}
+        </div>
+      )}
+      {parts.length > 0 && <div className="turn-meta">{parts.join(' · ')}</div>}
+    </div>
+  );
 }
 
 function calculateDuration(turn: Turn): number | undefined {
