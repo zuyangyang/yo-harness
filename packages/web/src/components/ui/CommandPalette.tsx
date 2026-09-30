@@ -12,7 +12,7 @@ interface PaletteItem {
   id: string;
   label: string;
   hint?: string;
-  run: () => void;
+  run: () => void | Promise<void>;
 }
 
 interface CommandPaletteProps {
@@ -39,7 +39,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps): JSX.Element {
       id: 'nav-' + item.id,
       label: '前往 ' + item.label,
       run: () => {
-        navigate(item.path);
+        void navigate(item.path);
         onClose();
       },
     }));
@@ -130,7 +130,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps): JSX.Element {
       setIndex((i) => (i - 1 + filtered.length) % filtered.length);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      active?.run();
+      void active?.run();
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
@@ -166,7 +166,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps): JSX.Element {
                 key={item.id}
                 className={'cmd-palette__item' + (i === index ? ' cmd-palette__item--active' : '')}
                 onMouseEnter={() => setIndex(i)}
-                onClick={item.run}
+                onClick={() => { void item.run(); }}
               >
                 <span className="cmd-palette__label">{item.label}</span>
                 {item.hint ? <span className="cmd-palette__hint">{item.hint}</span> : null}
