@@ -354,6 +354,13 @@
   height: 20px;
 }
 
+/* ─── Message actions ─── */
+.message-actions {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1) 0 var(--space-2);
+}
+
 /* ─── Tooltip ─── */
 .ui-tooltip {
   position: relative;

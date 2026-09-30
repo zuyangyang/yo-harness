@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import type { Turn } from '../../utils/turn-grouping.js';
 import { ThinkingSection } from './ThinkingSection.js';
 import { ToolSteps } from './ToolSteps.js';
+import { MessageActions } from './MessageActions.js';
 
 interface TurnBlockProps {
   turn: Turn;
@@ -47,11 +48,14 @@ export function TurnBlock({ turn }: TurnBlockProps): JSX.Element {
       {turn.toolSteps.length > 0 && <ToolSteps steps={turn.toolSteps} />}
 
       {turn.finalText && (
-        <div className="message-row message-row--assistant">
-          <div className="message-bubble message-bubble--assistant turn-reply">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.finalText}</ReactMarkdown>
+        <>
+          <div className="message-row message-row--assistant">
+            <div className="message-bubble message-bubble--assistant turn-reply">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.finalText}</ReactMarkdown>
+            </div>
           </div>
-        </div>
+          <MessageActions text={turn.finalText} />
+        </>
       )}
 
       <TurnMeta turn={turn} durationMs={durationMs} />
