@@ -29,6 +29,7 @@ import {
 } from '@yo-harness/core/core/permission.js';
 import { Planner, readOnlyResolver } from '@yo-harness/core/core/planner.js';
 import type { Session, SessionStore } from '@yo-harness/core/core/ports.js';
+import { deriveTitle } from '@yo-harness/core/utils/title.js';
 import { FatalError } from '@yo-harness/core/types/errors.js';
 import type { AgentEvent, EventEnvelope, TurnEndReason } from '@yo-harness/core/types/events.js';
 import type { LLMClient } from '@yo-harness/core/types/llm.js';
@@ -267,7 +268,7 @@ async function launch(
       if (envelope.payload.type !== 'user_input') return;
       bus.off('event', onFirstInput);
       if (session.title.length > 0) return; // resume 已有标题的会话不覆盖
-      const title = envelope.payload.content.replace(/\s+/g, ' ').trim().slice(0, 60);
+      const title = deriveTitle(envelope.payload.content);
       void sessionStore
         .updateTitle(session.id, title)
         .catch((err: unknown) => logger.warn('failed to set session title', { error: String(err) }));
