@@ -149,12 +149,12 @@ describe('Schema v2 → 最新版 迁移', () => {
     `);
     v2.close();
 
-    // 用当前代码打开 → 触发 v2→v3 迁移
+    // 用当前代码打开 → 触发 v2 → 最新版 逐级迁移
     const v3 = openDatabase(dbPath);
 
     // schema_version 已升级到最新版
     const version = (v3.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }).value;
-    expect(version).toBe('5');
+    expect(version).toBe('6');
 
     // 旧数据完整
     const session = v3.prepare('SELECT * FROM sessions WHERE id = ?').get('s1') as Record<string, unknown>;

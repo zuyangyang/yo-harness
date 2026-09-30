@@ -8,6 +8,7 @@
  * - v3（Phase 3）：+ memories / memories_fts / tasks；sessions +type 列
  * - v4（Phase 4）：+ users / api_keys
  * - v5（Phase 5）：+ workspaces；sessions +workspace_id/pinned/title_is_custom 列
+ * - v6（Phase 6）：+ model_providers / model_settings（Web UI 模型配置）
  */
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -16,7 +17,7 @@ import { FatalError } from '../types/errors.js';
 
 export type SqliteDatabase = Database.Database;
 
-const SCHEMA_VERSION = '5';
+const SCHEMA_VERSION = '6';
 
 export function openDatabase(dbPath: string): SqliteDatabase {
   if (dbPath !== ':memory:') {
@@ -100,6 +101,14 @@ function initSchema(db: SqliteDatabase): void {
 
   if (afterV3 === '4') {
     migrateV4ToV5(db);
+  }
+
+  const afterV4 = (
+    db.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }
+  ).value;
+
+  if (afterV4 === '5') {
+    migrateV5ToV6(db);
   }
 
   const finalVersion = (
@@ -285,6 +294,39 @@ function migrateV4ToV5(db: SqliteDatabase): void {
     `);
 
     db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('5', 'schema_version');
+  });
+  migration();
+}
+
+/** v5 → v6：新增模型配置表（Provider 档案 + 当前选择） */
+function migrateV5ToV6(db: SqliteDatabase): void {
+  const migration = db.transaction(() => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS model_providers (
+        id                     TEXT PRIMARY KEY,
+        display_name           TEXT NOT NULL,
+        kind                   TEXT NOT NULL,
+        base_url               TEXT,
+        api_key_cipher         TEXT,
+        api_key_hint           TEXT,
+        api_key_env            TEXT,
+        models_json            TEXT NOT NULL DEFAULT '[]',
+        default_context_window INTEGER,
+        sort_order             INTEGER NOT NULL DEFAULT 0,
+        created_at             TEXT NOT NULL,
+        updated_at             TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_model_providers_sort ON model_providers (sort_order, created_at);
+
+      CREATE TABLE IF NOT EXISTS model_settings (
+        id                 TEXT PRIMARY KEY,
+        active_provider_id TEXT,
+        active_model       TEXT,
+        updated_at         TEXT NOT NULL
+      );
+    `);
+
+    db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('6', 'schema_version');
   });
   migration();
 }
