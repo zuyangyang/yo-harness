@@ -211,6 +211,127 @@ describe('session routes', () => {
     });
     expect(res.status).toBe(200);
   });
+
+  it('DELETE 真正删除会话', async () => {
+    const session = await storage.sessions.create({ model: 'default', cwd: '/tmp', type: 'interactive' });
+    const res = await app.request(`/api/v1/sessions/${session.id}`, {
+      method: 'DELETE',
+      headers: authHeader(token),
+    });
+    expect(res.status).toBe(200);
+    expect(await storage.sessions.get(session.id)).toBeUndefined();
+  });
+
+  it('PATCH /api/v1/sessions/:id 改名 → 200 且置 titleIsCustom', async () => {
+    const session = await storage.sessions.create({ model: 'default', cwd: '/tmp', type: 'interactive' });
+    const res = await app.request(`/api/v1/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ title: '新标题' }),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.session.title).toBe('新标题');
+    expect(body.session.titleIsCustom).toBe(true);
+  });
+
+  it('PATCH 空 title → 400', async () => {
+    const session = await storage.sessions.create({ model: 'default', cwd: '/tmp', type: 'interactive' });
+    const res = await app.request(`/api/v1/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ title: '   ' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST 指定 workspaceId → 201 且写入', async () => {
+    const ws = await storage.workspaces.create({ name: '工作' });
+    const res = await app.request('/api/v1/sessions', {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify({ workspaceId: ws.id }),
+    });
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.session.workspaceId).toBe(ws.id);
+  });
+
+  it('POST 指定不存在的 workspaceId → 400', async () => {
+    const res = await app.request('/api/v1/sessions', {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify({ workspaceId: 'no-such-ws' }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('workspace routes', () => {
+  it('POST /api/v1/workspaces → 201', async () => {
+    const res = await app.request('/api/v1/workspaces', {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify({ name: '工作' }),
+    });
+    expect(res.status).toBe(201);
+    const body = await json(res);
+    expect(body.workspace.name).toBe('工作');
+  });
+
+  it('POST 缺 name → 400', async () => {
+    const res = await app.request('/api/v1/workspaces', {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('GET /api/v1/workspaces → 列表（含 sessionCount）', async () => {
+    const ws = await storage.workspaces.create({ name: '工作' });
+    await storage.sessions.create({ model: 'default', cwd: '/tmp', workspaceId: ws.id });
+    const res = await app.request('/api/v1/workspaces', { headers: authHeader(token) });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.workspaces).toHaveLength(1);
+    expect(body.workspaces[0].sessionCount).toBe(1);
+  });
+
+  it('PATCH /api/v1/workspaces/:id → 200', async () => {
+    const ws = await storage.workspaces.create({ name: 'a' });
+    const res = await app.request(`/api/v1/workspaces/${ws.id}`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ name: 'b' }),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.workspace.name).toBe('b');
+  });
+
+  it('DELETE /api/v1/workspaces/:id 解绑会话（不删除）', async () => {
+    const ws = await storage.workspaces.create({ name: 'a' });
+    const session = await storage.sessions.create({ model: 'default', cwd: '/tmp', workspaceId: ws.id });
+    const res = await app.request(`/api/v1/workspaces/${ws.id}`, {
+      method: 'DELETE',
+      headers: authHeader(token),
+    });
+    expect(res.status).toBe(200);
+    expect(await storage.workspaces.get(ws.id)).toBeUndefined();
+    expect((await storage.sessions.get(session.id))?.workspaceId).toBeNull();
+  });
+
+  it('DELETE ?purge=true 级联删除会话', async () => {
+    const ws = await storage.workspaces.create({ name: 'a' });
+    const session = await storage.sessions.create({ model: 'default', cwd: '/tmp', workspaceId: ws.id });
+    const res = await app.request(`/api/v1/workspaces/${ws.id}?purge=true`, {
+      method: 'DELETE',
+      headers: authHeader(token),
+    });
+    expect(res.status).toBe(200);
+    expect(await storage.sessions.get(session.id)).toBeUndefined();
+  });
 });
 
 describe('conversation routes', () => {
