@@ -9,7 +9,7 @@
 import { create } from 'zustand';
 
 import type { EventEnvelope } from '@yo-harness/core/types/events.js';
-import { api, type Session } from '../api/client.js';
+import { api, type Session, type SessionUpdateInput } from '../api/client.js';
 import { wsClient } from '../api/websocket.js';
 
 interface SessionState {
@@ -21,7 +21,12 @@ interface SessionState {
 
   loadSessions: () => Promise<void>;
   selectSession: (id: string) => Promise<void>;
-  createSession: (model?: string, cwd?: string) => Promise<Session>;
+  createSession: (model?: string, cwd?: string, workspaceId?: string | null) => Promise<Session>;
+  updateSession: (id: string, patch: SessionUpdateInput) => Promise<Session>;
+  renameSession: (id: string, title: string) => Promise<void>;
+  togglePin: (id: string, pinned: boolean) => Promise<void>;
+  archiveSession: (id: string) => Promise<void>;
+  moveSession: (id: string, workspaceId: string | null) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
   addEvent: (sessionId: string, envelope: EventEnvelope) => void;
@@ -38,7 +43,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   loadSessions: async () => {
     set({ isLoading: true, error: null });
     try {
-      const res = await api.sessions.list();
+      const res = await api.sessions.list({ limit: 200 });
       set({ sessions: res.sessions, isLoading: false });
     } catch (err) {
       set({
@@ -77,11 +82,12 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }
   },
 
-  createSession: async (model, cwd) => {
+  createSession: async (model, cwd, workspaceId) => {
     try {
       const res = await api.sessions.create({
         ...(model !== undefined ? { model } : {}),
         ...(cwd !== undefined ? { cwd } : {}),
+        ...(workspaceId !== undefined ? { workspaceId } : {}),
       });
       const session = res.session;
       set({ sessions: [session, ...get().sessions] });
@@ -92,6 +98,36 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       });
       throw err;
     }
+  },
+
+  updateSession: async (id, patch) => {
+    try {
+      const res = await api.sessions.update(id, patch);
+      const updated = res.session;
+      set({ sessions: get().sessions.map((s) => (s.id === id ? updated : s)) });
+      return updated;
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Failed to update session',
+      });
+      throw err;
+    }
+  },
+
+  renameSession: async (id, title) => {
+    await get().updateSession(id, { title });
+  },
+
+  togglePin: async (id, pinned) => {
+    await get().updateSession(id, { pinned });
+  },
+
+  archiveSession: async (id) => {
+    await get().updateSession(id, { status: 'archived' });
+  },
+
+  moveSession: async (id, workspaceId) => {
+    await get().updateSession(id, { workspaceId });
   },
 
   deleteSession: async (id) => {
