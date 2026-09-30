@@ -169,8 +169,38 @@ export function createTenantSchema(schemaName: string) {
     ],
   );
 
+  const modelProviders = schema.table(
+    'model_providers',
+    {
+      id: text('id').primaryKey(),
+      displayName: text('display_name').notNull(),
+      kind: text('kind').notNull(),
+      baseURL: text('base_url'),
+      apiKeyCipher: text('api_key_cipher'),
+      apiKeyHint: text('api_key_hint'),
+      apiKeyEnv: text('api_key_env'),
+      modelsJson: text('models_json').notNull().default('[]'),
+      defaultContextWindow: integer('default_context_window'),
+      sortOrder: integer('sort_order').notNull().default(0),
+      createdAt: text('created_at').notNull(),
+      updatedAt: text('updated_at').notNull(),
+    },
+    (table) => [
+      index('model_providers_sort_idx').on(table.sortOrder, table.createdAt),
+    ],
+  );
+
+  const modelSettings = schema.table('model_settings', {
+    id: text('id').primaryKey(),
+    activeProviderId: text('active_provider_id'),
+    activeModel: text('active_model'),
+    updatedAt: text('updated_at').notNull(),
+  });
+
   return {
     workspaces,
+    modelProviders,
+    modelSettings,
     sessions,
     events,
     checkpoints,

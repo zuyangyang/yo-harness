@@ -143,4 +143,31 @@ export async function runMigrations(client: PoolClient, schemaName: string): Pro
     )
   `);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys (user_id)`);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS model_providers (
+      id                     TEXT PRIMARY KEY,
+      display_name           TEXT NOT NULL,
+      kind                   TEXT NOT NULL,
+      base_url               TEXT,
+      api_key_cipher         TEXT,
+      api_key_hint           TEXT,
+      api_key_env            TEXT,
+      models_json            TEXT NOT NULL DEFAULT '[]',
+      default_context_window INTEGER,
+      sort_order             INTEGER NOT NULL DEFAULT 0,
+      created_at             TEXT NOT NULL,
+      updated_at             TEXT NOT NULL
+    )
+  `);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_model_providers_sort ON model_providers (sort_order, created_at)`);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS model_settings (
+      id                 TEXT PRIMARY KEY,
+      active_provider_id TEXT,
+      active_model       TEXT,
+      updated_at         TEXT NOT NULL
+    )
+  `);
 }

@@ -16,6 +16,7 @@ import type {
   MemoryStore,
   TaskStore,
   WorkspaceStore,
+  ModelConfigStore,
   Session,
   SessionListFilter,
   SessionUpdate,
@@ -29,6 +30,8 @@ import type { AgentEvent, EventEnvelope } from '@yo-harness/core/types/events.js
 import { AgentEventSchema } from '@yo-harness/core/types/events.js';
 import type { Memory, MemoryCategory, MemoryStatus } from '@yo-harness/core/types/memory.js';
 import type { BackgroundTask, BackgroundTaskStatus, CreateTaskInput } from '@yo-harness/core/daemon/types.js';
+import type { ModelSelection, ProviderRecord, ProviderRecordInput } from '@yo-harness/core/types/model-config.js';
+import { parseModelsJson } from '@yo-harness/core/storage/model-config-store.js';
 
 import type { StorageBackend } from './interface.js';
 import { createTenantSchema, type TenantTables } from './schema.js';
@@ -49,6 +52,7 @@ type Db = NodePgDatabase<Record<string, never>>;
 export class PostgresBackend implements StorageBackend {
   readonly sessions: PostgresSessionStore;
   readonly workspaces: PostgresWorkspaceStore;
+  readonly modelConfig: PostgresModelConfigStore;
   readonly events: PostgresEventStore;
   readonly checkpoints: PostgresCheckpointStore;
   readonly memories: PostgresMemoryStore;
@@ -76,6 +80,7 @@ export class PostgresBackend implements StorageBackend {
 
     this.sessions = new PostgresSessionStore(this);
     this.workspaces = new PostgresWorkspaceStore(this);
+    this.modelConfig = new PostgresModelConfigStore(this);
     this.events = new PostgresEventStore(this);
     this.checkpoints = new PostgresCheckpointStore(this);
     this.memories = new PostgresMemoryStore(this);
@@ -787,6 +792,135 @@ function mapTask(row: {
     cwd: row.cwd,
     model: row.model,
   };
+}
+
+// ─── ModelConfigStore ───
+
+interface ProviderRowLike {
+  id: string;
+  displayName: string;
+  kind: string;
+  baseURL: string | null;
+  apiKeyCipher: string | null;
+  apiKeyHint: string | null;
+  apiKeyEnv: string | null;
+  modelsJson: string;
+  defaultContextWindow: number | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function mapProviderRow(row: ProviderRowLike): ProviderRecord {
+  return {
+    id: row.id,
+    displayName: row.displayName,
+    kind: row.kind === 'anthropic' ? 'anthropic' : 'openai-compat',
+    baseURL: row.baseURL ?? undefined,
+    apiKeyCipher: row.apiKeyCipher ?? undefined,
+    apiKeyHint: row.apiKeyHint ?? undefined,
+    apiKeyEnv: row.apiKeyEnv ?? undefined,
+    models: parseModelsJson(row.modelsJson),
+    defaultContextWindow: row.defaultContextWindow ?? undefined,
+    sortOrder: row.sortOrder,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+const SETTINGS_ROW_ID = 'default';
+
+class PostgresModelConfigStore implements ModelConfigStore {
+  constructor(private readonly backend: PostgresBackend) {}
+
+  private get db() {
+    return this.backend.getDb();
+  }
+
+  private get t() {
+    return this.backend.getTables();
+  }
+
+  async listProviders(): Promise<ProviderRecord[]> {
+    const rows = await this.db
+      .select()
+      .from(this.t.modelProviders)
+      .orderBy(asc(this.t.modelProviders.sortOrder), asc(this.t.modelProviders.createdAt));
+    return rows.map(mapProviderRow);
+  }
+
+  async getProvider(id: string): Promise<ProviderRecord | undefined> {
+    const rows = await this.db
+      .select()
+      .from(this.t.modelProviders)
+      .where(eq(this.t.modelProviders.id, id))
+      .limit(1);
+    const row = rows[0];
+    return row === undefined ? undefined : mapProviderRow(row);
+  }
+
+  async upsertProvider(input: ProviderRecordInput): Promise<ProviderRecord> {
+    const existing = await this.getProvider(input.id);
+    const now = new Date().toISOString();
+    const values = {
+      id: input.id,
+      displayName: input.displayName,
+      kind: input.kind,
+      baseURL: input.baseURL ?? null,
+      apiKeyCipher: input.apiKeyCipher ?? null,
+      apiKeyHint: input.apiKeyHint ?? null,
+      apiKeyEnv: input.apiKeyEnv ?? null,
+      modelsJson: JSON.stringify(input.models),
+      defaultContextWindow: input.defaultContextWindow ?? null,
+      sortOrder: input.sortOrder,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+
+    await this.db
+      .insert(this.t.modelProviders)
+      .values(values)
+      .onConflictDoUpdate({ target: this.t.modelProviders.id, set: values });
+
+    const saved = await this.getProvider(input.id);
+    if (saved === undefined) {
+      throw new Error(`model provider "${input.id}" disappeared right after upsert`);
+    }
+    return saved;
+  }
+
+  async deleteProvider(id: string): Promise<void> {
+    await this.db.delete(this.t.modelProviders).where(eq(this.t.modelProviders.id, id));
+  }
+
+  async getSettings(): Promise<ModelSelection | undefined> {
+    const rows = await this.db
+      .select()
+      .from(this.t.modelSettings)
+      .where(eq(this.t.modelSettings.id, SETTINGS_ROW_ID))
+      .limit(1);
+    const row = rows[0];
+    if (row === undefined) return undefined;
+    if (row.activeProviderId === null || row.activeModel === null) return undefined;
+    return { providerId: row.activeProviderId, model: row.activeModel };
+  }
+
+  async saveSettings(selection: ModelSelection): Promise<void> {
+    const values = {
+      id: SETTINGS_ROW_ID,
+      activeProviderId: selection.providerId,
+      activeModel: selection.model,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.db
+      .insert(this.t.modelSettings)
+      .values(values)
+      .onConflictDoUpdate({ target: this.t.modelSettings.id, set: values });
+  }
+
+  async clearSettings(): Promise<void> {
+    await this.db.delete(this.t.modelSettings).where(eq(this.t.modelSettings.id, SETTINGS_ROW_ID));
+  }
 }
 
 // ─── Factory ───

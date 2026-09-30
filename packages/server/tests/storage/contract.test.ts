@@ -11,6 +11,7 @@ import type { StorageBackend } from '../../src/storage/interface.js';
 import { createSqliteBackend } from '../../src/storage/sqlite.js';
 import type { AgentEvent } from '@yo-harness/core/types/events.js';
 import type { CheckpointFileInfo } from '@yo-harness/core/core/ports.js';
+import type { ProviderRecordInput } from '@yo-harness/core/types/model-config.js';
 
 interface BackendFactory {
   name: string;
@@ -360,6 +361,67 @@ function runContractTests(factory: BackendFactory) {
       expect(fetched!.endReason).toBe('end_turn');
       expect(fetched!.summary).toBe('done');
       expect(fetched!.completedAt).toBeDefined();
+    });
+  });
+
+  describe('ModelConfigStore', () => {
+    const input: ProviderRecordInput = {
+      id: 'wlyd',
+      displayName: 'wlyd',
+      kind: 'openai-compat',
+      baseURL: 'https://gateway.test/v1',
+      apiKeyCipher: 'cipher-text',
+      apiKeyHint: 'sk-…c0eA',
+      apiKeyEnv: undefined,
+      models: [{ id: 'deepseek-flash' }, { id: 'deepseek-v4-pro', contextWindow: 256_000 }],
+      defaultContextWindow: 128_000,
+      sortOrder: 0,
+    };
+
+    it('upsert → get → list 往返', async () => {
+      const saved = await backend.modelConfig.upsertProvider(input);
+
+      expect(saved.createdAt).toBeTruthy();
+      expect(saved.displayName).toBe('wlyd');
+      expect(saved.baseURL).toBe('https://gateway.test/v1');
+      expect(saved.apiKeyCipher).toBe('cipher-text');
+      expect(saved.models).toEqual([
+        { id: 'deepseek-flash' },
+        { id: 'deepseek-v4-pro', contextWindow: 256_000 },
+      ]);
+
+      const fetched = await backend.modelConfig.getProvider('wlyd');
+      expect(fetched?.defaultContextWindow).toBe(128_000);
+      expect(await backend.modelConfig.listProviders()).toHaveLength(1);
+    });
+
+    it('upsert 同 id 覆盖字段且保留 createdAt', async () => {
+      const first = await backend.modelConfig.upsertProvider(input);
+      const second = await backend.modelConfig.upsertProvider({ ...input, displayName: 'renamed', models: [] });
+
+      expect(second.createdAt).toBe(first.createdAt);
+      expect(second.displayName).toBe('renamed');
+      expect(second.models).toEqual([]);
+      expect(await backend.modelConfig.listProviders()).toHaveLength(1);
+    });
+
+    it('settings 保存 / 覆盖 / 清空', async () => {
+      expect(await backend.modelConfig.getSettings()).toBeUndefined();
+
+      await backend.modelConfig.saveSettings({ providerId: 'wlyd', model: 'deepseek-v4-pro' });
+      expect(await backend.modelConfig.getSettings()).toEqual({ providerId: 'wlyd', model: 'deepseek-v4-pro' });
+
+      await backend.modelConfig.saveSettings({ providerId: 'deepseek', model: 'deepseek-chat' });
+      expect(await backend.modelConfig.getSettings()).toEqual({ providerId: 'deepseek', model: 'deepseek-chat' });
+
+      await backend.modelConfig.clearSettings();
+      expect(await backend.modelConfig.getSettings()).toBeUndefined();
+    });
+
+    it('deleteProvider 移除记录', async () => {
+      await backend.modelConfig.upsertProvider(input);
+      await backend.modelConfig.deleteProvider('wlyd');
+      expect(await backend.modelConfig.getProvider('wlyd')).toBeUndefined();
     });
   });
 }

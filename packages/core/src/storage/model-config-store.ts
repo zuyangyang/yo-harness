@@ -29,7 +29,8 @@ interface SettingsRow {
   active_model: string | null;
 }
 
-function parseModels(json: string): ModelDescriptor[] {
+/** 解析 models_json：任何异常一律降级为空目录（SQLite / PostgreSQL 共用） */
+export function parseModelsJson(json: string): ModelDescriptor[] {
   let raw: unknown;
   try {
     raw = JSON.parse(json);
@@ -62,7 +63,7 @@ function mapProvider(row: ProviderRow): ProviderRecord {
     apiKeyCipher: row.api_key_cipher ?? undefined,
     apiKeyHint: row.api_key_hint ?? undefined,
     apiKeyEnv: row.api_key_env ?? undefined,
-    models: parseModels(row.models_json),
+    models: parseModelsJson(row.models_json),
     defaultContextWindow: row.default_context_window ?? undefined,
     sortOrder: row.sort_order,
     createdAt: row.created_at,
