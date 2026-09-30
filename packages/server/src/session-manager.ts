@@ -58,13 +58,15 @@ export interface SessionManagerDeps {
   eventStore: EventStore;
   sessionStore: SessionStore;
   tools: ToolResolver;
-  router: ModelRouter;
+  /** 取当前 ModelRouter：模型配置可在运行期变更，故用访问器而非静态字段 */
+  getRouter: () => ModelRouter;
   costTracker: CostTracker;
   sandbox: SandboxProvider;
   logger: Logger;
   systemPrompt: string;
   maxTokens: number;
-  contextWindow: number;
+  /** 取当前上下文窗口（随模型切换而变化） */
+  getContextWindow: () => number;
   budgetLimits: { maxStepsPerTurn: number; maxTokensPerTurn: number; maxTurnDurationMs: number };
   permission: PermissionSettings;
   wsHub?: WebSocketHub;
@@ -128,6 +130,24 @@ export class SessionManager {
     return true;
   }
 
+  /**
+   * 模型配置变更：驱逐**空闲**活跃会话，使其下一条消息用新配置重建 loop。
+   *
+   * 正在执行的 turn 不打断（避免半途换模型导致消息错乱）；结束后若已被驱逐，
+   * 会话记录仍在 event store 中，下次消息会重放重建。
+   *
+   * @returns 被驱逐的会话数
+   */
+  onModelConfigChanged(): number {
+    let evicted = 0;
+    for (const [sessionId, active] of [...this.active.entries()]) {
+      if (active.running) continue;
+      this.closeSession(sessionId);
+      evicted += 1;
+    }
+    return evicted;
+  }
+
   closeSession(sessionId: string): void {
     const active = this.active.get(sessionId);
     if (active) {
@@ -176,7 +196,7 @@ export class SessionManager {
     });
 
     const context = ContextManager.fromEvents(priorEvents, {
-      contextWindow: this.deps.contextWindow,
+      contextWindow: this.deps.getContextWindow(),
     });
 
     const sink = async (event: AgentEvent): Promise<void> => {
@@ -207,7 +227,7 @@ export class SessionManager {
     const loop = new AgentLoop({
       sessionId,
       cwd: session.cwd,
-      router: this.deps.router,
+      router: this.deps.getRouter(),
       costTracker: this.deps.costTracker,
       store: this.deps.eventStore,
       tools: this.deps.tools,

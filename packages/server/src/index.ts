@@ -20,7 +20,7 @@ import { createApp } from './app.js';
 import { SessionManager } from './session-manager.js';
 import { createJwtConfig } from './auth/jwt.js';
 import { createDefaultServerConfig, type ServerConfig } from './config.js';
-import { ModelConfigService } from './model-config-service.js';
+import { ModelConfigService, type ModelRuntime } from './model-config-service.js';
 import { WebSocketHub } from './ws/hub.js';
 import { createSqliteBackend, createPostgresBackend } from './storage/index.js';
 import type { StorageBackend } from './storage/index.js';
@@ -59,26 +59,52 @@ export async function createServer(options: CreateServerOptions) {
   const tools: ToolResolver = createBuiltinRegistry();
 
   // 模型配置：Web UI 持久化配置优先，未配置时回退 .env（见 model-config-service）
-  const modelConfig = new ModelConfigService({ store: storage.modelConfig, logger });
-  const runtime = await modelConfig.getRuntime();
+  // runtimeRef 始终指向「当前生效」运行时；onChange 与下方依赖用可空引用延迟绑定。
+  let runtimeRef: ModelRuntime | undefined;
+  const refs: { sessionManager?: SessionManager; wsHub?: WebSocketHub } = {};
+
+  const currentRuntime = (): ModelRuntime => {
+    if (runtimeRef === undefined) throw new Error('model runtime has not been initialized');
+    return runtimeRef;
+  };
+
+  const modelConfig = new ModelConfigService({
+    store: storage.modelConfig,
+    logger,
+    onChange: (next) => {
+      runtimeRef = next;
+      // 在途 turn 不打断，只驱逐空闲会话，使其下一条消息用新配置重建
+      const evicted = refs.sessionManager?.onModelConfigChanged() ?? 0;
+      if (evicted > 0) logger.info('idle sessions evicted after model config change', { evicted });
+      refs.wsHub?.broadcastAll({
+        type: 'model_config_changed',
+        providerId: next.providerId,
+        model: next.model,
+        source: next.source,
+      });
+    },
+  });
+  runtimeRef = await modelConfig.getRuntime();
   const costTracker = new CostTracker();
 
   const sessionManager = new SessionManager({
     eventStore: storage.events,
     sessionStore: storage.sessions,
     tools,
-    router: runtime.router,
+    getRouter: () => currentRuntime().router,
     costTracker,
     sandbox: createLocalSandbox(process.cwd()),
     logger,
     systemPrompt: serverConfig.systemPrompt,
     maxTokens: serverConfig.maxTokens,
-    contextWindow: runtime.contextWindow,
+    getContextWindow: () => currentRuntime().contextWindow,
     budgetLimits: serverConfig.budget,
     permission: serverConfig.permission,
   });
+  refs.sessionManager = sessionManager;
 
   const wsHub = new WebSocketHub({ sessionManager });
+  refs.wsHub = wsHub;
   sessionManager.setWebSocketHub(wsHub);
 
   const { app, injectWebSocket } = createApp({

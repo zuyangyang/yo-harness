@@ -61,11 +61,20 @@ export interface PongMessage {
   type: 'pong';
 }
 
+/** 模型配置在服务端发生变更（前端据此刷新「当前模型」显示） */
+export interface ModelConfigChangedMessage {
+  type: 'model_config_changed';
+  providerId: string;
+  model: string;
+  source: string;
+}
+
 export type ServerMessage =
   | EventMessage
   | ApprovalRequestMessage
   | ErrorMessage
-  | PongMessage;
+  | PongMessage
+  | ModelConfigChangedMessage;
 
 // ─── 工具函数 ───
 

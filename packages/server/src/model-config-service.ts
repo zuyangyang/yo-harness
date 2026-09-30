@@ -84,7 +84,7 @@ export interface ModelConfigServiceDeps {
   crypto?: SecretCrypto | undefined;
   logger?: Logger | undefined;
   fetchImpl?: typeof fetch | undefined;
-  onChange?: (() => void | Promise<void>) | undefined;
+  onChange?: ((runtime: ModelRuntime) => void | Promise<void>) | undefined;
 }
 
 function firstNonEmpty(value: string | undefined): string | undefined {
@@ -98,7 +98,7 @@ export class ModelConfigService {
   private readonly env: Record<string, string | undefined>;
   private readonly logger: Logger | undefined;
   private readonly fetchImpl: typeof fetch | undefined;
-  private readonly onChange: (() => void | Promise<void>) | undefined;
+  private readonly onChange: ((runtime: ModelRuntime) => void | Promise<void>) | undefined;
   private readonly injectedCrypto: SecretCrypto | undefined;
   private cryptoInstance: SecretCrypto | undefined;
   private runtime: ModelRuntime | undefined;
@@ -230,11 +230,12 @@ export class ModelConfigService {
     return this.runtime;
   }
 
-  /** 配置变更后重建，并通知装配层 */
+  /** 配置变更后重建，并把新运行时通知装配层 */
   async refresh(): Promise<ModelRuntime> {
-    this.runtime = await this.buildRuntime();
-    await this.onChange?.();
-    return this.runtime;
+    const next = await this.buildRuntime();
+    this.runtime = next;
+    await this.onChange?.(next);
+    return next;
   }
 
   // ─── 写操作 ───

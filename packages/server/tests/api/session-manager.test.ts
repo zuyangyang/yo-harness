@@ -19,7 +19,7 @@ import type { SessionManagerDeps } from '../../src/session-manager.js';
 let storage: StorageBackend;
 let manager: SessionManager;
 
-function createDeps(): SessionManagerDeps {
+function createDeps(overrides: Partial<SessionManagerDeps> = {}): SessionManagerDeps {
   const fakeClient = new FakeLLMClient([
     { text: 'ok', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 0, outputTokens: 0 } },
   ]);
@@ -30,15 +30,16 @@ function createDeps(): SessionManagerDeps {
     eventStore: storage.events,
     sessionStore: storage.sessions,
     tools: createBuiltinRegistry(),
-    router,
+    getRouter: () => router,
     costTracker: new CostTracker(),
     sandbox: createLocalSandbox('/tmp'),
     logger: createLogger('silent'),
     systemPrompt: 'test',
     maxTokens: 1024,
-    contextWindow: 4096,
+    getContextWindow: () => 4096,
     budgetLimits: DEFAULT_BUDGET_LIMITS,
     permission: DEFAULT_PERMISSION_SETTINGS,
+    ...overrides,
   };
 }
 
@@ -67,6 +68,68 @@ describe('SessionManager lifecycle', () => {
 
   it('interrupt 未知 session 不抛异常', async () => {
     await expect(manager.interrupt('nonexistent')).resolves.not.toThrow();
+  });
+});
+
+function routerWith(text: string): ModelRouter {
+  const client = new FakeLLMClient([
+    { text, toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } },
+  ]);
+  const gateway = new LLMGateway(new Map([['fake', client]]), { defaultProvider: 'fake' });
+  return new ModelRouter(gateway, {});
+}
+
+async function assistantTexts(sessionId: string): Promise<string[]> {
+  const events = await storage.events.replay(sessionId);
+  return events.map((e) => e.payload).flatMap((p) => (p.type === 'assistant_text' ? [p.text] : []));
+}
+
+/** 轮询直到空闲会话被驱逐（turn 结束后 running 才会变 false） */
+async function waitForEviction(m: SessionManager, timeoutMs = 3000): Promise<number> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const evicted = m.onModelConfigChanged();
+    if (evicted > 0) return evicted;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('session was never evicted after its turn finished');
+}
+
+async function waitForAssistantText(sessionId: string, count: number, timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if ((await assistantTexts(sessionId)).length >= count) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`timed out waiting for ${count} assistant_text events`);
+}
+
+describe('SessionManager 模型配置变更', () => {
+  it('在途 turn 不驱逐；空闲后驱逐，下一条消息用新 router', async () => {
+    let currentRouter = routerWith('first');
+    manager = new SessionManager(
+      createDeps({ getRouter: () => currentRouter, getContextWindow: () => 4096 }),
+    );
+
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+    const result = await manager.sendMessage(session.id, 'hello');
+    expect(result.accepted).toBe(true);
+
+    // 正在执行 turn：running=true，不得驱逐
+    expect(manager.onModelConfigChanged()).toBe(0);
+
+    await waitForAssistantText(session.id, 1);
+
+    // 空闲：驱逐，使下一条消息重建 loop
+    expect(await waitForEviction(manager)).toBe(1);
+    expect(manager.onModelConfigChanged()).toBe(0);
+
+    currentRouter = routerWith('second');
+    await manager.sendMessage(session.id, 'again');
+    await waitForAssistantText(session.id, 2);
+    await manager.destroyAll();
+
+    expect((await assistantTexts(session.id)).at(-1)).toBe('second');
   });
 });
 

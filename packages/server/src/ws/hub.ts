@@ -102,6 +102,16 @@ export class WebSocketHub {
     }
   }
 
+  /** 广播控制消息给所有连接（与 session 房间无关，如模型配置变更） */
+  broadcastAll(msg: ServerMessage): void {
+    const encoded = encodeServerMessage(msg);
+    for (const ws of this.connections.keys()) {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(encoded);
+      }
+    }
+  }
+
   broadcastApprovalRequest(sessionId: string, approval: PendingApproval): void {
     const room = this.rooms.get(sessionId);
     if (!room || room.size === 0) return;

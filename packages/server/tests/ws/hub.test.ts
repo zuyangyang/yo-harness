@@ -270,3 +270,39 @@ describe('客户端消息处理', () => {
     expect(parsed.type).toBe('error');
   });
 });
+
+describe('WebSocketHub broadcastAll', () => {
+  let hub: WebSocketHub;
+
+  beforeEach(() => {
+    hub = new WebSocketHub({ sessionManager: mockSessionManager() });
+  });
+
+  it('向所有连接（无需订阅）推送控制消息', () => {
+    const a = createMockWebSocket();
+    const b = createMockWebSocket();
+    hub.addConnection(a.ws, 'u1');
+    hub.addConnection(b.ws, 'u2');
+
+    hub.broadcastAll({ type: 'model_config_changed', providerId: 'wlyd', model: 'deepseek-v4-pro', source: 'web' });
+
+    expect(a.sent).toHaveLength(1);
+    expect(b.sent).toHaveLength(1);
+    expect(JSON.parse(a.sent[0]!)).toMatchObject({
+      type: 'model_config_changed',
+      providerId: 'wlyd',
+      model: 'deepseek-v4-pro',
+      source: 'web',
+    });
+  });
+
+  it('跳过已关闭的连接', () => {
+    const a = createMockWebSocket();
+    hub.addConnection(a.ws, 'u1');
+    a.readyState = 3;
+
+    hub.broadcastAll({ type: 'model_config_changed', providerId: 'p', model: 'm', source: 'env' });
+
+    expect(a.sent).toHaveLength(0);
+  });
+});
