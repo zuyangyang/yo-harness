@@ -67,7 +67,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['packages/core/src/storage/**/*.ts'],
+    files: ['packages/core/src/storage/**/*.ts', 'packages/server/src/storage/**/*.ts'],
     rules: {
       '@typescript-eslint/require-await': 'off',
     },
@@ -90,6 +90,11 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
+      // 测试桩/模拟对象常见噪音：空实现、无 await 的 async 桩、any 类型、解绑方法
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
+      '@typescript-eslint/unbound-method': 'off',
     },
   },
 );

@@ -36,9 +36,9 @@ describe('ApprovalDialog', () => {
 
   it('点击 Approve 调用 wsClient.resolveApproval(true)', () => {
     const onDismiss = vi.fn();
-    const { container } = render(<ApprovalDialog request={mockRequest} onDismiss={onDismiss} />);
+    render(<ApprovalDialog request={mockRequest} onDismiss={onDismiss} />);
 
-    const btn = container.querySelector('.btn-approve')!;
+    const btn = screen.getByRole('button', { name: 'Approve' });
     fireEvent.click(btn);
 
     expect(wsModule.wsClient.resolveApproval).toHaveBeenCalledWith('a1', true, 'once');
@@ -47,9 +47,9 @@ describe('ApprovalDialog', () => {
 
   it('点击 Reject 调用 wsClient.resolveApproval(false)', () => {
     const onDismiss = vi.fn();
-    const { container } = render(<ApprovalDialog request={mockRequest} onDismiss={onDismiss} />);
+    render(<ApprovalDialog request={mockRequest} onDismiss={onDismiss} />);
 
-    const btn = container.querySelector('.btn-reject')!;
+    const btn = screen.getByRole('button', { name: 'Reject' });
     fireEvent.click(btn);
 
     expect(wsModule.wsClient.resolveApproval).toHaveBeenCalledWith('a1', false, 'once');
@@ -64,7 +64,7 @@ describe('ApprovalDialog', () => {
     const sessionRadio = Array.from(radios).find((r) => r.value === 'session')!;
     fireEvent.click(sessionRadio);
 
-    const btn = container.querySelector('.btn-approve')!;
+    const btn = screen.getByRole('button', { name: 'Approve' });
     fireEvent.click(btn);
 
     expect(wsModule.wsClient.resolveApproval).toHaveBeenCalledWith('a1', true, 'session');

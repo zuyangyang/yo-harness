@@ -27,8 +27,8 @@ export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
               key={session.id}
               session={session}
               isActive={session.id === currentSessionId}
-              onSelect={() => selectSession(session.id)}
-              onDelete={() => deleteSession(session.id)}
+              onSelect={() => { void selectSession(session.id); }}
+              onDelete={() => { void deleteSession(session.id); }}
             />
           ))
         )}

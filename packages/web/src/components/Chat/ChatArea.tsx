@@ -63,7 +63,7 @@ export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.E
       </div>
 
       <div className="chat-input-area">
-        <form className="chat-input-form" onSubmit={handleSubmit}>
+        <form className="chat-input-form" onSubmit={(e) => { void handleSubmit(e); }}>
           <button type="button" className="chat-input-plus" title="Add">+</button>
           <textarea
             className="chat-input"

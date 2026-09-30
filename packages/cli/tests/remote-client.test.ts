@@ -193,7 +193,7 @@ describe('RemoteClient', () => {
 
       const call = lastFetchCall();
       const headers = call!.init.headers as Record<string, string>;
-      expect(headers['Authorization']).toBe('Bearer tok');
+      expect(headers.Authorization).toBe('Bearer tok');
     });
   });
 
@@ -208,13 +208,13 @@ describe('RemoteClient', () => {
         new(url: string): { on: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn>; readyState: number };
         instances: unknown[];
       };
-      (MockWebSocket.instances as unknown[]).length = 0;
+      (MockWebSocket.instances).length = 0;
 
       const client = makeClient();
       (client as unknown as { accessToken: string }).accessToken = 'tok';
       client.connectWebSocket();
 
-      const mockWs = (MockWebSocket.instances as Array<{ on: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn>; readyState: number }>)[0]!;
+      const mockWs = (MockWebSocket.instances as { on: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn>; readyState: number }[])[0]!;
       const handlers: Record<string, (...args: unknown[]) => void> = {};
       for (const call of mockWs.on.mock.calls) {
         handlers[call[0] as string] = call[1] as (...args: unknown[]) => void;
@@ -228,7 +228,7 @@ describe('RemoteClient', () => {
       const received: unknown[] = [];
       client.on('event', (...args) => received.push(args));
 
-      const messageHandler = handlers['message'] as (raw: { toString(): string }) => void;
+      const messageHandler = handlers.message as (raw: { toString(): string }) => void;
       const envelope = { id: 1, sessionId: 's1', seq: 1, ts: '2026-01-01', payload: { type: 'turn_started' as const, turnId: 't1' } };
       messageHandler({ toString: () => JSON.stringify({ type: 'event', sessionId: 's1', event: envelope }) });
 
@@ -242,7 +242,7 @@ describe('RemoteClient', () => {
       const approvals: unknown[] = [];
       client.on('approval', (req) => approvals.push(req));
 
-      const messageHandler = handlers['message'] as (raw: { toString(): string }) => void;
+      const messageHandler = handlers.message as (raw: { toString(): string }) => void;
       messageHandler({
         toString: () =>
           JSON.stringify({
@@ -269,7 +269,7 @@ describe('RemoteClient', () => {
       const errors: unknown[] = [];
       client.on('error', (err) => errors.push(err));
 
-      const messageHandler = handlers['message'] as (raw: { toString(): string }) => void;
+      const messageHandler = handlers.message as (raw: { toString(): string }) => void;
       messageHandler({
         toString: () => JSON.stringify({ type: 'error', code: 'NOT_FOUND', message: 'session not found' }),
       });
@@ -284,7 +284,7 @@ describe('RemoteClient', () => {
       const received: unknown[] = [];
       client.on('event', (...args) => received.push(args));
 
-      const messageHandler = handlers['message'] as (raw: { toString(): string }) => void;
+      const messageHandler = handlers.message as (raw: { toString(): string }) => void;
       messageHandler({ toString: () => JSON.stringify({ type: 'pong' }) });
 
       expect(received).toHaveLength(0);
@@ -293,7 +293,7 @@ describe('RemoteClient', () => {
     it('message 忽略畸形 JSON', async () => {
       const { handlers } = await getMockWs();
 
-      const messageHandler = handlers['message'] as (raw: { toString(): string }) => void;
+      const messageHandler = handlers.message as (raw: { toString(): string }) => void;
       expect(() => messageHandler({ toString: () => 'not json' })).not.toThrow();
     });
 
@@ -321,7 +321,7 @@ describe('RemoteClient', () => {
       let disconnected = false;
       client.on('disconnected', () => { disconnected = true; });
 
-      const closeHandler = handlers['close'] as () => void;
+      const closeHandler = handlers.close as () => void;
       closeHandler();
 
       expect(disconnected).toBe(true);

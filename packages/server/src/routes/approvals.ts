@@ -17,7 +17,7 @@ export function createApprovalRoutes(deps: ApprovalsRouteDeps): Hono<ServerEnv> 
 
   app.use('*', requirePermission('sessions:read'));
 
-  app.get('/sessions/:id/approvals/pending', async (c) => {
+  app.get('/sessions/:id/approvals/pending', (c) => {
     const sessionId = c.req.param('id');
     const approvals = sessionManager.getPendingApprovals(sessionId);
     return c.json({ approvals });

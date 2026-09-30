@@ -6,7 +6,7 @@
  * - member：读写（不含管理操作）
  * - viewer：只读
  */
-import type { Context, MiddlewareHandler } from 'hono';
+import type { MiddlewareHandler } from 'hono';
 
 import { getAuth, type AuthInfo } from './middleware.js';
 

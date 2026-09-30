@@ -23,7 +23,6 @@ class FlakyClient implements LLMClient {
     this.name = name;
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- 测试替身，同步脚本化
   async chat(): Promise<ChatResponse> {
     this.attempts += 1;
     if (this.attempts <= this.failTimes) {
@@ -41,7 +40,6 @@ class RecordingClient implements LLMClient {
     this.name = name;
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await -- 测试替身，同步脚本化
   async chat(req: ChatRequest, _opts?: ChatOptions): Promise<ChatResponse> {
     this.requests.push(req);
     return { ...OK, text: this.name };

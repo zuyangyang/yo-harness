@@ -12,7 +12,7 @@
     "node": ">=20.10"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"
   },

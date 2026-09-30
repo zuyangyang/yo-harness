@@ -197,7 +197,7 @@ export function MemoryManager(): JSX.Element {
             onChange={(e) => setForm({ ...form, keywords: e.target.value })}
           />
           <div className="memory-form-actions">
-            <button className="btn btn-primary" onClick={editingId ? handleUpdate : handleCreate}>
+            <button className="btn btn-primary" onClick={() => { void (editingId ? handleUpdate() : handleCreate()); }}>
               {editingId ? 'Update' : 'Create'}
             </button>
             <button className="btn btn-secondary" onClick={() => { setShowForm(false); setEditingId(null); }}>Cancel</button>
@@ -227,7 +227,7 @@ export function MemoryManager(): JSX.Element {
               )}
               <div className="memory-item-actions">
                 <button className="btn btn-sm btn-secondary" onClick={() => startEdit(mem)}>Edit</button>
-                <button className="btn btn-sm btn-danger" onClick={() => handleDelete(mem.id)}>Delete</button>
+                <button className="btn btn-sm btn-danger" onClick={() => { void handleDelete(mem.id); }}>Delete</button>
               </div>
             </li>
           ))}

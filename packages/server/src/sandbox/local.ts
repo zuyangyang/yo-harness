@@ -5,7 +5,6 @@
  * 复用 Phase 1-3 的 spawn 逻辑（进程组 kill、超时、输出截断）。
  */
 import { spawn } from 'node:child_process';
-import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import type { Dirent } from 'node:fs';
@@ -110,8 +109,9 @@ export class LocalProvider implements SandboxProvider {
     return this.status;
   }
 
-  async destroy(): Promise<void> {
+  destroy(): Promise<void> {
     this.status = 'stopped';
+    return Promise.resolve();
   }
 }
 

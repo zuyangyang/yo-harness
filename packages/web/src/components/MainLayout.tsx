@@ -17,7 +17,7 @@ import { useSessionStore } from '../stores/session.js';
 type ViewTab = 'chat' | 'memory' | 'tasks';
 
 export function MainLayout(): JSX.Element {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ViewTab>('chat');
   const [selectedModel, setSelectedModel] = useState('');
 
@@ -47,7 +47,7 @@ export function MainLayout(): JSX.Element {
   return (
     <div className="main-layout">
       <div className={`sidebar-container ${sidebarOpen ? 'sidebar-open' : ''}`}>
-        <Sidebar onNewSession={handleNewSession} />
+        <Sidebar onNewSession={() => { void handleNewSession(); }} />
       </div>
 
       <div className="main-content">

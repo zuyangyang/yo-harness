@@ -12,10 +12,11 @@ export function useAuth() {
 
   useEffect(() => {
     const stored = localStorage.getItem('yo-auth');
-    const hasToken = stored && JSON.parse(stored)?.state?.token;
-    
+    const parsed = stored ? (JSON.parse(stored) as { state?: { token?: string } }) : null;
+    const hasToken = Boolean(parsed?.state?.token);
+
     if (hasToken && !isAuthenticated) {
-      loadUser().finally(() => setIsChecking(false));
+      void loadUser().finally(() => setIsChecking(false));
     } else {
       setIsChecking(false);
     }

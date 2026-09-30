@@ -175,7 +175,7 @@ export function createAuthRoutes(deps: AuthRouteDeps): Hono {
     const id = c.req.param('id');
 
     const key = await storage.apiKeys.get(id);
-    if (!key || key.userId !== auth.userId) {
+    if (key?.userId !== auth.userId) {
       return c.json({ error: 'API key not found' }, 404);
     }
 

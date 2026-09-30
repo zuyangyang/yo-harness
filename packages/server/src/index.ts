@@ -6,6 +6,7 @@
  * 2. 命令行：tsx src/index.ts（直接启动 HTTP 服务）
  */
 import { serve } from '@hono/node-server';
+import type { Server } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -26,13 +27,8 @@ import { SessionManager } from './session-manager.js';
 import { createJwtConfig } from './auth/jwt.js';
 import { createDefaultServerConfig, type ServerConfig, type ModelProviderConfig } from './config.js';
 import { WebSocketHub } from './ws/hub.js';
-import {
-  SqliteBackend,
-  createSqliteBackend,
-  PostgresBackend,
-  createPostgresBackend,
-} from './storage/index.js';
-import type { StorageBackend, PostgresConfig } from './storage/index.js';
+import { createSqliteBackend, createPostgresBackend } from './storage/index.js';
+import type { StorageBackend } from './storage/index.js';
 
 export {
   SqliteBackend,
@@ -148,7 +144,7 @@ export async function startServer(options: StartServerOptions): Promise<void> {
   const { app, injectWebSocket, sessionManager, storage } = result;
 
   const server = serve({ fetch: app.fetch, port });
-  injectWebSocket(server as unknown as import('node:http').Server);
+  injectWebSocket(server as unknown as Server);
 
   console.log(`[yo-server] listening on http://localhost:${port}`);
   console.log(`[yo-server] mode: ${options.serverConfig?.mode ?? 'single'}`);
@@ -161,8 +157,8 @@ export async function startServer(options: StartServerOptions): Promise<void> {
     process.exit(0);
   };
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', () => void shutdown());
+  process.on('SIGTERM', () => void shutdown());
 }
 
 // ─── CLI 入口 ───

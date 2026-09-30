@@ -70,7 +70,7 @@ export class TenantManager {
   }
 
   async get(id: string): Promise<Tenant | undefined> {
-    const result = await this.pool.query(
+    const result = await this.pool.query<TenantRow>(
       'SELECT * FROM tenants WHERE id = $1',
       [id],
     );
@@ -130,10 +130,12 @@ export class TenantManager {
   }
 }
 
-function mapTenant(row: {
+interface TenantRow {
   id: string; name: string; schema_name: string;
   status: string; created_at: string; updated_at: string;
-}): Tenant {
+}
+
+function mapTenant(row: TenantRow): Tenant {
   return {
     id: row.id,
     name: row.name,

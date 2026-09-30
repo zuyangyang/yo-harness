@@ -34,7 +34,7 @@ export function getToken(): string {
 const DEFAULT_BASE_URL = '';
 
 function getBaseUrl(): string {
-  return import.meta.env['VITE_API_BASE_URL'] ?? DEFAULT_BASE_URL;
+  return (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? DEFAULT_BASE_URL;
 }
 
 export async function fetchJson<T>(
@@ -45,7 +45,7 @@ export async function fetchJson<T>(
   const url = `${getBaseUrl()}${path}`;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (accessToken) {
-    headers['Authorization'] = `Bearer ${accessToken}`;
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const init: RequestInit = { method, headers };

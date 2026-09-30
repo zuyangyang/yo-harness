@@ -9,7 +9,7 @@
 import { z } from 'zod';
 
 import { formatToolError } from '../types/errors.js';
-import type { Tool, ToolResult } from '../types/tools.js';
+import type { Tool } from '../types/tools.js';
 
 export const DEFAULT_TIMEOUT_MS = 60_000;
 export const MAX_TIMEOUT_MS = 300_000;

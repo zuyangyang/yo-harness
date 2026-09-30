@@ -6,7 +6,6 @@
  * - 设置后同时跑 PostgreSQL 测试（CI 环境用 testcontainers 或 docker-compose）
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { randomUUID } from 'node:crypto';
 
 import type { StorageBackend } from '../../src/storage/interface.js';
 import { createSqliteBackend } from '../../src/storage/sqlite.js';
@@ -173,7 +172,7 @@ function runContractTests(factory: BackendFactory) {
       const cp1 = await backend.checkpoints.create({
         sessionId: session.id, seq: 1, source: 'manual', files: [],
       });
-      const cp2 = await backend.checkpoints.create({
+      await backend.checkpoints.create({
         sessionId: session.id, seq: 5, source: 'manual', files: [],
       });
       const cp3 = await backend.checkpoints.create({

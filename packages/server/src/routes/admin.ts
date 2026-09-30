@@ -116,7 +116,7 @@ export function createAdminRoutes(deps: AdminRouteDeps): Hono {
     const body = await c.req.json<{ role: UserRole }>();
 
     const user = await storage.users.get(userId);
-    if (!user || user.tenantId !== tenantId) {
+    if (user?.tenantId !== tenantId) {
       return c.json({ error: 'member not found in this tenant' }, 404);
     }
 
@@ -129,7 +129,7 @@ export function createAdminRoutes(deps: AdminRouteDeps): Hono {
     const userId = c.req.param('userId');
 
     const user = await storage.users.get(userId);
-    if (!user || user.tenantId !== tenantId) {
+    if (user?.tenantId !== tenantId) {
       return c.json({ error: 'member not found in this tenant' }, 404);
     }
 

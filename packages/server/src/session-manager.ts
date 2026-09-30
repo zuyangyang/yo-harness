@@ -100,11 +100,12 @@ export class SessionManager {
     }
   }
 
-  async interrupt(sessionId: string): Promise<void> {
+  interrupt(sessionId: string): Promise<void> {
     const active = this.active.get(sessionId);
     if (active) {
       active.loop.interrupt();
     }
+    return Promise.resolve();
   }
 
   getPendingApprovals(sessionId: string): PendingApproval[] {
@@ -135,10 +136,11 @@ export class SessionManager {
     }
   }
 
-  async destroyAll(): Promise<void> {
+  destroyAll(): Promise<void> {
     for (const sessionId of [...this.active.keys()]) {
       this.closeSession(sessionId);
     }
+    return Promise.resolve();
   }
 
   private async getOrCreate(sessionId: string): Promise<ActiveSession> {

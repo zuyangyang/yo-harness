@@ -9,6 +9,7 @@ import { Hono } from 'hono';
 import type { MiddlewareHandler } from 'hono';
 import { cors } from 'hono/cors';
 import { createNodeWebSocket } from '@hono/node-ws';
+import type { Server } from 'node:http';
 import { verifyToken } from './auth/jwt.js';
 
 import type { StorageBackend } from './storage/interface.js';
@@ -19,7 +20,7 @@ import type { TenantManager } from './tenant/manager.js';
 import { tenantMiddleware } from './tenant/middleware.js';
 import type { ServerConfig } from './config.js';
 import type { ServerEnv } from './types.js';
-import { WebSocketHub } from './ws/hub.js';
+import type { WebSocketHub } from './ws/hub.js';
 
 import { createAuthRoutes } from './routes/auth.js';
 import { createAdminRoutes } from './routes/admin.js';
@@ -42,14 +43,14 @@ export interface AppDeps {
 export interface AppResult {
   app: Hono<ServerEnv>;
   wsHub: WebSocketHub;
-  injectWebSocket: (server: import('node:http').Server) => void;
+  injectWebSocket: (server: Server) => void;
 }
 
 export function createApp(deps: AppDeps): AppResult {
   const { storage, sessionManager, jwtConfig, serverConfig, wsHub, tenantManager } = deps;
   const app = new Hono<ServerEnv>();
 
-  const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
+  const nodeWs = createNodeWebSocket({ app });
 
   app.use('*', cors());
 
@@ -64,21 +65,23 @@ export function createApp(deps: AppDeps): AppResult {
   // ─── WebSocket（JWT token via query string） ───
   app.get(
     '/ws',
-    upgradeWebSocket(async (c) => {
+    nodeWs.upgradeWebSocket((c) => {
       const token = c.req.query('token');
 
       return {
-        async onOpen(_evt, ws) {
+        onOpen(_evt, ws) {
           if (!token) {
             ws.close(4001, 'missing token');
             return;
           }
-          try {
-            const payload = await verifyToken(token, jwtConfig);
-            wsHub.addConnection(ws.raw!, payload.userId);
-          } catch {
-            ws.close(4001, 'invalid token');
-          }
+          void (async () => {
+            try {
+              const payload = await verifyToken(token, jwtConfig);
+              wsHub.addConnection(ws.raw!, payload.userId);
+            } catch {
+              ws.close(4001, 'invalid token');
+            }
+          })();
         },
       };
     }),
@@ -117,5 +120,5 @@ export function createApp(deps: AppDeps): AppResult {
   app.route('/api/v1/memories', createMemoryRoutes({ storage }));
   app.route('/api/v1/models', createModelRoutes({ serverConfig }));
 
-  return { app, wsHub, injectWebSocket };
+  return { app, wsHub, injectWebSocket: (server) => nodeWs.injectWebSocket(server) };
 }

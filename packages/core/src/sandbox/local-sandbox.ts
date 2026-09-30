@@ -108,8 +108,9 @@ export function createLocalSandbox(cwd: string): SandboxProvider {
       return status;
     },
 
-    async destroy(): Promise<void> {
+    destroy(): Promise<void> {
       status = 'stopped';
+      return Promise.resolve();
     },
   };
 }

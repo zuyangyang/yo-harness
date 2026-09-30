@@ -61,7 +61,7 @@ export function createConversationRoutes(deps: ConversationsRouteDeps): Hono<Ser
       return c.json({ error: 'session not found' }, 404);
     }
 
-    sessionManager.interrupt(sessionId);
+    void sessionManager.interrupt(sessionId);
     return c.json({ ok: true });
   });
 

@@ -20,7 +20,7 @@ export function LoginPage(): JSX.Element {
     e.preventDefault();
     try {
       await login(tenantId, username, password);
-      navigate('/');
+      void navigate('/');
     } catch {
       // Error is handled by auth store
     }
@@ -48,7 +48,7 @@ export function LoginPage(): JSX.Element {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={(e) => { void handleSubmit(e); }} className="auth-form">
           <div className="auth-field">
             <label className="auth-label">Tenant ID</label>
             <input

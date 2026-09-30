@@ -113,14 +113,6 @@ function RemoteApp(props: RemoteAppProps): ReactElement {
     setLines((prev) => [...prev, line(text, style)]);
   };
 
-  const scheduleFlush = (): void => {
-    if (flushTimerRef.current !== undefined) return;
-    flushTimerRef.current = setTimeout(() => {
-      flushTimerRef.current = undefined;
-      setStreamText(renderer.current.stream);
-    }, 50);
-  };
-
   useEffect(() => {
     const onEvent = (_sid: string, envelope: EventEnvelope): void => {
       const payload = envelope.payload;

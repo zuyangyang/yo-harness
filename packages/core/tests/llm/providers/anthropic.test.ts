@@ -157,7 +157,6 @@ class MockAnthropicTransport implements AnthropicTransport {
     }
     const events = next;
     return Promise.resolve(
-      // eslint-disable-next-line @typescript-eslint/require-await -- 测试替身，同步脚本化
       (async function* (): AsyncGenerator<Anthropic.RawMessageStreamEvent> {
         for (const ev of events) yield ev;
       })(),

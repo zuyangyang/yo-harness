@@ -9,6 +9,7 @@ import { PlanView } from '../../src/components/Plan/PlanView.js';
 const mockPlan = {
   id: 'p1',
   objective: 'Implement login feature',
+  createdAt: '2026-01-01',
   tasks: [
     {
       id: 't1',

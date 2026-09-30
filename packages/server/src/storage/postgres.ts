@@ -426,7 +426,7 @@ class PostgresMemoryStore implements MemoryStore {
       ),
     );
 
-    let q = this.db.select().from(this.t.memories)
+    const q = this.db.select().from(this.t.memories)
       .where(and(
         eq(this.t.memories.status, status),
         or(...conditions),

@@ -7,7 +7,7 @@
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import Docker from 'dockerode';
+import type Docker from 'dockerode';
 
 import { DockerProvider } from './docker.js';
 import type { SandboxProvider } from '@yo-harness/core/types/sandbox.js';
@@ -56,7 +56,7 @@ export class SandboxPool {
     if (this.pool.length < this.config.poolSize && provider instanceof DockerProvider) {
       this.pool.push(provider);
     } else {
-      provider.destroy();
+      void provider.destroy();
     }
   }
 

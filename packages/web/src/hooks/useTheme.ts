@@ -9,7 +9,9 @@ function getInitialTheme(): Theme {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === 'light' || stored === 'dark') return stored;
-  } catch {}
+  } catch {
+    // ignore localStorage read errors
+  }
   return 'dark';
 }
 
@@ -24,7 +26,9 @@ export function useTheme() {
     applyTheme(theme);
     try {
       localStorage.setItem(STORAGE_KEY, theme);
-    } catch {}
+    } catch {
+      // ignore localStorage write errors
+    }
   }, [theme]);
 
   const toggleTheme = useCallback(() => {

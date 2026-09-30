@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { Command } from 'commander';
 
 import { runCli, runResume } from './cli/runtime.js';
-import { runRemote } from './cli/remote-runtime.js';
+import { runRemote, type RemoteOptions } from './cli/remote-runtime.js';
 import { startDaemon } from '@yo-harness/core/daemon/daemon-main.js';
 import { DaemonApiClient } from '@yo-harness/core/daemon/daemon-api.js';
 import { FatalError } from '@yo-harness/core/types/errors.js';
@@ -52,11 +52,11 @@ program
   .option('--password <pass>', '远程模式密码（或 YO_PASSWORD 环境变量）')
   .action((options: ParsedOptions) => {
     if (options.server) {
-      const remoteOpts: import('./cli/remote-runtime.js').RemoteOptions = {
+      const remoteOpts: RemoteOptions = {
         serverUrl: options.server,
-        tenantId: options.tenant ?? process.env['YO_TENANT_ID'] ?? '',
-        username: options.username ?? process.env['YO_USERNAME'] ?? '',
-        password: options.password ?? process.env['YO_PASSWORD'] ?? '',
+        tenantId: options.tenant ?? process.env.YO_TENANT_ID ?? '',
+        username: options.username ?? process.env.YO_USERNAME ?? '',
+        password: options.password ?? process.env.YO_PASSWORD ?? '',
       };
       if (options.model !== undefined) remoteOpts.model = options.model;
       if (options.print !== undefined) remoteOpts.print = options.print;

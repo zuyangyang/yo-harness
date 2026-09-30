@@ -27,7 +27,7 @@ export interface Turn {
   thinkingTexts: string[];
   toolSteps: ToolStep[];
   finalText: string;
-  errors: Array<{ stage: string; message: string; recoverable: boolean }>;
+  errors: { stage: string; message: string; recoverable: boolean }[];
   usage?: {
     inputTokens: number;
     outputTokens: number;
@@ -73,7 +73,7 @@ function splitByUserInput(events: EventEnvelope[]): RawTurn[] {
 
 function buildTurn(raw: RawTurn, index: number): Turn {
   const thinkingTexts: string[] = [];
-  const allAssistantTexts: Array<{ text: string; hasToolCalls: boolean }> = [];
+  const allAssistantTexts: { text: string; hasToolCalls: boolean }[] = [];
   const toolStepMap = new Map<string, ToolStep>();
   const errors: Turn['errors'] = [];
   let usage: Turn['usage'];
@@ -148,7 +148,7 @@ function buildTurn(raw: RawTurn, index: number): Turn {
 }
 
 function determineFinalText(
-  allAssistantTexts: Array<{ text: string; hasToolCalls: boolean }>,
+  allAssistantTexts: { text: string; hasToolCalls: boolean }[],
 ): string {
   if (allAssistantTexts.length === 0) return '';
 

@@ -22,25 +22,34 @@ export interface RemoteError {
   message: string;
 }
 
-type Listener = (...args: any[]) => void;
+interface EmitterEvents {
+  connected: [];
+  disconnected: [];
+  event: [sessionId: string, event: EventEnvelope];
+  approval: [request: ApprovalRequest];
+  error: [error: RemoteError];
+}
+
+type EventName = keyof EmitterEvents;
+type AnyListener = (...args: unknown[]) => void;
 
 class SimpleEmitter {
-  private handlers = new Map<string, Set<Listener>>();
+  private handlers = new Map<string, Set<AnyListener>>();
 
-  on(event: string, fn: Listener): void {
+  on<K extends EventName>(event: K, fn: (...args: EmitterEvents[K]) => void): void {
     if (!this.handlers.has(event)) this.handlers.set(event, new Set());
-    this.handlers.get(event)!.add(fn);
+    this.handlers.get(event)!.add(fn as AnyListener);
   }
 
-  off(event: string, fn: Listener): void {
-    this.handlers.get(event)?.delete(fn);
+  off<K extends EventName>(event: K, fn: (...args: EmitterEvents[K]) => void): void {
+    this.handlers.get(event)?.delete(fn as AnyListener);
   }
 
-  emit(event: string, ...args: unknown[]): void {
+  emit<K extends EventName>(event: K, ...args: EmitterEvents[K]): void {
     this.handlers.get(event)?.forEach((fn) => fn(...args));
   }
 
-  listenerCount(event: string): number {
+  listenerCount(event: EventName): number {
     return this.handlers.get(event)?.size ?? 0;
   }
 }
@@ -49,7 +58,7 @@ const PING_INTERVAL_MS = 30_000;
 const MAX_RECONNECT_DELAY_MS = 30_000;
 
 function getWsBaseUrl(): string {
-  const httpBase = import.meta.env['VITE_API_BASE_URL'] ?? window.location.origin;
+  const httpBase = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? window.location.origin;
   return httpBase.replace(/^http/, 'ws');
 }
 
@@ -146,10 +155,10 @@ export class WebSocketClient extends SimpleEmitter {
           sessionId: msg.sessionId as string,
           toolName: msg.toolName as string,
           summary: msg.summary as string,
-        } as ApprovalRequest);
+        });
         break;
       case 'error':
-        this.emit('error', { code: msg.code as string, message: msg.message as string } as RemoteError);
+        this.emit('error', { code: msg.code as string, message: msg.message as string });
         break;
       case 'pong':
         break;
@@ -157,7 +166,7 @@ export class WebSocketClient extends SimpleEmitter {
   }
 
   private sendRaw(msg: Record<string, unknown>): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
     }
   }

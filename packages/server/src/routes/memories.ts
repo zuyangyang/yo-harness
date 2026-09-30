@@ -12,9 +12,8 @@ export interface MemoriesRouteDeps {
   storage: StorageBackend;
 }
 
-export function createMemoryRoutes(deps: MemoriesRouteDeps): Hono<ServerEnv> {
+export function createMemoryRoutes(_deps: MemoriesRouteDeps): Hono<ServerEnv> {
   const app = new Hono<ServerEnv>();
-  const { storage } = deps;
 
   app.use('*', requirePermission('memories:read'));
 

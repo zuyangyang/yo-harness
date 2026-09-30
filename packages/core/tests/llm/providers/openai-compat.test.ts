@@ -122,7 +122,6 @@ class MockOpenAICompatTransport implements OpenAICompatTransport {
     }
     const chunks = next;
     return Promise.resolve(
-      // eslint-disable-next-line @typescript-eslint/require-await -- 测试替身，同步脚本化
       (async function* (): AsyncGenerator<OpenAI.Chat.ChatCompletionChunk> {
         for (const c of chunks) yield c;
       })(),

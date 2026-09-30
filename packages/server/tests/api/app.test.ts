@@ -117,7 +117,7 @@ describe('auth routes', () => {
     });
     expect(res.status).toBe(201);
     const body = await json(res);
-    expect(body.username).toBe('newuser');
+    expect(body.user.username).toBe('newuser');
   });
 
   it('POST /auth/register 重复用户名 → 409', async () => {

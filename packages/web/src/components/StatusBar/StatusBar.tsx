@@ -16,7 +16,7 @@ function extractStats(events: EventEnvelope[]): { steps: number; tokens: number 
     if (env.payload.type === 'turn_started') steps++;
     if (env.payload.type === 'turn_completed') {
       const p = env.payload as Record<string, unknown>;
-      const usage = p['usage'] as { totalTokens?: number } | undefined;
+      const usage = p.usage as { totalTokens?: number } | undefined;
       if (usage?.totalTokens) tokens += usage.totalTokens;
     }
   }

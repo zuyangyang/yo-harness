@@ -4,8 +4,7 @@
  * 每个 session 分配一个独立容器，命令在容器内执行，
  * 文件系统隔离 + 资源限制（内存、CPU）+ 可选网络禁用。
  */
-import Docker from 'dockerode';
-import fs from 'node:fs';
+import type Docker from 'dockerode';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import type { Dirent } from 'node:fs';
@@ -25,7 +24,7 @@ const DEFAULT_OUTPUT_CAP = 10 * 1024;
 export class DockerProvider implements SandboxProvider {
   private container: Docker.Container | null = null;
   private status: SandboxStatus = 'starting';
-  private workspaceDir: string = '';
+  private workspaceDir = '';
 
   constructor(
     private readonly docker: Docker,
@@ -148,7 +147,7 @@ export class DockerProvider implements SandboxProvider {
     const stderr = new ByteCollector(cap);
 
     const demuxStream = new PassThrough();
-    (stream as NodeJS.ReadableStream).pipe(demuxStream);
+    (stream).pipe(demuxStream);
 
     return new Promise((resolve) => {
       const buf: Buffer[] = [];

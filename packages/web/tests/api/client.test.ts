@@ -64,7 +64,7 @@ describe('API client', () => {
 
       const call = lastFetchCall();
       const headers = call!.init.headers as Record<string, string>;
-      expect(headers['Authorization']).toBe('Bearer mytoken');
+      expect(headers.Authorization).toBe('Bearer mytoken');
     });
 
     it('无 token 时不附加 Authorization', async () => {
@@ -73,7 +73,7 @@ describe('API client', () => {
 
       const call = lastFetchCall();
       const headers = call!.init.headers as Record<string, string>;
-      expect(headers['Authorization']).toBeUndefined();
+      expect(headers.Authorization).toBeUndefined();
     });
 
     it('HTTP 错误抛 ApiError', async () => {

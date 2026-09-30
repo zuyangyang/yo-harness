@@ -22,9 +22,9 @@ export interface AuthInfo {
 const AUTH_KEY = 'auth';
 
 export function getAuth(c: Context): AuthInfo {
-  const auth = c.get(AUTH_KEY);
+  const auth = c.get(AUTH_KEY) as AuthInfo | undefined;
   if (!auth) throw new Error('auth middleware not applied on this route');
-  return auth as AuthInfo;
+  return auth;
 }
 
 export interface AuthMiddlewareDeps {
@@ -60,7 +60,7 @@ export function authMiddleware(deps: AuthMiddlewareDeps): MiddlewareHandler {
         c.set(AUTH_KEY, {
           userId: payload.userId,
           tenantId: payload.tenantId,
-          role: payload.role as UserRole,
+          role: payload.role,
         } satisfies AuthInfo);
       } catch {
         return c.json({ error: 'invalid or expired token' }, 401);

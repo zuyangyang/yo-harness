@@ -11,9 +11,8 @@ export interface TasksRouteDeps {
   storage: StorageBackend;
 }
 
-export function createTaskRoutes(deps: TasksRouteDeps): Hono<ServerEnv> {
+export function createTaskRoutes(_deps: TasksRouteDeps): Hono<ServerEnv> {
   const app = new Hono<ServerEnv>();
-  const { storage } = deps;
 
   app.use('*', requirePermission('tasks:read'));
 

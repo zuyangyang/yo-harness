@@ -86,7 +86,7 @@ export function TaskList(): JSX.Element {
                 <td>{new Date(task.createdAt).toLocaleString()}</td>
                 <td>
                   {(task.status === 'pending' || task.status === 'running') && (
-                    <button className="btn btn-sm btn-danger" onClick={() => handleCancel(task.id)}>Cancel</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => { void handleCancel(task.id); }}>Cancel</button>
                   )}
                 </td>
               </tr>

@@ -11,6 +11,7 @@
     "dev": "pnpm --filter @yo-harness/cli run dev",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run test",
     "lint": "eslint packages/*/src packages/*/tests --no-error-on-unmatched-pattern",
     "format": "prettier --write .",
     "test": "pnpm -r run test",

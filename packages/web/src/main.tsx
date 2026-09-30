@@ -9,7 +9,9 @@ try {
   const stored = localStorage.getItem(STORAGE_KEY);
   const theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
   document.documentElement.setAttribute('data-theme', theme);
-} catch {}
+} catch {
+  // ignore localStorage read errors
+}
 
 const rootEl = document.getElementById('root');
 if (rootEl) {

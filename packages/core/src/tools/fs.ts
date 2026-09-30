@@ -6,7 +6,6 @@
  * - 所有路径经 resolveInWorkspace 校验，必须落在会话 cwd 内；
  * - run() 永不 throw。
  */
-import path from 'node:path';
 import { z } from 'zod';
 
 import type { Tool, ToolResult } from '../types/tools.js';

@@ -136,10 +136,15 @@ export class RemoteClient extends EventEmitter {
 
     this.ws.on('message', (raw: WebSocket.Data) => {
       try {
-        const msg = JSON.parse(raw.toString()) as Record<string, unknown>;
+        const text = raw instanceof ArrayBuffer
+          ? Buffer.from(raw).toString('utf8')
+          : Array.isArray(raw)
+            ? Buffer.concat(raw).toString('utf8')
+            : raw.toString();
+        const msg = JSON.parse(text) as Record<string, unknown>;
         switch (msg.type) {
           case 'event':
-            this.emit('event', msg.sessionId as string, msg.event as EventEnvelope);
+            this.emit('event', msg.sessionId, msg.event);
             break;
           case 'approval.request':
             this.emit('approval', {
@@ -187,7 +192,7 @@ export class RemoteClient extends EventEmitter {
   }
 
   private sendWs(msg: Record<string, unknown>): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
     }
   }
@@ -203,7 +208,7 @@ export class RemoteClient extends EventEmitter {
     const url = `${this.serverUrl}${path}`;
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.accessToken) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
+      headers.Authorization = `Bearer ${this.accessToken}`;
     }
     const init: RequestInit = { method, headers };
     if (body !== undefined) {

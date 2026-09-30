@@ -6,7 +6,6 @@ import {
   isClientMessage,
   encodeServerMessage,
   decodeClientMessage,
-  type ClientMessage,
   type ServerMessage,
 } from '../../src/ws/protocol.js';
 
