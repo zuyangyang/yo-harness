@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { ChevronRightIcon } from '../Icons/index.js';
 
 interface ThinkingSectionProps {
   texts: string[];
@@ -22,7 +23,7 @@ export function ThinkingSection({ texts, toolCount, durationMs }: ThinkingSectio
     <div className="turn-thinking">
       <div className="turn-thinking__summary" onClick={() => setExpanded(!expanded)}>
         <span className={`turn-thinking__arrow ${expanded ? 'turn-thinking__arrow--expanded' : ''}`}>
-          ▸
+          <ChevronRightIcon className="icon-arrow" />
         </span>
         <span className="turn-thinking__label">Thinking</span>
         <span className="turn-thinking__meta">{summary}</span>

@@ -3,6 +3,12 @@
  *
  * Plan 数据来自 AgentEvent payload（plan 类型事件），只读展示。
  */
+import {
+  CircleEmptyIcon,
+  CircleHalfIcon,
+  CircleFilledIcon,
+  CircleDashedIcon,
+} from '../Icons/index.js';
 
 interface PlanTask {
   id: string;
@@ -24,11 +30,11 @@ interface PlanViewProps {
   plan: Plan;
 }
 
-const STATUS_ICON: Record<string, string> = {
-  pending: '○',
-  in_progress: '◐',
-  completed: '●',
-  skipped: '◌',
+const STATUS_ICON: Record<string, JSX.Element> = {
+  pending: <CircleEmptyIcon className="icon-plan-status" />,
+  in_progress: <CircleHalfIcon className="icon-plan-status" />,
+  completed: <CircleFilledIcon className="icon-plan-status" />,
+  skipped: <CircleDashedIcon className="icon-plan-status" />,
 };
 
 function computeProgress(tasks: PlanTask[]): { done: number; total: number } {
@@ -47,7 +53,7 @@ function computeProgress(tasks: PlanTask[]): { done: number; total: number } {
 function TaskTreeNode({ task }: { task: PlanTask }): JSX.Element {
   return (
     <li className={`plan-task plan-task--${task.status}`}>
-      <span className="plan-task-icon">{STATUS_ICON[task.status] ?? '?'}</span>
+      <span className="plan-task-icon">{STATUS_ICON[task.status]}</span>
       <span className="plan-task-title">{task.title}</span>
       {task.children.length > 0 && (
         <ul className="plan-task-children">

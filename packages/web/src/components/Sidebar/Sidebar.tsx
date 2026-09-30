@@ -1,9 +1,7 @@
-/**
- * Session list sidebar.
- */
 import { useSession } from '../../hooks/useSession.js';
 import { useAuth } from '../../hooks/useAuth.js';
 import { SessionItem } from './SessionItem.js';
+import { CogIcon, ArrowRightOnRectangleIcon } from '../Icons/index.js';
 
 interface SidebarProps {
   onNewSession: () => void;
@@ -40,8 +38,8 @@ export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
         <div className="sidebar-user">
           <span className="sidebar-username">{user?.username ?? 'Unknown'}</span>
           <div className="sidebar-footer-actions">
-            <button className="sidebar-footer-btn" title="Settings">⚙️</button>
-            <button className="sidebar-logout-btn" onClick={logout} title="Logout">🚪</button>
+            <button className="sidebar-footer-btn" title="Settings"><CogIcon className="icon-footer" /></button>
+            <button className="sidebar-logout-btn" onClick={logout} title="Logout"><ArrowRightOnRectangleIcon className="icon-footer" /></button>
           </div>
         </div>
       </div>

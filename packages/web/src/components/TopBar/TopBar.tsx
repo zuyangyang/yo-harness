@@ -1,7 +1,5 @@
-/**
- * TopBar: Logo + Tab navigation + Theme toggle.
- */
 import { useTheme } from '../../hooks/useTheme.js';
+import { Logo, SunIcon, MoonIcon } from '../Icons/index.js';
 
 interface TopBarProps {
   activeTab: string;
@@ -15,7 +13,7 @@ export function TopBar({ activeTab, onTabChange }: TopBarProps): JSX.Element {
     <div className="topbar">
       <div className="topbar-left">
         <div className="topbar-logo">
-          <span className="topbar-logo-icon">⚡</span>
+          <Logo className="topbar-logo-icon" />
           <span>Yo-Harness</span>
         </div>
         <nav className="tab-nav">
@@ -32,7 +30,7 @@ export function TopBar({ activeTab, onTabChange }: TopBarProps): JSX.Element {
       </div>
       <div className="topbar-right">
         <button className="theme-toggle-btn" onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
-          {theme === 'dark' ? '☀️' : '🌙'}
+          {theme === 'dark' ? <SunIcon className="icon-theme" /> : <MoonIcon className="icon-theme" />}
         </button>
       </div>
     </div>

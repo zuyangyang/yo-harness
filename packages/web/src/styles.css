@@ -166,10 +166,6 @@ body {
   color: var(--text-primary);
 }
 
-.topbar-logo-icon {
-  font-size: 18px;
-}
-
 .tab-nav {
   display: flex;
   gap: var(--space-1);
@@ -362,7 +358,6 @@ body {
 }
 
 .session-item-icon {
-  font-size: 14px;
   flex-shrink: 0;
 }
 
@@ -574,9 +569,9 @@ body {
 }
 
 .chat-empty-icon {
-  font-size: 48px;
   margin-bottom: var(--space-4);
-  opacity: 0.5;
+  display: flex;
+  justify-content: center;
 }
 
 .chat-empty-text {
@@ -802,10 +797,6 @@ body {
   margin-bottom: var(--space-2);
 }
 
-.tool-call-icon {
-  font-size: 14px;
-}
-
 .tool-call-args {
   color: var(--text-secondary);
   font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
@@ -875,10 +866,6 @@ body {
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   margin-bottom: var(--space-6);
-}
-
-.auth-logo-icon {
-  font-size: 24px;
 }
 
 .auth-title {
@@ -1392,9 +1379,9 @@ body {
 }
 
 .turn-thinking__arrow {
-  transition: transform 0.15s ease;
-  font-size: var(--font-size-sm);
+  transition: transform 0.2s ease;
   color: var(--text-tertiary);
+  display: inline-flex;
 }
 
 .turn-thinking__arrow--expanded {
@@ -1442,10 +1429,6 @@ body {
   font-size: var(--font-size-base);
   color: var(--text-secondary);
   user-select: none;
-}
-
-.turn-tools__icon {
-  font-size: var(--font-size-lg);
 }
 
 .turn-tools__label {
@@ -1499,8 +1482,8 @@ body {
 }
 
 .tool-step__status {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
+  display: inline-flex;
+  align-items: center;
 }
 
 .tool-step__status--success {
@@ -1584,4 +1567,195 @@ body {
   text-align: right;
   margin-top: var(--space-2);
   padding-right: var(--space-2);
+}
+
+/* ─── SVG Icon System ─── */
+.icon-svg {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Logo */
+.logo-svg {
+  width: 28px;
+  height: 28px;
+}
+
+.topbar-logo-icon {
+  font-size: 0;
+  animation: logo-bounce 3s ease-in-out infinite;
+}
+
+.auth-logo-icon {
+  font-size: 0;
+  width: 40px;
+  height: 40px;
+  animation: logo-float 4s ease-in-out infinite;
+}
+
+/* Theme toggle icon */
+.icon-theme {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.theme-toggle-btn:hover .icon-theme {
+  transform: rotate(180deg) scale(1.1);
+}
+
+/* Footer icons */
+.icon-footer {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+}
+
+.sidebar-footer-btn:hover .icon-footer,
+.sidebar-logout-btn:hover .icon-footer {
+  transform: scale(1.2);
+}
+
+/* Session icon */
+.icon-session {
+  width: 16px;
+  height: 16px;
+  color: var(--text-tertiary);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.session-item:hover .icon-session {
+  transform: scale(1.15);
+  color: var(--accent);
+}
+
+.session-item--active .icon-session {
+  color: var(--accent);
+}
+
+/* Empty state icon */
+.icon-empty {
+  width: 48px;
+  height: 48px;
+  opacity: 0.4;
+  animation: sparkle-pulse 2.5s ease-in-out infinite;
+}
+
+/* Send button icon */
+.icon-send {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+}
+
+.chat-send-btn:hover:not(:disabled) .icon-send {
+  transform: translateY(-2px);
+}
+
+.chat-send-btn:active:not(:disabled) .icon-send {
+  transform: translateY(0) scale(0.9);
+}
+
+/* Tool call icon */
+.icon-tool-call {
+  width: 14px;
+  height: 14px;
+  color: var(--accent);
+}
+
+/* Tool group icon */
+.icon-tool-group {
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+/* Status icons */
+.icon-status {
+  width: 14px;
+  height: 14px;
+}
+
+.icon-status--success {
+  color: var(--success);
+}
+
+.icon-status--error {
+  color: var(--danger);
+}
+
+.icon-status--pending {
+  color: var(--info);
+}
+
+/* Spinning animation for pending tool steps */
+.icon-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Arrow icon */
+.icon-arrow {
+  width: 14px;
+  height: 14px;
+}
+
+/* Plan status icon */
+.icon-plan-status {
+  width: 14px;
+  height: 14px;
+}
+
+.plan-task--completed .icon-plan-status {
+  color: var(--success);
+}
+
+.plan-task--in_progress .icon-plan-status {
+  color: var(--info);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* ─── Animations ─── */
+@keyframes logo-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@keyframes logo-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-3px) rotate(-2deg); }
+  75% { transform: translateY(2px) rotate(2deg); }
+}
+
+@keyframes sparkle-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.08); opacity: 0.6; }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+/* Session item entrance animation */
+.session-item {
+  animation: slide-in 0.2s ease-out both;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }

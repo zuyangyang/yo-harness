@@ -1,12 +1,10 @@
-/**
- * Chat area: message list + DeepSeek-style input form.
- */
 import { useState, type FormEvent } from 'react';
 
 import { useSession } from '../../hooks/useSession.js';
 import { groupEventsIntoTurns } from '../../utils/turn-grouping.js';
 import { TurnBlock } from './TurnBlock.js';
 import { ModelSelector } from '../Model/ModelSelector.js';
+import { SparklesIcon, ArrowUpIcon, ChatBubbleIcon } from '../Icons/index.js';
 
 interface ChatAreaProps {
   selectedModel: string;
@@ -35,7 +33,7 @@ export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.E
   if (!currentSession) {
     return (
       <div className="chat-empty">
-        <div className="chat-empty-icon"></div>
+        <div className="chat-empty-icon"><ChatBubbleIcon className="icon-empty" /></div>
         <div className="chat-empty-text">Select or create a session to start</div>
       </div>
     );
@@ -53,7 +51,7 @@ export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.E
       <div className="chat-messages">
         {currentEvents.length === 0 ? (
           <div className="chat-empty">
-            <div className="chat-empty-icon">✨</div>
+            <div className="chat-empty-icon"><SparklesIcon className="icon-empty" /></div>
             <div className="chat-empty-text">Start a conversation by sending a message</div>
           </div>
         ) : (
@@ -90,7 +88,7 @@ export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.E
               disabled={isSending || !input.trim()}
               title="Send"
             >
-              ↑
+              <ArrowUpIcon className="icon-send" />
             </button>
           </div>
         </form>

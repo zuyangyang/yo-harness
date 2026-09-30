@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../hooks/useAuth.js';
 import { useTheme } from '../hooks/useTheme.js';
+import { Logo, SunIcon, MoonIcon } from '../components/Icons/index.js';
 
 export function LoginPage(): JSX.Element {
   const navigate = useNavigate();
@@ -28,12 +29,12 @@ export function LoginPage(): JSX.Element {
   return (
     <div className="auth-page">
       <button className="auth-theme-toggle" onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
-        {theme === 'dark' ? '☀️' : '🌙'}
+        {theme === 'dark' ? <SunIcon className="icon-theme" /> : <MoonIcon className="icon-theme" />}
       </button>
       <div className="auth-card">
         <div className="auth-header">
           <div className="auth-logo">
-            <span className="auth-logo-icon"></span>
+            <Logo className="auth-logo-icon" />
             <span>Yo-Harness</span>
           </div>
           <h1 className="auth-title">Welcome back</h1>

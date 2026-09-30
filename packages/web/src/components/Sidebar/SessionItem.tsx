@@ -1,7 +1,5 @@
-/**
- * Session item in sidebar.
- */
 import type { Session } from '../../api/client.js';
+import { ChatBubbleIcon } from '../Icons/index.js';
 
 interface SessionItemProps {
   session: Session;
@@ -20,7 +18,7 @@ export function SessionItem({ session, isActive, onSelect, onDelete }: SessionIt
       onClick={onSelect}
     >
       <div className="session-item-content">
-        <div className="session-item-icon">💬</div>
+        <div className="session-item-icon"><ChatBubbleIcon className="icon-session" /></div>
         <div className="session-item-info">
           <div className="session-item-title">{title}</div>
           <div className="session-item-meta">

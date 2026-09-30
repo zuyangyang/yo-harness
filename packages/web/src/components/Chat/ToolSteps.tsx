@@ -4,6 +4,13 @@
  */
 import { useState } from 'react';
 import type { ToolStep } from '../../utils/turn-grouping.js';
+import {
+  ChevronRightIcon,
+  WrenchScrewdriverIcon,
+  ClockIcon,
+  CheckIcon,
+  XMarkIcon,
+} from '../Icons/index.js';
 
 interface ToolStepsProps {
   steps: ToolStep[];
@@ -23,9 +30,9 @@ export function ToolSteps({ steps }: ToolStepsProps): JSX.Element | null {
     <div className="turn-tools">
       <div className="turn-tools__summary" onClick={() => setExpanded(!expanded)}>
         <span className={`turn-thinking__arrow ${expanded ? 'turn-thinking__arrow--expanded' : ''}`}>
-          ▸
+          <ChevronRightIcon className="icon-arrow" />
         </span>
-        <span className="turn-tools__icon">&#x1f527;</span>
+        <WrenchScrewdriverIcon className="icon-tool-group" />
         <span className="turn-tools__label">
           {steps.length} tool call{steps.length > 1 ? 's' : ''}
         </span>
@@ -77,10 +84,12 @@ function ToolStepItem({ step }: { step: ToolStep }): JSX.Element {
   );
 }
 
-function getStatusIcon(step: ToolStep): string {
-  if (step.waitingApproval) return '\u23f3';
-  if (!step.result) return '\u23f3';
-  return step.result.ok ? '\u2713' : '\u2717';
+function getStatusIcon(step: ToolStep): JSX.Element {
+  if (step.waitingApproval) return <ClockIcon className="icon-status icon-status--pending" />;
+  if (!step.result) return <ClockIcon className="icon-status icon-status--pending icon-spin" />;
+  return step.result.ok
+    ? <CheckIcon className="icon-status icon-status--success" />
+    : <XMarkIcon className="icon-status icon-status--error" />;
 }
 
 function getStatusClass(step: ToolStep): string {

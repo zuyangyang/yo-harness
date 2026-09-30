@@ -1,6 +1,7 @@
 /**
  * Tool call card: displays tool name, args, and execution status.
  */
+import { WrenchScrewdriverIcon } from '../Icons/index.js';
 
 interface ToolCallCardProps {
   callId: string;
@@ -21,7 +22,7 @@ export function ToolCallCard({ toolName, args }: ToolCallCardProps): JSX.Element
       <div className="message-bubble message-bubble--assistant">
         <div className="tool-call-card">
           <div className="tool-call-header">
-            <span className="tool-call-icon"></span>
+            <WrenchScrewdriverIcon className="icon-tool-call" />
             <span>{toolName}</span>
           </div>
           {argsPreview && (
