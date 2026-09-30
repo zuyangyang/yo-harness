@@ -8,6 +8,7 @@ import { useWebSocket } from './hooks/useWebSocket.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { RegisterPage } from './pages/RegisterPage.js';
 import { MainLayout } from './components/MainLayout.js';
+import { ToastHost } from './components/ui/Toast.js';
 
 function ProtectedRoute({ children }: { children: JSX.Element }): JSX.Element {
   const { isAuthenticated, isChecking } = useAuth();
@@ -42,6 +43,7 @@ export function App(): JSX.Element {
           }
         />
       </Routes>
+      <ToastHost />
     </BrowserRouter>
   );
 }
