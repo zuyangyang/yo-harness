@@ -8,7 +8,19 @@ const DAY = 86_400_000;
 
 function session(id: string, updatedAt: number): Session {
   const iso = new Date(updatedAt).toISOString();
-  return { id, title: 'Session ' + id, model: 'test', cwd: '/', createdAt: iso, updatedAt: iso };
+  return {
+    id,
+    title: 'Session ' + id,
+    model: 'test',
+    cwd: '/',
+    status: 'active',
+    type: 'interactive',
+    workspaceId: null,
+    pinned: false,
+    titleIsCustom: false,
+    createdAt: iso,
+    updatedAt: iso,
+  };
 }
 
 describe('groupSessionsByTime', () => {

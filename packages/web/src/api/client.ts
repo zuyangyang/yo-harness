@@ -82,13 +82,49 @@ export interface RegisterRequest {
   email?: string;
 }
 
+export type SessionStatus = 'active' | 'archived';
+export type SessionType = 'interactive' | 'background';
+
 export interface Session {
   id: string;
-  title: string | null;
+  title: string;
   model: string;
   cwd: string;
+  status: SessionStatus;
+  type: SessionType;
+  workspaceId: string | null;
+  pinned: boolean;
+  titleIsCustom: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SessionListParams {
+  workspaceId?: string | 'none';
+  status?: SessionStatus;
+  q?: string;
+  pinned?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+export interface SessionUpdateInput {
+  title?: string;
+  workspaceId?: string | null;
+  pinned?: boolean;
+  status?: SessionStatus;
+}
+
+export interface Workspace {
+  id: string;
+  name: string;
+  description: string;
+  color: string | null;
+  icon: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  sessionCount?: number;
 }
 
 export type MemoryCategory = 'preference' | 'environment' | 'project_knowledge' | 'general';
@@ -153,10 +189,21 @@ export const api = {
     me: () => fetchJson<{ user: { id: string; username: string; role: string } }>('GET', '/auth/me'),
   },
   sessions: {
-    list: (limit = 20) => fetchJson<{ sessions: Session[] }>('GET', `/api/v1/sessions?limit=${limit}`),
+    list: (params: SessionListParams = {}) => {
+      const qs = new URLSearchParams();
+      if (params.workspaceId !== undefined) qs.set('workspaceId', params.workspaceId);
+      if (params.status !== undefined) qs.set('status', params.status);
+      if (params.q !== undefined) qs.set('q', params.q);
+      if (params.pinned !== undefined) qs.set('pinned', String(params.pinned));
+      qs.set('limit', String(params.limit ?? 50));
+      if (params.offset !== undefined) qs.set('offset', String(params.offset));
+      return fetchJson<{ sessions: Session[] }>('GET', `/api/v1/sessions?${qs}`);
+    },
     get: (id: string) => fetchJson<{ session: Session }>('GET', `/api/v1/sessions/${id}`),
-    create: (model?: string, cwd?: string) =>
-      fetchJson<{ session: Session }>('POST', '/api/v1/sessions', { model, cwd }),
+    create: (input: { model?: string; cwd?: string; workspaceId?: string | null } = {}) =>
+      fetchJson<{ session: Session }>('POST', '/api/v1/sessions', input),
+    update: (id: string, patch: SessionUpdateInput) =>
+      fetchJson<{ session: Session }>('PATCH', `/api/v1/sessions/${id}`, patch),
     delete: (id: string) => fetchJson<void>('DELETE', `/api/v1/sessions/${id}`),
     sendMessage: (id: string, content: string) =>
       fetchJson<void>('POST', `/api/v1/sessions/${id}/messages`, { content }),
@@ -165,6 +212,16 @@ export const api = {
     interrupt: (id: string) => fetchJson<void>('POST', `/api/v1/sessions/${id}/interrupt`),
     getPendingApprovals: (id: string) =>
       fetchJson<{ approvals: PendingApproval[] }>('GET', `/api/v1/sessions/${id}/approvals/pending`),
+  },
+  workspaces: {
+    list: () => fetchJson<{ workspaces: Workspace[] }>('GET', '/api/v1/workspaces'),
+    get: (id: string) => fetchJson<{ workspace: Workspace }>('GET', `/api/v1/workspaces/${id}`),
+    create: (input: { name: string; description?: string; color?: string; icon?: string }) =>
+      fetchJson<{ workspace: Workspace }>('POST', '/api/v1/workspaces', input),
+    update: (id: string, patch: Partial<Pick<Workspace, 'name' | 'description' | 'color' | 'icon' | 'sortOrder'>>) =>
+      fetchJson<{ workspace: Workspace }>('PATCH', `/api/v1/workspaces/${id}`, patch),
+    delete: (id: string, purge = false) =>
+      fetchJson<{ ok: boolean }>('DELETE', `/api/v1/workspaces/${id}${purge ? '?purge=true' : ''}`),
   },
   approvals: {
     resolve: (approvalId: string, approved: boolean, scope?: 'once' | 'session') =>

@@ -79,7 +79,10 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
 
   createSession: async (model, cwd) => {
     try {
-      const res = await api.sessions.create(model, cwd);
+      const res = await api.sessions.create({
+        ...(model !== undefined ? { model } : {}),
+        ...(cwd !== undefined ? { cwd } : {}),
+      });
       const session = res.session;
       set({ sessions: [session, ...get().sessions] });
       return session;

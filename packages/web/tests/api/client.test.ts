@@ -123,20 +123,39 @@ describe('API client', () => {
   describe('api.sessions', () => {
     it('list 带 limit', async () => {
       mockFetchResponse({ sessions: [] });
-      await api.sessions.list(10);
+      await api.sessions.list({ limit: 10 });
 
       const call = lastFetchCall();
       expect(call?.url).toBe('/api/v1/sessions?limit=10');
     });
 
+    it('list 带 workspaceId=none 与 q', async () => {
+      mockFetchResponse({ sessions: [] });
+      await api.sessions.list({ workspaceId: 'none', q: '重构' });
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/sessions?workspaceId=none&q=%E9%87%8D%E6%9E%84&limit=50');
+    });
+
     it('create 发送 model/cwd', async () => {
       mockFetchResponse({ session: { id: 's1' } });
-      await api.sessions.create('gpt-4', '/tmp');
+      await api.sessions.create({ model: 'gpt-4', cwd: '/tmp' });
 
       const call = lastFetchCall();
       expect(call?.url).toBe('/api/v1/sessions');
       const body = JSON.parse(call!.init.body as string);
       expect(body).toEqual({ model: 'gpt-4', cwd: '/tmp' });
+    });
+
+    it('update 发送 PATCH', async () => {
+      mockFetchResponse({ session: { id: 's1' } });
+      await api.sessions.update('s1', { title: '新名字', pinned: true });
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/sessions/s1');
+      expect(call?.init.method).toBe('PATCH');
+      const body = JSON.parse(call!.init.body as string);
+      expect(body).toEqual({ title: '新名字', pinned: true });
     });
 
     it('sendMessage 发送 content', async () => {
@@ -147,6 +166,26 @@ describe('API client', () => {
       expect(call?.url).toBe('/api/v1/sessions/s1/messages');
       const body = JSON.parse(call!.init.body as string);
       expect(body).toEqual({ content: 'hello' });
+    });
+  });
+
+  describe('api.workspaces', () => {
+    it('create 发送 name', async () => {
+      mockFetchResponse({ workspace: { id: 'w1' } });
+      await api.workspaces.create({ name: '工作' });
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/workspaces');
+      const body = JSON.parse(call!.init.body as string);
+      expect(body).toEqual({ name: '工作' });
+    });
+
+    it('delete 带 purge', async () => {
+      mockFetchResponse({ ok: true });
+      await api.workspaces.delete('w1', true);
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/workspaces/w1?purge=true');
     });
   });
 });
