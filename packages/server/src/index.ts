@@ -12,12 +12,6 @@ import { dirname, join } from 'node:path';
 
 import type { ToolResolver } from '@yo-harness/core/core/ports.js';
 import { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
-import { ModelRouter } from '@yo-harness/core/router/model-router.js';
-import { LLMGateway } from '@yo-harness/core/llm/gateway.js';
-import { FakeLLMClient } from '@yo-harness/core/llm/providers/fake.js';
-import { AnthropicLLMClient } from '@yo-harness/core/llm/providers/anthropic.js';
-import { OpenAICompatLLMClient } from '@yo-harness/core/llm/providers/openai-compat.js';
-import type { LLMClient } from '@yo-harness/core/types/llm.js';
 import { createBuiltinRegistry } from '@yo-harness/core/tools/registry.js';
 import { createLogger } from '@yo-harness/core/utils/logger.js';
 import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
@@ -25,7 +19,8 @@ import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
 import { createApp } from './app.js';
 import { SessionManager } from './session-manager.js';
 import { createJwtConfig } from './auth/jwt.js';
-import { createDefaultServerConfig, type ServerConfig, type ModelProviderConfig } from './config.js';
+import { createDefaultServerConfig, type ServerConfig } from './config.js';
+import { ModelConfigService } from './model-config-service.js';
 import { WebSocketHub } from './ws/hub.js';
 import { createSqliteBackend, createPostgresBackend } from './storage/index.js';
 import type { StorageBackend } from './storage/index.js';
@@ -63,26 +58,22 @@ export async function createServer(options: CreateServerOptions) {
   const logger = createLogger('info');
   const tools: ToolResolver = createBuiltinRegistry();
 
-  const providerName = serverConfig.providers[0]?.provider ?? 'fake';
-  const providerConf = serverConfig.providers[0];
-  const client = buildServerLlmClient(providerName, providerConf);
-  const gateway = new LLMGateway(new Map([[providerName, client]]), {
-    defaultProvider: providerName,
-  });
-  const router = new ModelRouter(gateway, serverConfig.modelRoles);
+  // 模型配置：Web UI 持久化配置优先，未配置时回退 .env（见 model-config-service）
+  const modelConfig = new ModelConfigService({ store: storage.modelConfig, logger });
+  const runtime = await modelConfig.getRuntime();
   const costTracker = new CostTracker();
 
   const sessionManager = new SessionManager({
     eventStore: storage.events,
     sessionStore: storage.sessions,
     tools,
-    router,
+    router: runtime.router,
     costTracker,
     sandbox: createLocalSandbox(process.cwd()),
     logger,
     systemPrompt: serverConfig.systemPrompt,
     maxTokens: serverConfig.maxTokens,
-    contextWindow: serverConfig.contextWindow,
+    contextWindow: runtime.contextWindow,
     budgetLimits: serverConfig.budget,
     permission: serverConfig.permission,
   });
@@ -95,35 +86,15 @@ export async function createServer(options: CreateServerOptions) {
     sessionManager,
     jwtConfig,
     serverConfig,
+    modelConfig,
     wsHub,
   });
 
-  return { app, wsHub, injectWebSocket, sessionManager, storage };
+  return { app, wsHub, injectWebSocket, sessionManager, storage, modelConfig };
 }
 
 export interface StartServerOptions extends CreateServerOptions {
   port?: number;
-}
-
-const API_KEY_ENV: Record<string, string> = {
-  anthropic: 'ANTHROPIC_API_KEY',
-  'openai-compat': 'OPENAI_COMPAT_API_KEY',
-};
-
-function buildServerLlmClient(providerName: string, conf?: ModelProviderConfig): LLMClient {
-  if (!conf || providerName === 'fake') {
-    return new FakeLLMClient([{ text: 'ok', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 0, outputTokens: 0 } }]);
-  }
-  const apiKeyEnvName = API_KEY_ENV[providerName] ?? `${providerName.toUpperCase().replace(/-/g, '_')}_API_KEY`;
-  const apiKey = process.env[apiKeyEnvName];
-  if (!apiKey) {
-    console.warn(`[yo-server] no API key found for provider "${providerName}" (env ${apiKeyEnvName}), falling back to fake`);
-    return new FakeLLMClient([{ text: 'ok', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 0, outputTokens: 0 } }]);
-  }
-  if (providerName === 'anthropic') {
-    return AnthropicLLMClient.create({ model: conf.model, apiKey, ...(conf.baseURL ? { baseURL: conf.baseURL } : {}) });
-  }
-  return OpenAICompatLLMClient.create({ name: providerName, model: conf.model, apiKey, ...(conf.baseURL ? { baseURL: conf.baseURL } : {}) });
 }
 
 const __filename = fileURLToPath(import.meta.url);

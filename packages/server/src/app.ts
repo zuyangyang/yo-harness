@@ -19,6 +19,7 @@ import { authMiddleware } from './auth/middleware.js';
 import type { TenantManager } from './tenant/manager.js';
 import { tenantMiddleware } from './tenant/middleware.js';
 import type { ServerConfig } from './config.js';
+import type { ModelConfigService } from './model-config-service.js';
 import type { ServerEnv } from './types.js';
 import type { WebSocketHub } from './ws/hub.js';
 
@@ -37,6 +38,7 @@ export interface AppDeps {
   sessionManager: SessionManager;
   jwtConfig: JwtConfig;
   serverConfig: ServerConfig;
+  modelConfig: ModelConfigService;
   wsHub: WebSocketHub;
   tenantManager?: TenantManager;
 }
@@ -48,7 +50,7 @@ export interface AppResult {
 }
 
 export function createApp(deps: AppDeps): AppResult {
-  const { storage, sessionManager, jwtConfig, serverConfig, wsHub, tenantManager } = deps;
+  const { storage, sessionManager, jwtConfig, serverConfig, modelConfig, wsHub, tenantManager } = deps;
   const app = new Hono<ServerEnv>();
 
   const nodeWs = createNodeWebSocket({ app });
@@ -120,7 +122,7 @@ export function createApp(deps: AppDeps): AppResult {
   app.route('/api/v1', createApprovalRoutes({ sessionManager }));
   app.route('/api/v1/tasks', createTaskRoutes({ storage }));
   app.route('/api/v1/memories', createMemoryRoutes({ storage }));
-  app.route('/api/v1/models', createModelRoutes({ serverConfig }));
+  app.route('/api/v1/models', createModelRoutes({ serverConfig, modelConfig }));
 
   return { app, wsHub, injectWebSocket: (server) => nodeWs.injectWebSocket(server) };
 }

@@ -8,6 +8,8 @@ import { createJwtConfig, signAccessToken } from '../../src/auth/jwt.js';
 import { hashPassword } from '../../src/auth/password.js';
 import { createApp } from '../../src/app.js';
 import { createDefaultServerConfig } from '../../src/config.js';
+import { ModelConfigService } from '../../src/model-config-service.js';
+import { SecretCrypto } from '../../src/secret-crypto.js';
 import type { SessionManager } from '../../src/session-manager.js';
 import { WebSocketHub } from '../../src/ws/hub.js';
 import type { Hono } from 'hono';
@@ -65,11 +67,18 @@ beforeEach(async () => {
   const mockSm = mockSessionManager();
   const wsHub = new WebSocketHub({ sessionManager: mockSm });
 
+  const modelConfig = new ModelConfigService({
+    store: storage.modelConfig,
+    env: {},
+    crypto: new SecretCrypto('a'.repeat(64)),
+  });
+
   ({ app } = createApp({
     storage,
     sessionManager: mockSm,
     jwtConfig,
     serverConfig,
+    modelConfig,
     wsHub,
   }));
 });
@@ -482,6 +491,121 @@ describe('model routes', () => {
     expect(body.models[0].provider).toBe('test');
     expect(body.roles).toHaveLength(1);
     expect(body.roles[0].role).toBe('main');
+  });
+
+  it('PUT /providers/:id 保存 provider，密钥只回传掩码', async () => {
+    const put = await app.request('/api/v1/models/providers/wlyd', {
+      method: 'PUT',
+      headers: authHeader(token),
+      body: JSON.stringify({
+        kind: 'openai-compat',
+        displayName: 'wlyd',
+        baseURL: 'https://gateway.test/v1',
+        apiKey: 'sk-super-secret-value',
+        models: [{ id: 'deepseek-v4-pro' }],
+      }),
+    });
+    expect(put.status).toBe(200);
+    const putBody = await json(put);
+    expect(putBody.provider.hasKey).toBe(true);
+    expect(putBody.provider.apiKeyHint).toBe('sk-…alue');
+    expect(JSON.stringify(putBody)).not.toContain('sk-super-secret-value');
+
+    const list = await json(await app.request('/api/v1/models', { headers: authHeader(token) }));
+    expect(list.providers).toHaveLength(1);
+    expect(list.providers[0].id).toBe('wlyd');
+    expect(JSON.stringify(list)).not.toContain('sk-super-secret-value');
+  });
+
+  it('PUT /providers/:id kind 非法 → 400', async () => {
+    const res = await app.request('/api/v1/models/providers/bad', {
+      method: 'PUT',
+      headers: authHeader(token),
+      body: JSON.stringify({ kind: 'grpc', baseURL: 'https://x.test' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('PUT /api/v1/models/active 保存后来源变为 web', async () => {
+    await app.request('/api/v1/models/providers/wlyd', {
+      method: 'PUT',
+      headers: authHeader(token),
+      body: JSON.stringify({
+        kind: 'openai-compat',
+        baseURL: 'https://gateway.test/v1',
+        apiKey: 'sk-abcdefgh',
+        models: [{ id: 'deepseek-v4-pro' }],
+      }),
+    });
+
+    const res = await app.request('/api/v1/models/active', {
+      method: 'PUT',
+      headers: authHeader(token),
+      body: JSON.stringify({ providerId: 'wlyd', model: 'deepseek-v4-pro' }),
+    });
+    expect(res.status).toBe(200);
+
+    const list = await json(await app.request('/api/v1/models', { headers: authHeader(token) }));
+    expect(list.source).toBe('web');
+    expect(list.active).toEqual({ providerId: 'wlyd', model: 'deepseek-v4-pro' });
+    // 旧字段仍然存在（向后兼容）
+    expect(list.models).toHaveLength(1);
+  });
+
+  it('PUT /active 引用不存在的 provider → 400', async () => {
+    const res = await app.request('/api/v1/models/active', {
+      method: 'PUT',
+      headers: authHeader(token),
+      body: JSON.stringify({ providerId: 'ghost', model: 'm' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('DELETE /providers/:id 清空 active 并回退', async () => {
+    await app.request('/api/v1/models/providers/wlyd', {
+      method: 'PUT',
+      headers: authHeader(token),
+      body: JSON.stringify({
+        kind: 'openai-compat',
+        baseURL: 'https://gateway.test/v1',
+        apiKey: 'sk-abcdefgh',
+        models: [{ id: 'm' }],
+      }),
+    });
+    await app.request('/api/v1/models/active', {
+      method: 'PUT',
+      headers: authHeader(token),
+      body: JSON.stringify({ providerId: 'wlyd', model: 'm' }),
+    });
+
+    const del = await app.request('/api/v1/models/providers/wlyd', {
+      method: 'DELETE',
+      headers: authHeader(token),
+    });
+    expect(del.status).toBe(200);
+
+    const list = await json(await app.request('/api/v1/models', { headers: authHeader(token) }));
+    expect(list.providers).toHaveLength(0);
+    expect(list.source).not.toBe('web');
+  });
+
+  it('POST /discover 缺少 providerId 与 kind → 400', async () => {
+    const res = await app.request('/api/v1/models/discover', {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('viewer 不能写模型配置 → 403', async () => {
+    const viewerToken = await signAccessToken({ userId, tenantId, role: 'viewer' }, jwtConfig);
+    const res = await app.request('/api/v1/models/providers/x', {
+      method: 'PUT',
+      headers: authHeader(viewerToken),
+      body: JSON.stringify({ kind: 'openai-compat', baseURL: 'https://x.test', apiKey: 'k' }),
+    });
+    expect(res.status).toBe(403);
   });
 });
 
