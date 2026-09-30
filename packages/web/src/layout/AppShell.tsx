@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { NavRail } from './NavRail.js';
@@ -7,6 +7,7 @@ import { HeaderBar } from './HeaderBar.js';
 import { ContextPanel } from './ContextPanel.js';
 import { StatusBar } from '../components/StatusBar/StatusBar.js';
 import { ApprovalDialog } from '../components/Approval/ApprovalDialog.js';
+import { CommandPalette } from '../components/ui/CommandPalette.js';
 import { useApprovalStore } from '../stores/approval.js';
 import { useSessionStore } from '../stores/session.js';
 import { useUiStore } from '../stores/ui.js';
@@ -17,6 +18,9 @@ export function AppShell(): JSX.Element {
   const createSession = useSessionStore((s) => s.createSession);
   const selectSession = useSessionStore((s) => s.selectSession);
   const model = useUiStore((s) => s.model);
+  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const toggleContextPanel = useUiStore((s) => s.toggleContextPanel);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const currentApproval = pendingApprovals[0] ?? null;
 
@@ -28,6 +32,26 @@ export function AppShell(): JSX.Element {
       // 错误由 session store 记录
     }
   }, [createSession, model, selectSession]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+      const key = e.key.toLowerCase();
+      if (key === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      } else if (key === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      } else if (key === 'j') {
+        e.preventDefault();
+        toggleContextPanel();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [toggleSidebar, toggleContextPanel]);
 
   return (
     <div className="app-shell">
@@ -41,6 +65,7 @@ export function AppShell(): JSX.Element {
         <StatusBar />
       </main>
       <ContextPanel />
+      {paletteOpen ? <CommandPalette onClose={() => setPaletteOpen(false)} /> : null}
       {currentApproval ? (
         <ApprovalDialog
           request={currentApproval}
