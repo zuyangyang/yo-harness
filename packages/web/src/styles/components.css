@@ -343,6 +343,17 @@
   font-size: var(--text-base);
 }
 
+/* Icon sizing inside icon buttons */
+.ui-icon-btn .icon-svg {
+  width: 16px;
+  height: 16px;
+}
+
+.ui-icon-btn--lg .icon-svg {
+  width: 20px;
+  height: 20px;
+}
+
 /* ─── Tooltip ─── */
 .ui-tooltip {
   position: relative;
