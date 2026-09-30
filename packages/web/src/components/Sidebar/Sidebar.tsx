@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useSession } from '../../hooks/useSession.js';
 import { useAuth } from '../../hooks/useAuth.js';
 import { SessionItem } from './SessionItem.js';
 import { groupSessionsByTime } from '../../utils/group-sessions.js';
-import { CogIcon, ArrowRightOnRectangleIcon } from '../Icons/index.js';
+import { CogIcon, ArrowRightOnRectangleIcon, SearchIcon } from '../Icons/index.js';
 
 interface SidebarProps {
   onNewSession: () => void;
@@ -13,8 +13,15 @@ interface SidebarProps {
 export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
   const { sessions, currentSessionId, selectSession, deleteSession } = useSession();
   const { user, logout } = useAuth();
+  const [query, setQuery] = useState('');
 
-  const groups = useMemo(() => groupSessionsByTime(sessions), [sessions]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sessions;
+    return sessions.filter((s) => (s.title ?? '').toLowerCase().includes(q));
+  }, [sessions, query]);
+
+  const groups = useMemo(() => groupSessionsByTime(filtered), [filtered]);
 
   return (
     <div className="sidebar">
@@ -22,6 +29,16 @@ export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
         <button className="btn btn-primary sidebar-new-btn" onClick={onNewSession}>
           <span>+</span> New Session
         </button>
+        <div className="sidebar-search">
+          <SearchIcon className="icon-svg" />
+          <input
+            type="text"
+            placeholder="搜索会话…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="搜索会话"
+          />
+        </div>
       </div>
       <div className="sidebar-list">
         {groups.length === 0 ? (

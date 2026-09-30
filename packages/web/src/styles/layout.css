@@ -212,3 +212,112 @@
   letter-spacing: 0.04em;
   color: var(--text-tertiary);
 }
+/* ─── Sidebar search ─── */
+.sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: 0 var(--space-3);
+  height: 30px;
+  background: var(--bg-surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.sidebar-search .icon-svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.sidebar-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.sidebar-search input::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* ─── Session item menu ─── */
+.session-item-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.session-item-menu-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-item:hover .session-item-menu-btn,
+.session-item:focus-within .session-item-menu-btn,
+.session-item--active .session-item-menu-btn {
+  display: inline-flex;
+}
+
+.session-item-menu-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.session-item-menu-btn .icon-svg {
+  width: 14px;
+  height: 14px;
+}
+
+.session-item-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 30;
+  min-width: 140px;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.session-item-dropdown__item {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  text-align: left;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+}
+
+.session-item-dropdown__item:hover {
+  background: var(--bg-hover);
+}
+
+.session-item-dropdown__item--danger {
+  color: var(--danger);
+}
+
+.session-item-dropdown__item--danger:hover {
+  background: var(--danger-subtle);
+}
