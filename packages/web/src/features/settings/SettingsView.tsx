@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { useTheme, type Theme } from '../../hooks/useTheme.js';
 import { ComingSoon } from '../../components/ui/ComingSoon.js';
+import { ModelsSection } from './model/ModelsSection.js';
 import { SHORTCUTS } from '../../config/shortcuts.js';
 
 type SectionId = 'general' | 'models' | 'tools' | 'permissions' | 'shortcuts' | 'about';
@@ -42,6 +43,8 @@ export function SettingsView(): JSX.Element {
       <div className="settings-body">
         {section === 'general' ? (
           <GeneralSection theme={theme} onThemeChange={setTheme} />
+        ) : section === 'models' ? (
+          <ModelsSection />
         ) : section === 'shortcuts' ? (
           <ShortcutsSection />
         ) : (
