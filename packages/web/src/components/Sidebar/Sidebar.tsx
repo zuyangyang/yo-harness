@@ -1,6 +1,9 @@
+import { useMemo } from 'react';
+
 import { useSession } from '../../hooks/useSession.js';
 import { useAuth } from '../../hooks/useAuth.js';
 import { SessionItem } from './SessionItem.js';
+import { groupSessionsByTime } from '../../utils/group-sessions.js';
 import { CogIcon, ArrowRightOnRectangleIcon } from '../Icons/index.js';
 
 interface SidebarProps {
@@ -11,6 +14,8 @@ export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
   const { sessions, currentSessionId, selectSession, deleteSession } = useSession();
   const { user, logout } = useAuth();
 
+  const groups = useMemo(() => groupSessionsByTime(sessions), [sessions]);
+
   return (
     <div className="sidebar">
       <div className="sidebar-header">
@@ -19,17 +24,26 @@ export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
         </button>
       </div>
       <div className="sidebar-list">
-        {sessions.length === 0 ? (
+        {groups.length === 0 ? (
           <div className="sidebar-empty">No sessions yet</div>
         ) : (
-          sessions.map((session) => (
-            <SessionItem
-              key={session.id}
-              session={session}
-              isActive={session.id === currentSessionId}
-              onSelect={() => { void selectSession(session.id); }}
-              onDelete={() => { void deleteSession(session.id); }}
-            />
+          groups.map((group) => (
+            <div key={group.key} className="session-group">
+              <div className="session-group__label">{group.label}</div>
+              {group.sessions.map((session) => (
+                <SessionItem
+                  key={session.id}
+                  session={session}
+                  isActive={session.id === currentSessionId}
+                  onSelect={() => {
+                    void selectSession(session.id);
+                  }}
+                  onDelete={() => {
+                    void deleteSession(session.id);
+                  }}
+                />
+              ))}
+            </div>
           ))
         )}
       </div>
@@ -38,8 +52,12 @@ export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
         <div className="sidebar-user">
           <span className="sidebar-username">{user?.username ?? 'Unknown'}</span>
           <div className="sidebar-footer-actions">
-            <button className="sidebar-footer-btn" title="Settings"><CogIcon className="icon-footer" /></button>
-            <button className="sidebar-logout-btn" onClick={logout} title="Logout"><ArrowRightOnRectangleIcon className="icon-footer" /></button>
+            <button className="sidebar-footer-btn" title="Settings">
+              <CogIcon className="icon-footer" />
+            </button>
+            <button className="sidebar-logout-btn" onClick={logout} title="Logout">
+              <ArrowRightOnRectangleIcon className="icon-footer" />
+            </button>
           </div>
         </div>
       </div>

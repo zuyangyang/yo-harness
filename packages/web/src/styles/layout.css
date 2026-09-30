@@ -199,3 +199,16 @@
 .sidebar-pane--collapsed {
   width: 0;
 }
+/* ─── Session groups ─── */
+.session-group {
+  margin-bottom: var(--space-2);
+}
+
+.session-group__label {
+  padding: var(--space-2) var(--space-4) var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-tertiary);
+}
