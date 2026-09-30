@@ -84,6 +84,63 @@ function runContractTests(factory: BackendFactory) {
       const result = await backend.sessions.get('non-existent');
       expect(result).toBeUndefined();
     });
+
+    it('update 改名会置 titleIsCustom=true', async () => {
+      const session = await backend.sessions.create({ model: 'm', cwd: '/tmp' });
+      const updated = await backend.sessions.update(session.id, { title: '新名字', titleIsCustom: true });
+      expect(updated?.title).toBe('新名字');
+      expect(updated?.titleIsCustom).toBe(true);
+    });
+
+    it('delete 级联清理事件/检查点，并解绑记忆', async () => {
+      const session = await backend.sessions.create({ model: 'm', cwd: '/tmp' });
+      await backend.events.append(session.id, { type: 'user_input', content: 'hello' });
+      await backend.checkpoints.create({ sessionId: session.id, seq: 1, source: 'manual', files: [] });
+      const memory = await backend.memories.create({
+        title: 'm', content: 'c', category: 'general', description: 'd',
+        keywords: [], status: 'active', sourceSessionId: session.id,
+      });
+
+      await backend.sessions.delete(session.id);
+
+      expect(await backend.sessions.get(session.id)).toBeUndefined();
+      expect(await backend.events.replay(session.id)).toHaveLength(0);
+      expect(await backend.checkpoints.listBySession(session.id)).toHaveLength(0);
+      const memoryAfter = await backend.memories.get(memory.id);
+      expect(memoryAfter).toBeDefined();
+      expect(memoryAfter?.sourceSessionId).toBeUndefined();
+    });
+  });
+
+  describe('WorkspaceStore', () => {
+    it('create → get → list（含 sessionCount）', async () => {
+      const ws = await backend.workspaces.create({ name: '工作' });
+      expect(ws.id).toBeDefined();
+
+      const fetched = await backend.workspaces.get(ws.id);
+      expect(fetched?.name).toBe('工作');
+
+      await backend.sessions.create({ model: 'm', cwd: '/tmp', workspaceId: ws.id });
+      const list = await backend.workspaces.list();
+      expect(list).toHaveLength(1);
+      expect(list[0]?.sessionCount).toBe(1);
+    });
+
+    it('update 重命名', async () => {
+      const ws = await backend.workspaces.create({ name: 'a' });
+      const updated = await backend.workspaces.update(ws.id, { name: 'b' });
+      expect(updated?.name).toBe('b');
+    });
+
+    it('delete 解绑其下会话（不删除会话）', async () => {
+      const ws = await backend.workspaces.create({ name: 'a' });
+      const session = await backend.sessions.create({ model: 'm', cwd: '/tmp', workspaceId: ws.id });
+
+      await backend.workspaces.delete(ws.id);
+
+      expect(await backend.workspaces.get(ws.id)).toBeUndefined();
+      expect((await backend.sessions.get(session.id))?.workspaceId).toBeNull();
+    });
   });
 
   describe('EventStore', () => {
