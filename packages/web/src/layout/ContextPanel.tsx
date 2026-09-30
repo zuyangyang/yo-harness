@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { useUiStore } from '../stores/ui.js';
 import { ComingSoon } from '../components/ui/ComingSoon.js';
+import { PlanPanel } from '../features/plan/PlanPanel.js';
 import {
   ListBulletIcon,
   DocumentDuplicateIcon,
@@ -80,13 +81,15 @@ export function ContextPanel(): JSX.Element | null {
         })}
       </div>
       <div className="context-panel__body">
-        {activeTab ? (
+        {activeId === 'plan' ? (
+          <PlanPanel />
+        ) : (
           <ComingSoon
-            title={activeTab.label + ' · 开发中'}
-            description={activeTab.description}
-            icon={<activeTab.icon className="icon-svg" />}
+            title={(activeTab?.label ?? '') + ' · 开发中'}
+            description={activeTab?.description}
+            icon={activeTab ? <activeTab.icon className="icon-svg" /> : undefined}
           />
-        ) : null}
+        )}
       </div>
     </aside>
   );
