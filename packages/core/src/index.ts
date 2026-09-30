@@ -53,6 +53,7 @@ export * from './storage/checkpoint-store.js';
 export * from './storage/db.js';
 export * from './storage/event-store.js';
 export * from './storage/memory-store.js';
+export * from './storage/model-config-store.js';
 export * from './storage/session-store.js';
 export * from './storage/task-store.js';
 export * from './storage/workspace-store.js';

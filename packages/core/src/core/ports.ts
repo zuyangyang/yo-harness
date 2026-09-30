@@ -9,6 +9,7 @@ import type { AgentEvent, EventEnvelope } from '../types/events.js';
 import type { Memory, MemoryCategory, MemoryStatus } from '../types/memory.js';
 import type { Tool, ToolSpec } from '../types/tools.js';
 import type { BackgroundTask, BackgroundTaskStatus, CreateTaskInput } from '../daemon/types.js';
+import type { ModelSelection, ProviderRecord, ProviderRecordInput } from '../types/model-config.js';
 
 export interface EventStore {
   append(sessionId: string, event: AgentEvent): Promise<EventEnvelope>;
@@ -187,4 +188,25 @@ export interface TaskStore {
     errorMessage?: string,
     summary?: string,
   ): Promise<void>;
+}
+
+// ─── Phase 6 模型配置端口 ───
+
+/**
+ * Web UI 模型配置存储端口。
+ *
+ * 只负责持久化 Provider 档案与当前选择；凭据的加解密由 server 层完成
+ * （core 收到的是密文或环境变量名，从不接触明文）。
+ */
+export interface ModelConfigStore {
+  listProviders(): Promise<ProviderRecord[]>;
+  getProvider(id: string): Promise<ProviderRecord | undefined>;
+  /** 新增或覆盖；已存在时保留 createdAt，仅刷新 updatedAt */
+  upsertProvider(input: ProviderRecordInput): Promise<ProviderRecord>;
+  deleteProvider(id: string): Promise<void>;
+  /** 当前选择的 provider + 模型；未配置时 undefined */
+  getSettings(): Promise<ModelSelection | undefined>;
+  saveSettings(selection: ModelSelection): Promise<void>;
+  /** 清空当前选择（回退到 .env 解析） */
+  clearSettings(): Promise<void>;
 }

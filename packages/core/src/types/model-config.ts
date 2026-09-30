@@ -45,6 +45,32 @@ export interface ModelSelection {
   model: string;
 }
 
+/**
+ * 持久化 Provider 的写入形态（内部使用）。
+ *
+ * apiKeyCipher 与 apiKeyEnv 二选一：
+ * - 前者是加密后的密钥（密钥永不进日志 / 事件 / API 响应）；
+ * - 后者只存环境变量名，凭据仍由 .env 提供。
+ */
+export interface ProviderRecordInput {
+  id: string;
+  displayName: string;
+  kind: ProviderKind;
+  baseURL: string | undefined;
+  apiKeyCipher: string | undefined;
+  apiKeyHint: string | undefined;
+  apiKeyEnv: string | undefined;
+  models: ModelDescriptor[];
+  defaultContextWindow: number | undefined;
+  sortOrder: number;
+}
+
+/** 持久化 Provider 的读取形态（附带时间戳） */
+export interface ProviderRecord extends ProviderRecordInput {
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** 解析优先级后的最终生效配置 */
 export interface EffectiveModelConfig {
   source: ConfigSource;
