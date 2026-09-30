@@ -103,7 +103,22 @@ npm run dev -- resume <session-id> --fake -p "continue from where we left off"
 - `TAVILY_API_KEY` / `BOCHA_API_KEY` / `SERPER_API_KEY` — 网络搜索 API key（三选一）
 - `YO_PROVIDER` — 覆盖默认 Provider
 - `YO_MODEL` — 覆盖默认模型
+- `YO_BASE_URL` — OpenAI 兼容 Provider 的自定义端点
+- `YO_SECRET_KEY` — 加密 Web UI 中保存的 API 密钥（缺省自动生成 `~/.yo-harness/secret.key`）
 - `YO_LOG` — 日志级别（debug / info / warn / error）
+
+### Web UI 模型配置（推荐）
+
+在 Web UI 的「设置 → 模型」中可以直接管理 Provider：填写显示名称、API 地址、API 协议与 API 密钥，并通过「获取可用模型」调用 Provider 的模型列表接口自动填充模型目录；保存后持久化到服务端存储（SQLite / PostgreSQL），点击「保存」即可切换当前使用的模型，**无需修改 `.env` 或重启服务**。
+
+优先级：**Web UI 配置 > `.env` / 进程环境 > config.json > 内置默认**。
+
+- 未做任何 Web UI 配置时，行为与只用 `.env` 完全一致；
+- Web UI 配置不完整（例如密钥被删）时自动回退到 `.env`，界面会给出提示；
+- 密钥通过 AES-256-GCM 加密存储，且**永不回传前端**（列表只显示掩码）；
+- 配置变更后，新建会话立即使用新模型；正在执行的 turn 不被打断，空闲会话会在下一条消息时重建。
+
+详见 [docs/MODEL-CONFIG-DESIGN.md](docs/MODEL-CONFIG-DESIGN.md)。
 
 ### 配置文件（~/.yo-harness/config.json）
 
