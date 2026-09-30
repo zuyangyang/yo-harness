@@ -124,6 +124,101 @@
   height: 40px;
 }
 
+/* ─── EmptyState ─── */
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-3);
+  padding: var(--space-12) var(--space-6);
+  color: var(--text-secondary);
+}
+
+.ui-empty__icon {
+  color: var(--text-tertiary);
+}
+.ui-empty__icon .icon-svg {
+  width: 40px;
+  height: 40px;
+}
+
+.ui-empty__title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.ui-empty__desc {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  max-width: 360px;
+}
+
+.ui-empty__action {
+  margin-top: var(--space-2);
+}
+
+/* ─── Skeleton ─── */
+.ui-skeleton {
+  display: block;
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  animation: ui-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.ui-skeleton--text {
+  height: 12px;
+  border-radius: var(--radius-xs);
+}
+
+.ui-skeleton--rect {
+  height: 16px;
+}
+
+@keyframes ui-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* ─── ErrorState ─── */
+.ui-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-3);
+  padding: var(--space-12) var(--space-6);
+  color: var(--text-secondary);
+}
+
+.ui-error__icon {
+  color: var(--danger);
+}
+.ui-error__icon .icon-svg {
+  width: 36px;
+  height: 36px;
+}
+
+.ui-error__title {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+}
+
+.ui-error__message {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  max-width: 420px;
+}
+
 /* ─── Tooltip ─── */
 .ui-tooltip {
   position: relative;
