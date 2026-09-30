@@ -7,7 +7,7 @@
  */
 import { serve } from '@hono/node-server';
 import type { Server } from 'node:http';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import type { ToolResolver } from '@yo-harness/core/core/ports.js';
@@ -198,7 +198,14 @@ async function main() {
   });
 }
 
-main().catch((err) => {
-  console.error('[yo-server] failed to start:', err);
-  process.exit(1);
-});
+// 仅当本文件作为入口被直接执行时才启动监听；
+// 作为库被 import（测试 / 编程式嵌入）时不得产生副作用。
+const isEntryPoint =
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isEntryPoint) {
+  main().catch((err) => {
+    console.error('[yo-server] failed to start:', err);
+    process.exit(1);
+  });
+}
