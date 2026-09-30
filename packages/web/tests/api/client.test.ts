@@ -131,7 +131,7 @@ describe('API client', () => {
 
     it('list 带 workspaceId=none 与 q', async () => {
       mockFetchResponse({ sessions: [] });
-      await api.sessions.list({ workspaceId: 'none', q: '重构' });
+      await api.sessions.list({ workspaceId: null, q: '重构' });
 
       const call = lastFetchCall();
       expect(call?.url).toBe('/api/v1/sessions?workspaceId=none&q=%E9%87%8D%E6%9E%84&limit=50');

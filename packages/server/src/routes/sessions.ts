@@ -42,7 +42,7 @@ export function createSessionRoutes(deps: SessionsRouteDeps): Hono<ServerEnv> {
       workspaceId = body.workspaceId;
     }
 
-    const title = body.title !== undefined ? body.title : '';
+    const title = body.title ?? '';
     const titleIsCustom = title.trim() !== '';
 
     const session = await storage.sessions.create({
@@ -68,7 +68,7 @@ export function createSessionRoutes(deps: SessionsRouteDeps): Hono<ServerEnv> {
 
     const filter: SessionListFilter = {};
     if (workspaceId === 'none') {
-      filter.workspaceId = 'none';
+      filter.workspaceId = null;
     } else if (workspaceId !== undefined) {
       filter.workspaceId = workspaceId;
     }

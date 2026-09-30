@@ -100,7 +100,8 @@ export interface Session {
 }
 
 export interface SessionListParams {
-  workspaceId?: string | 'none';
+  /** null = 仅独立会话（无工作区） */
+  workspaceId?: string | null;
   status?: SessionStatus;
   q?: string;
   pinned?: boolean;
@@ -191,7 +192,8 @@ export const api = {
   sessions: {
     list: (params: SessionListParams = {}) => {
       const qs = new URLSearchParams();
-      if (params.workspaceId !== undefined) qs.set('workspaceId', params.workspaceId);
+      if (params.workspaceId === null) qs.set('workspaceId', 'none');
+      else if (params.workspaceId !== undefined) qs.set('workspaceId', params.workspaceId);
       if (params.status !== undefined) qs.set('status', params.status);
       if (params.q !== undefined) qs.set('q', params.q);
       if (params.pinned !== undefined) qs.set('pinned', String(params.pinned));

@@ -166,7 +166,7 @@ class PostgresSessionStore implements SessionStore {
   async list(filter: SessionListFilter = {}): Promise<Session[]> {
     const conditions = [];
 
-    if (filter.workspaceId === 'none') {
+    if (filter.workspaceId === null) {
       conditions.push(isNull(this.t.sessions.workspaceId));
     } else if (filter.workspaceId !== undefined) {
       conditions.push(eq(this.t.sessions.workspaceId, filter.workspaceId));

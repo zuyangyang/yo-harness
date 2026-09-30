@@ -83,7 +83,7 @@ export class SqliteSessionStore implements SessionStore {
     const conditions: string[] = [];
     const params: (string | number | null)[] = [];
 
-    if (filter.workspaceId === 'none') {
+    if (filter.workspaceId === null) {
       conditions.push('workspace_id IS NULL');
     } else if (filter.workspaceId !== undefined) {
       conditions.push('workspace_id = ?');

@@ -32,8 +32,8 @@ export interface Session {
 }
 
 export interface SessionListFilter {
-  /** 'none' = 仅独立会话（workspace_id IS NULL）；缺省 = 全部 */
-  workspaceId?: string | 'none';
+  /** null = 仅独立会话（workspace_id IS NULL）；缺省 = 全部 */
+  workspaceId?: string | null;
   /** 缺省 = active */
   status?: 'active' | 'archived';
   /** 标题模糊匹配 */

@@ -137,7 +137,7 @@ describe('SqliteSessionStore workspace / pinned / delete', () => {
     const byWs = await store.list({ workspaceId: ws.id });
     expect(byWs.map((s) => s.id)).toEqual([inWs.id]);
 
-    const none = await store.list({ workspaceId: 'none' });
+    const none = await store.list({ workspaceId: null });
     expect(none.map((s) => s.id)).toEqual([standalone.id]);
   });
 
