@@ -40,4 +40,5 @@ export {
   StopIcon,
   ArrowPathIcon,
   CpuChipIcon,
+  MicrophoneIcon,
 } from './Icons.js';
