@@ -423,6 +423,67 @@
   color: var(--accent);
 }
 
+/* ─── Composer wrapper & slash menu ─── */
+.chat-composer {
+  position: relative;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.slash-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.slash-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+}
+
+.slash-menu__item:hover,
+.slash-menu__item--active {
+  background: var(--bg-hover);
+}
+
+.slash-menu__cmd {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.slash-menu__desc {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.slash-menu__empty {
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
 /* ─── Tooltip ─── */
 .ui-tooltip {
   position: relative;
