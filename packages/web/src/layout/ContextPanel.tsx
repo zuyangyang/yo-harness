@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { useUiStore } from '../stores/ui.js';
 import { ComingSoon } from '../components/ui/ComingSoon.js';
 import { PlanPanel } from '../features/plan/PlanPanel.js';
+import { FilesPanel } from '../features/panels/FilesPanel.js';
+import { MemoryPanel } from '../features/panels/MemoryPanel.js';
 import {
   ListBulletIcon,
   DocumentDuplicateIcon,
@@ -83,6 +85,10 @@ export function ContextPanel(): JSX.Element | null {
       <div className="context-panel__body">
         {activeId === 'plan' ? (
           <PlanPanel />
+        ) : activeId === 'files' ? (
+          <FilesPanel />
+        ) : activeId === 'memory' ? (
+          <MemoryPanel />
         ) : (
           <ComingSoon
             title={(activeTab?.label ?? '') + ' · 开发中'}
