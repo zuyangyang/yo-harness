@@ -477,6 +477,25 @@
   color: var(--text-secondary);
 }
 
+.slash-menu__kind {
+  flex-shrink: 0;
+  min-width: 32px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-2xs);
+  text-align: center;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface-sunken);
+  color: var(--text-tertiary);
+}
+
+.slash-menu__kind--session {
+  color: var(--info);
+}
+
+.slash-menu__kind--file {
+  color: var(--success);
+}
+
 .slash-menu__empty {
   padding: var(--space-3);
   font-size: var(--text-sm);
