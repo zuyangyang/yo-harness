@@ -77,4 +77,5 @@ export type { StopReason } from './types/llm.js';
 export * from './utils/errors.js';
 export * from './utils/logger.js';
 export * from './utils/paths.js';
+export * from './utils/title.js';
 export * from './utils/tokens.js';
