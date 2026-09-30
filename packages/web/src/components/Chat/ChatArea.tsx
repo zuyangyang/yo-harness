@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 
 import { useSession } from '../../hooks/useSession.js';
 import { groupEventsIntoTurns } from '../../utils/turn-grouping.js';
+import { api } from '../../api/client.js';
 import { TurnBlock } from './TurnBlock.js';
 import { ModelSelector } from '../Model/ModelSelector.js';
 import { IconButton } from '../ui/IconButton.js';
@@ -9,6 +10,7 @@ import { toast } from '../../stores/toast.js';
 import {
   SparklesIcon,
   ArrowUpIcon,
+  StopIcon,
   ChatBubbleIcon,
   PaperClipIcon,
   MicrophoneIcon,
@@ -26,6 +28,10 @@ export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.E
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const turns = currentEvents.length > 0 ? groupEventsIntoTurns(currentEvents) : [];
+  const lastTurn = turns[turns.length - 1];
+  const isAgentRunning = Boolean(lastTurn && !lastTurn.endTime);
 
   const autoGrow = (el: HTMLTextAreaElement): void => {
     el.style.height = 'auto';
@@ -56,6 +62,16 @@ export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.E
     }
   };
 
+  const handleInterrupt = async (): Promise<void> => {
+    if (!currentSession) return;
+    try {
+      await api.sessions.interrupt(currentSession.id);
+      toast.info('已发送中断请求');
+    } catch {
+      toast.error('中断失败');
+    }
+  };
+
   if (!currentSession) {
     return (
       <div className="chat-empty">
@@ -77,7 +93,7 @@ export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.E
       </div>
 
       <div className="chat-messages">
-        {currentEvents.length === 0 ? (
+        {turns.length === 0 ? (
           <div className="chat-empty">
             <div className="chat-empty-icon">
               <SparklesIcon className="icon-empty" />
@@ -85,10 +101,7 @@ export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.E
             <div className="chat-empty-text">Start a conversation by sending a message</div>
           </div>
         ) : (
-          (() => {
-            const turns = groupEventsIntoTurns(currentEvents);
-            return turns.map((turn) => <TurnBlock key={turn.id} turn={turn} />);
-          })()
+          turns.map((turn) => <TurnBlock key={turn.id} turn={turn} />)
         )}
       </div>
 
@@ -120,14 +133,25 @@ export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.E
 
           <div className="chat-input-right">
             <ModelSelector value={selectedModel} onChange={onModelChange} />
-            <button
-              className="chat-send-btn"
-              type="submit"
-              disabled={isSending || !input.trim()}
-              title="Send"
-            >
-              <ArrowUpIcon className="icon-send" />
-            </button>
+            {isAgentRunning ? (
+              <button
+                className="chat-stop-btn"
+                type="button"
+                onClick={() => { void handleInterrupt(); }}
+                title="停止"
+              >
+                <StopIcon className="icon-send" />
+              </button>
+            ) : (
+              <button
+                className="chat-send-btn"
+                type="submit"
+                disabled={isSending || !input.trim()}
+                title="Send"
+              >
+                <ArrowUpIcon className="icon-send" />
+              </button>
+            )}
           </div>
         </form>
       </div>
