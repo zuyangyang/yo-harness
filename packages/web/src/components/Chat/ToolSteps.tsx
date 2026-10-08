@@ -4,6 +4,8 @@
  */
 import { useState } from 'react';
 import type { ToolStep } from '../../utils/turn-grouping.js';
+import { ApprovalCard } from '../Approval/ApprovalCard.js';
+import { useApprovalStore } from '../../stores/approval.js';
 import {
   ChevronRightIcon,
   WrenchScrewdriverIcon,
@@ -57,6 +59,10 @@ export function ToolSteps({ steps }: ToolStepsProps): JSX.Element | null {
 function ToolStepItem({ step }: { step: ToolStep }): JSX.Element {
   const statusIcon = getStatusIcon(step);
   const argsPreview = formatArgs(step.args);
+  // 等待审批时按 callId 关联到实时待审批项，渲染可操作的审批卡
+  const pendingApproval = useApprovalStore((s) =>
+    s.pendingApprovals.find((a) => a.callId === step.callId),
+  );
 
   return (
     <div className="tool-step">
@@ -70,11 +76,14 @@ function ToolStepItem({ step }: { step: ToolStep }): JSX.Element {
       {argsPreview && (
         <div className="tool-step__args">{argsPreview}</div>
       )}
-      {step.waitingApproval && (
-        <div className="tool-step__waiting">
-          Waiting approval: {step.waitingApproval.summary}
-        </div>
-      )}
+      {step.waitingApproval &&
+        (pendingApproval ? (
+          <ApprovalCard request={pendingApproval} />
+        ) : (
+          <div className="tool-step__waiting">
+            Waiting approval: {step.waitingApproval.summary}
+          </div>
+        ))}
       {step.result && (
         <div className={`tool-step__result ${step.result.ok ? '' : 'tool-step__result--error'}`}>
           {step.result.content || (step.result.ok ? 'OK' : 'Failed')}
