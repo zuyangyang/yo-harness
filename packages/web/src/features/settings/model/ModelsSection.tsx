@@ -43,8 +43,13 @@ export function ModelsSection(): JSX.Element {
     setDraftModel(active.model);
   }, [active]);
 
-  const selected = providers.find((p) => p.id === draftProvider);
-  const modelOptions = selected?.models ?? [];
+  // 没有任何（或已失效的）选择时落到第一个提供商 / 它的第一个模型，
+  // 避免出现「未选择」这种空态。
+  const selectedProvider = providers.find((p) => p.id === draftProvider) ?? providers[0];
+  const modelOptions = selectedProvider?.models ?? [];
+  const selectedModelId = modelOptions.some((m) => m.id === draftModel)
+    ? draftModel
+    : (modelOptions[0]?.id ?? '');
 
   const handleProviderChange = (providerId: string): void => {
     setDraftProvider(providerId);
@@ -53,13 +58,13 @@ export function ModelsSection(): JSX.Element {
   };
 
   const handleSaveActive = async (): Promise<void> => {
-    if (draftProvider === '' || draftModel === '') {
+    if (selectedProvider === undefined || selectedModelId === '') {
       toast.warning('请先选择提供商与模型');
       return;
     }
     setSaving(true);
     try {
-      await saveActive({ providerId: draftProvider, model: draftModel });
+      await saveActive({ providerId: selectedProvider.id, model: selectedModelId });
       toast.success('已保存当前模型');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '保存失败');
@@ -96,10 +101,9 @@ export function ModelsSection(): JSX.Element {
           <select
             className="model-input"
             aria-label="提供商"
-            value={draftProvider}
+            value={selectedProvider?.id ?? ''}
             onChange={(e) => handleProviderChange(e.target.value)}
           >
-            <option value="">（未选择）</option>
             {providers.map((provider) => (
               <option key={provider.id} value={provider.id}>
                 {provider.displayName}
@@ -110,10 +114,10 @@ export function ModelsSection(): JSX.Element {
           <select
             className="model-input"
             aria-label="模型"
-            value={draftModel}
+            value={selectedModelId}
+            disabled={modelOptions.length === 0}
             onChange={(e) => setDraftModel(e.target.value)}
           >
-            <option value="">（未选择）</option>
             {modelOptions.map((model) => (
               <option key={model.id} value={model.id}>
                 {model.id}

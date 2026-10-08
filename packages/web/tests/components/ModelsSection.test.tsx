@@ -47,6 +47,18 @@ describe('ModelsSection', () => {
     expect(modelSelect.value).toBe('deepseek-v4-pro');
   });
 
+  it('没有已保存选择时默认落到第一个提供商与模型（不再出现「未选择」）', () => {
+    useModelStore.setState({ active: { providerId: '', model: '' } });
+    render(<ModelsSection />);
+
+    const providerSelect = screen.getByLabelText<HTMLSelectElement>('提供商');
+    const modelSelect = screen.getByLabelText<HTMLSelectElement>('模型');
+
+    expect(providerSelect.value).toBe('wlyd');
+    expect(modelSelect.value).toBe('deepseek-v4-pro');
+    expect(screen.queryByText('（未选择）')).toBeNull();
+  });
+
   it('显示降级告警', () => {
     useModelStore.setState({ warnings: ['Web UI 中 provider "wlyd" 缺少 API 密钥，已回退'] });
     render(<ModelsSection />);
