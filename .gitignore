@@ -37,5 +37,8 @@ Thumbs.db
 *.db-wal
 *.db-shm
 
+# Server 默认数据目录（SQLite + agent 运行期生成的文件，如 user-profile.md）
+packages/server/data/
+
 # npm pack output
 *.tgz
