@@ -533,6 +533,47 @@ body {
   background: var(--bg-primary);
 }
 
+.approval-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 800px;
+  margin: 0 auto var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--warning, #d97706);
+  border-radius: var(--radius-md);
+  background: var(--warning-subtle);
+  color: var(--warning);
+  font-size: var(--font-size-sm);
+}
+
+.approval-bar__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.approval-bar__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.approval-bar__summary {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.approval-bar__action {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-sm);
+  flex-shrink: 0;
+}
+
 .chat-input-form {
   display: flex;
   align-items: flex-end;

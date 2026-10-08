@@ -10,6 +10,9 @@ import { SlashMenu } from './SlashMenu.js';
 import { AtMentionMenu, type MentionItem } from './AtMentionMenu.js';
 import { ModelSelector } from '../Model/ModelSelector.js';
 import { PermissionModeSelector } from '../Permissions/PermissionModeSelector.js';
+import { ApprovalQueueBar } from '../Approval/ApprovalQueueBar.js';
+import { ApprovalDialog } from '../Approval/ApprovalDialog.js';
+import { useApprovalStore } from '../../stores/approval.js';
 import { useModelStore, modelDisplayName } from '../../stores/model.js';
 import { IconButton } from '../ui/IconButton.js';
 import { toast } from '../../stores/toast.js';
@@ -29,9 +32,12 @@ export function ChatArea(): JSX.Element {
   const sessions = useSessionStore((s) => s.sessions);
   const deltas = useSessionStore((s) => s.deltas);
   const activeModel = useModelStore((s) => s.active);
+  const pendingApprovals = useApprovalStore((s) => s.pendingApprovals);
+  const sessionApprovals = pendingApprovals.filter((a) => a.sessionId === currentSession?.id);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [menuIndex, setMenuIndex] = useState(0);
+  const [approvalFocused, setApprovalFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const turns = currentEvents.length > 0 ? groupEventsIntoTurns(currentEvents) : [];
@@ -223,6 +229,7 @@ export function ChatArea(): JSX.Element {
       </div>
 
       <div className="chat-input-area">
+        <ApprovalQueueBar approvals={sessionApprovals} onOpen={() => setApprovalFocused(true)} />
         <div className="chat-composer">
           {slashOpen ? (
             <SlashMenu
@@ -297,6 +304,13 @@ export function ChatArea(): JSX.Element {
           </form>
         </div>
       </div>
+
+      {approvalFocused && sessionApprovals[0] ? (
+        <ApprovalDialog
+          request={sessionApprovals[0]}
+          onResolve={() => setApprovalFocused(false)}
+        />
+      ) : null}
     </div>
   );
 }

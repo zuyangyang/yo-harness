@@ -16,6 +16,7 @@
  */
 import type { AgentEvent } from '../types/events.js';
 import type { Tool } from '../types/tools.js';
+import { assessToolCall, defaultAutoPolicy, type AutoPolicy } from './permission-risk.js';
 
 export type ShellMode = 'ask' | 'allowlist' | 'auto' | 'yolo';
 
@@ -35,6 +36,12 @@ export interface PermissionSettings {
   approvalTimeoutMs?: number;
   /** 工作区外访问策略；缺省 ask */
   outsideWorkspace?: 'ask' | 'deny';
+  /** auto 模式的细分开关 */
+  auto?: {
+    writesInWorkspace?: boolean;
+    networkReads?: boolean;
+    packageScripts?: boolean;
+  };
 }
 
 export const DEFAULT_PERMISSION_SETTINGS: PermissionSettings = {
@@ -71,7 +78,13 @@ export type ApprovalAnswer = 'yes' | 'always' | 'no';
 export type ApprovalAsk = (request: ApprovalRequest) => Promise<ApprovalAnswer>;
 
 export interface PermissionManager {
-  request(tool: Tool, args: Record<string, unknown>, callId: string): Promise<PermissionDecision>;
+  request(
+    tool: Tool,
+    args: Record<string, unknown>,
+    callId: string,
+    /** 会话工作目录；auto 模式据此判定工作区边界 */
+    cwd?: string,
+  ): Promise<PermissionDecision>;
   /** 运行期切换权限模式；不打断在途调用 */
   setMode(mode: PermissionMode): void;
   /** 当前生效模式 */
@@ -115,27 +128,58 @@ export function summarizeToolCall(toolName: string, args: Record<string, unknown
   return parts.length > 0 ? `${toolName} ${parts.join(' ')}` : toolName;
 }
 
+/** 由设置 + 会话 cwd 构造 auto 模式策略 */
+function buildAutoPolicy(settings: PermissionSettings, cwd: string): AutoPolicy {
+  const base = defaultAutoPolicy(cwd);
+  return {
+    ...base,
+    ...(settings.auto?.writesInWorkspace !== undefined
+      ? { writesInWorkspace: settings.auto.writesInWorkspace }
+      : {}),
+    ...(settings.auto?.networkReads !== undefined ? { networkReads: settings.auto.networkReads } : {}),
+    ...(settings.auto?.packageScripts !== undefined
+      ? { packageScripts: settings.auto.packageScripts }
+      : {}),
+    ...(settings.outsideWorkspace !== undefined
+      ? { outsideWorkspace: settings.outsideWorkspace }
+      : {}),
+  };
+}
+
 /** 返回 undefined 表示"需要询问" */
 function autoApprove(
   tool: Tool,
   args: Record<string, unknown>,
   settings: PermissionSettings,
+  cwd = '',
 ): PermissionDecision | undefined {
   const mode = resolvePermissionMode(settings);
   // full：用户显式全量放行（含 write 与 danger）
   if (mode === 'full') return { approved: true, scope: 'once' };
-  if (tool.risk === 'read' || tool.risk === 'net') return { approved: true, scope: 'once' };
 
-  // 显式白名单只作用于 danger（shell）；write 永远需要询问（除非 full）
-  if (tool.risk === 'danger' && (settings.shellMode === 'allowlist' || mode === 'auto')) {
+  if (mode === 'ask') {
+    // 保持既有语义：read/net 放行；danger 仅在 shellMode=allowlist 且命中白名单时放行
+    if (tool.risk === 'read' || tool.risk === 'net') return { approved: true, scope: 'once' };
+    if (tool.risk === 'danger' && settings.shellMode === 'allowlist') {
+      const command = typeof args.command === 'string' ? args.command : '';
+      if (matchesAllowlist(command, settings.shellAllowlist)) {
+        return { approved: true, scope: 'once' };
+      }
+    }
+    return undefined;
+  }
+
+  // auto：显式白名单优先（用户明确放行的命令不再询问）
+  if (tool.risk === 'danger') {
     const command = typeof args.command === 'string' ? args.command : '';
     if (matchesAllowlist(command, settings.shellAllowlist)) {
       return { approved: true, scope: 'once' };
     }
   }
 
-  // ask：白名单未命中 → 询问；auto：write/danger 由风险引擎细化（P2），当前保守询问
-  return undefined;
+  // auto：确定性风险引擎判定；非 allow 一律询问（fail-closed）
+  const assessment = assessToolCall(tool, args, buildAutoPolicy(settings, cwd));
+  return assessment.decision === 'allow' ? { approved: true, scope: 'once' } : undefined;
 }
 
 export function createInteractivePermission(
@@ -147,11 +191,11 @@ export function createInteractivePermission(
   let settings = initialSettings;
 
   return {
-    async request(tool, args, callId) {
+    async request(tool, args, callId, cwd) {
       if (sessionAllowed.has(tool.name)) {
         return { approved: true, scope: 'session' };
       }
-      const auto = autoApprove(tool, args, settings);
+      const auto = autoApprove(tool, args, settings, cwd);
       if (auto !== undefined) return auto;
 
       const answer = await ask({
@@ -183,8 +227,8 @@ export function createNonInteractivePermission(
   settings: PermissionSettings = DEFAULT_PERMISSION_SETTINGS,
 ): PermissionManager {
   return {
-    request(tool, args) {
-      const auto = autoApprove(tool, args, settings);
+    request(tool, args, _callId, cwd) {
+      const auto = autoApprove(tool, args, settings, cwd);
       return Promise.resolve(auto ?? { approved: false, scope: 'once' as const });
     },
     // 无人可问：运行期切换不改变"只放行自动规则、其余拒绝"的语义

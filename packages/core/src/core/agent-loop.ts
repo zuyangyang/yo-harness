@@ -178,7 +178,12 @@ export class AgentLoop {
       });
       return;
     }
-    const decision = await this.deps.permission.request(tool, toolCall.args, toolCall.callId);
+    const decision = await this.deps.permission.request(
+      tool,
+      toolCall.args,
+      toolCall.callId,
+      this.deps.cwd,
+    );
     if (!decision.approved) {
       await this.appendAndPush({
         type: 'tool_result',

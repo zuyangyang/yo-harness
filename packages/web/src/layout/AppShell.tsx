@@ -24,9 +24,8 @@ export function AppShell(): JSX.Element {
   const toggleContextPanel = useUiStore((s) => s.toggleContextPanel);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  // 优先展示当前会话的待审批；没有则回退到任意（跨会话兜底）
-  const currentApproval =
-    pendingApprovals.find((a) => a.sessionId === currentSessionId) ?? pendingApprovals[0] ?? null;
+  // 当前会话的审批以内联卡 + 待办条为主；弹窗只兜底「其他会话」的待审批
+  const currentApproval = pendingApprovals.find((a) => a.sessionId !== currentSessionId) ?? null;
 
   const handleNewSession = useCallback(async (workspaceId?: string | null): Promise<void> => {
     try {

@@ -194,6 +194,23 @@ describe('createInteractivePermission', () => {
     expect(pm.getMode()).toBe('auto');
   });
 
+  it('mode=auto：工作区内写入放行，越界写入询问（依赖 cwd）', async () => {
+    const { ask, requests } = recordingAsk('yes');
+    const pm = createInteractivePermission(ask, {
+      mode: 'auto',
+      shellMode: 'ask',
+      shellAllowlist: [],
+    });
+
+    const inside = await pm.request(writeTool, { path: 'src/a.ts', content: 'x' }, 'c1', '/w');
+    expect(inside).toEqual({ approved: true, scope: 'once' });
+
+    const outside = await pm.request(writeTool, { path: '../a.ts', content: 'x' }, 'c2', '/w');
+    expect(outside).toEqual({ approved: true, scope: 'once' });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.callId).toBe('c2');
+  });
+
   it('setMode：运行期切换到 full 后全量放行', async () => {
     const { ask, requests } = recordingAsk('no');
     const pm = createInteractivePermission(ask, { shellMode: 'ask', shellAllowlist: [] });
