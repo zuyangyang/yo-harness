@@ -39,4 +39,17 @@ describe('ToolSteps 内联审批', () => {
     fireEvent.click(screen.getByText(/1 tool call/));
     expect(screen.getByText(/Waiting approval/)).toBeTruthy();
   });
+
+  it('审批已决且执行完成 → 不再显示 waiting 统计与文案', () => {
+    const doneStep: ToolStep = {
+      callId: 'c2',
+      toolName: 'write_file',
+      args: { path: 'NOTES.md' },
+      approvalResult: { approved: true },
+      result: { ok: true, content: 'wrote 40 bytes to NOTES.md', durationMs: 2 },
+    };
+    render(<ToolSteps steps={[doneStep]} />);
+    expect(screen.getByText(/1 ok/)).toBeTruthy();
+    expect(screen.queryByText(/waiting/)).toBeNull();
+  });
 });

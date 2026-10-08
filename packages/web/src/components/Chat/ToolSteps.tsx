@@ -26,7 +26,7 @@ export function ToolSteps({ steps }: ToolStepsProps): JSX.Element | null {
   const successCount = steps.filter((s) => s.result?.ok).length;
   const failedCount = steps.filter((s) => s.result && !s.result.ok).length;
   const pendingCount = steps.filter((s) => !s.result && !s.waitingApproval).length;
-  const waitingCount = steps.filter((s) => s.waitingApproval).length;
+  const waitingCount = steps.filter((s) => s.waitingApproval && !s.result).length;
 
   return (
     <div className="turn-tools">

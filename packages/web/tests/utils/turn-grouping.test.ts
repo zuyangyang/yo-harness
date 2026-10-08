@@ -70,6 +70,59 @@ describe('groupEventsIntoTurns meta extraction', () => {
     expect(turns[0]?.model).toBeUndefined();
   });
 
+  it('approval_result 清除 waitingApproval，工具完成后不再残留 waiting 状态', () => {
+    const events = [
+      env({ type: 'user_input', content: '把它记下来' }),
+      env({
+        type: 'assistant_text',
+        text: '',
+        toolCalls: [{ callId: 'c1', toolName: 'write_file', args: {} }],
+      }),
+      env({
+        type: 'tool_call',
+        callId: 'c1',
+        toolName: 'write_file',
+        args: { path: 'NOTES.md' },
+      }),
+      env({
+        type: 'approval_request',
+        callId: 'c1',
+        toolName: 'write_file',
+        summary: 'write_file NOTES.md (24 chars)',
+      }),
+      env({ type: 'approval_result', callId: 'c1', approved: true, scope: 'once' }),
+      env({
+        type: 'tool_result',
+        callId: 'c1',
+        ok: true,
+        content: 'wrote 40 bytes to NOTES.md',
+        durationMs: 2,
+      }),
+    ];
+
+    const step = groupEventsIntoTurns(events)[0]?.toolSteps[0];
+    expect(step?.waitingApproval).toBeUndefined();
+    expect(step?.approvalResult).toEqual({ approved: true });
+    expect(step?.result?.ok).toBe(true);
+  });
+
+  it('仅 approval_request 到达时保持 waitingApproval', () => {
+    const events = [
+      env({ type: 'user_input', content: 'write' }),
+      env({ type: 'tool_call', callId: 'c1', toolName: 'write_file', args: { path: 'a.md' } }),
+      env({
+        type: 'approval_request',
+        callId: 'c1',
+        toolName: 'write_file',
+        summary: 'write_file a.md (2 chars)',
+      }),
+    ];
+
+    const step = groupEventsIntoTurns(events)[0]?.toolSteps[0];
+    expect(step?.waitingApproval).toEqual({ summary: 'write_file a.md (2 chars)' });
+    expect(step?.approvalResult).toBeUndefined();
+  });
+
   it('uses the last tool-free assistant_text as the final reply', () => {
     const events = [
       env({ type: 'user_input', content: 'hi' }),

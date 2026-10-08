@@ -16,8 +16,13 @@ export interface ToolStep {
     content: string;
     durationMs: number;
   };
+  /** 正在等待人工审批（approval_request 到达且尚未裁决） */
   waitingApproval?: {
     summary: string;
+  };
+  /** 审批裁决结果（approval_result 到达后填充，同时清除 waitingApproval） */
+  approvalResult?: {
+    approved: boolean;
   };
 }
 
@@ -134,6 +139,8 @@ function buildTurn(raw: RawTurn, index: number): Turn {
             content: event.content,
             durationMs: event.durationMs,
           };
+          // 防御性清理：工具已执行完就不可能仍在等待（旧日志缺 approval_result 时兜底）
+          delete step.waitingApproval;
         }
         break;
       }
@@ -142,6 +149,16 @@ function buildTurn(raw: RawTurn, index: number): Turn {
         const step = toolStepMap.get(event.callId);
         if (step) {
           step.waitingApproval = { summary: event.summary };
+        }
+        break;
+      }
+
+      case 'approval_result': {
+        // 审批已决（允许或拒绝）→ 清除等待态，避免 UI 永远显示 waiting
+        const step = toolStepMap.get(event.callId);
+        if (step) {
+          step.approvalResult = { approved: event.approved };
+          delete step.waitingApproval;
         }
         break;
       }
