@@ -54,19 +54,23 @@ interface DeferredApproval {
   resolve: (answer: ApprovalAnswer) => void;
 }
 
+/** 单个会话实际使用的模型运行时 */
+export interface SessionRuntime {
+  router: ModelRouter;
+  contextWindow: number;
+}
+
 export interface SessionManagerDeps {
   eventStore: EventStore;
   sessionStore: SessionStore;
   tools: ToolResolver;
-  /** 取当前 ModelRouter：模型配置可在运行期变更，故用访问器而非静态字段 */
-  getRouter: () => ModelRouter;
+  /** 解析该会话生效的运行时：会话级模型优先，其次全局默认（可在运行期变更） */
+  resolveRuntime: (session: Session) => Promise<SessionRuntime>;
   costTracker: CostTracker;
   sandbox: SandboxProvider;
   logger: Logger;
   systemPrompt: string;
   maxTokens: number;
-  /** 取当前上下文窗口（随模型切换而变化） */
-  getContextWindow: () => number;
   budgetLimits: { maxStepsPerTurn: number; maxTokensPerTurn: number; maxTurnDurationMs: number };
   permission: PermissionSettings;
   wsHub?: WebSocketHub;
@@ -127,6 +131,19 @@ export class SessionManager {
     const answer: ApprovalAnswer = approved ? (scope === 'session' ? 'always' : 'yes') : 'no';
     deferred.resolve(answer);
     this.pendingApprovals.delete(approvalId);
+    return true;
+  }
+
+  /**
+   * 单个会话的模型变更后丢弃缓存的 loop（运行中的 turn 不打断）。
+   *
+   * @returns 是否发生了驱逐
+   */
+  invalidateSession(sessionId: string): boolean {
+    const active = this.active.get(sessionId);
+    if (active === undefined) return false;
+    if (active.running) return false;
+    this.closeSession(sessionId);
     return true;
   }
 
@@ -195,8 +212,10 @@ export class SessionManager {
         );
     });
 
+    const runtime = await this.deps.resolveRuntime(session);
+
     const context = ContextManager.fromEvents(priorEvents, {
-      contextWindow: this.deps.getContextWindow(),
+      contextWindow: runtime.contextWindow,
     });
 
     const sink = async (event: AgentEvent): Promise<void> => {
@@ -227,7 +246,7 @@ export class SessionManager {
     const loop = new AgentLoop({
       sessionId,
       cwd: session.cwd,
-      router: this.deps.getRouter(),
+      router: runtime.router,
       costTracker: this.deps.costTracker,
       store: this.deps.eventStore,
       tools: this.deps.tools,

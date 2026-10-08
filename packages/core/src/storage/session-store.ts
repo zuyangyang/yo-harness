@@ -153,6 +153,10 @@ export class SqliteSessionStore implements SessionStore {
       sets.push('status = ?');
       params.push(patch.status);
     }
+    if (patch.model !== undefined) {
+      sets.push('model = ?');
+      params.push(patch.model);
+    }
 
     sets.push('updated_at = ?');
     params.push(new Date().toISOString());

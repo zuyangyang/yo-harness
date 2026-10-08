@@ -20,7 +20,7 @@ import { createApp } from './app.js';
 import { SessionManager } from './session-manager.js';
 import { createJwtConfig } from './auth/jwt.js';
 import { createDefaultServerConfig, type ServerConfig } from './config.js';
-import { ModelConfigService, type ModelRuntime } from './model-config-service.js';
+import { ModelConfigService } from './model-config-service.js';
 import { WebSocketHub } from './ws/hub.js';
 import { createSqliteBackend, createPostgresBackend } from './storage/index.js';
 import type { StorageBackend } from './storage/index.js';
@@ -59,20 +59,13 @@ export async function createServer(options: CreateServerOptions) {
   const tools: ToolResolver = createBuiltinRegistry();
 
   // 模型配置：Web UI 持久化配置优先，未配置时回退 .env（见 model-config-service）
-  // runtimeRef 始终指向「当前生效」运行时；onChange 与下方依赖用可空引用延迟绑定。
-  let runtimeRef: ModelRuntime | undefined;
+  // onChange 需要的两个依赖在下方才创建，故用可空引用延迟绑定
   const refs: { sessionManager?: SessionManager; wsHub?: WebSocketHub } = {};
-
-  const currentRuntime = (): ModelRuntime => {
-    if (runtimeRef === undefined) throw new Error('model runtime has not been initialized');
-    return runtimeRef;
-  };
 
   const modelConfig = new ModelConfigService({
     store: storage.modelConfig,
     logger,
     onChange: (next) => {
-      runtimeRef = next;
       // 在途 turn 不打断，只驱逐空闲会话，使其下一条消息用新配置重建
       const evicted = refs.sessionManager?.onModelConfigChanged() ?? 0;
       if (evicted > 0) logger.info('idle sessions evicted after model config change', { evicted });
@@ -84,20 +77,23 @@ export async function createServer(options: CreateServerOptions) {
       });
     },
   });
-  runtimeRef = await modelConfig.getRuntime();
+  // 预热：尽早暴露配置问题（缺密钥会回落到 Fake，不阻塞启动）
+  await modelConfig.getRuntime();
   const costTracker = new CostTracker();
 
   const sessionManager = new SessionManager({
     eventStore: storage.events,
     sessionStore: storage.sessions,
     tools,
-    getRouter: () => currentRuntime().router,
+    resolveRuntime: async (session) => {
+      const runtime = await modelConfig.buildRuntimeForModel(session.model);
+      return { router: runtime.router, contextWindow: runtime.contextWindow };
+    },
     costTracker,
     sandbox: createLocalSandbox(process.cwd()),
     logger,
     systemPrompt: serverConfig.systemPrompt,
     maxTokens: serverConfig.maxTokens,
-    getContextWindow: () => currentRuntime().contextWindow,
     budgetLimits: serverConfig.budget,
     permission: serverConfig.permission,
   });

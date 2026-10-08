@@ -10,7 +10,7 @@
  * 安全：明文密钥只在「写入时加密」「解析时解密」两个瞬间存在，
  * 绝不进入返回值（ProviderProfile 只带掩码）、日志或事件。
  */
-import { apiKeyEnvName, resolveEffectiveModel } from '@yo-harness/core/config/resolve-model.js';
+import { apiKeyEnvName, defaultContextWindowFor, resolveEffectiveModel } from '@yo-harness/core/config/resolve-model.js';
 import type { ModelConfigStore } from '@yo-harness/core/core/ports.js';
 import { LLMGateway } from '@yo-harness/core/llm/gateway.js';
 import { createModelCatalog } from '@yo-harness/core/llm/model-catalog.js';
@@ -205,8 +205,7 @@ export class ModelConfigService {
     });
   }
 
-  async buildRuntime(): Promise<ModelRuntime> {
-    const effective = await this.resolve();
+  private runtimeFromEffective(effective: EffectiveModelConfig): ModelRuntime {
     const client = this.buildClient(effective);
     const gateway = new LLMGateway(new Map([[effective.providerId, client]]), {
       defaultProvider: effective.providerId,
@@ -222,6 +221,47 @@ export class ModelConfigService {
       isFake: effective.apiKey === undefined,
       warnings: effective.warnings,
     };
+  }
+
+  async buildRuntime(): Promise<ModelRuntime> {
+    return this.runtimeFromEffective(await this.resolve());
+  }
+
+  /**
+   * 解析某个「providerId/modelId」标签对应的运行时（会话级模型）。
+   *
+   * 标签无法解析、provider 不存在或缺少可用密钥时，一律回退到全局默认运行时
+   * （而不是让会话直接失败）。
+   */
+  async buildRuntimeForModel(modelLabel: string | undefined): Promise<ModelRuntime> {
+    const label = firstNonEmpty(modelLabel);
+    if (label === undefined) return this.getRuntime();
+
+    const slash = label.indexOf('/');
+    if (slash <= 0 || slash === label.length - 1) return this.getRuntime();
+
+    const providerId = label.slice(0, slash);
+    const model = label.slice(slash + 1);
+
+    const records = await this.store.listProviders();
+    const record = records.find((candidate) => candidate.id === providerId);
+    if (record === undefined) return this.getRuntime();
+
+    const apiKey = this.resolveKeyFor(records, providerId);
+    if (apiKey === undefined) return this.getRuntime();
+
+    const descriptor = record.models.find((candidate) => candidate.id === model);
+    const effective: EffectiveModelConfig = {
+      source: 'web',
+      providerId,
+      kind: record.kind,
+      baseURL: record.baseURL,
+      model,
+      contextWindow: descriptor?.contextWindow ?? record.defaultContextWindow ?? defaultContextWindowFor(record.kind),
+      apiKey,
+      warnings: [],
+    };
+    return this.runtimeFromEffective(effective);
   }
 
   /** 懒加载（首次调用时构建） */

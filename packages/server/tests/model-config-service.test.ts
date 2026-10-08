@@ -175,6 +175,44 @@ describe('ModelConfigService 运行时', () => {
   });
 });
 
+describe('ModelConfigService 会话级模型', () => {
+  it('按 "providerId/modelId" 构建独立运行时（含模型自带 contextWindow）', async () => {
+    const { service } = makeService();
+    await service.saveProvider({
+      id: 'wlyd-llm',
+      kind: 'openai-compat',
+      baseURL: 'https://gateway.test/v1',
+      apiKey: 'sk-wlyd',
+      models: [
+        { id: 'deepseek-flash' },
+        { id: 'deepseek-v4-pro', contextWindow: 256_000 },
+      ],
+    });
+    await service.saveSelection({ providerId: 'wlyd-llm', model: 'deepseek-flash' });
+
+    const runtime = await service.buildRuntimeForModel('wlyd-llm/deepseek-v4-pro');
+
+    expect(runtime.providerId).toBe('wlyd-llm');
+    expect(runtime.model).toBe('deepseek-v4-pro');
+    expect(runtime.contextWindow).toBe(256_000);
+    expect(runtime.isFake).toBe(false);
+    expect(runtime.router.getClient('main').name).toBe('wlyd-llm');
+  });
+
+  it('标签无法解析 / provider 不存在 / 无密钥 → 回退全局默认运行时', async () => {
+    const { service } = makeService({ env: { YO_PROVIDER: 'openai-compat', OPENAI_COMPAT_API_KEY: 'sk-env' } });
+    await service.saveProvider({ id: 'nokey', kind: 'openai-compat', baseURL: 'https://gateway.test/v1' });
+
+    const fallbackProviderId = (await service.getRuntime()).providerId;
+
+    await expect(service.buildRuntimeForModel(undefined)).resolves.toMatchObject({ providerId: fallbackProviderId });
+    await expect(service.buildRuntimeForModel('')).resolves.toMatchObject({ providerId: fallbackProviderId });
+    await expect(service.buildRuntimeForModel('没有斜杠')).resolves.toMatchObject({ providerId: fallbackProviderId });
+    await expect(service.buildRuntimeForModel('ghost/model')).resolves.toMatchObject({ providerId: fallbackProviderId });
+    await expect(service.buildRuntimeForModel('nokey/model')).resolves.toMatchObject({ providerId: fallbackProviderId });
+  });
+});
+
 describe('ModelConfigService.view', () => {
   it('回显 provider 列表、当前选择与来源', async () => {
     const { service } = makeService({ env: { YO_PROVIDER: 'openai-compat', OPENAI_COMPAT_API_KEY: 'sk-env' } });

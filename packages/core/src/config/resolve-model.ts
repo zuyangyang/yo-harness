@@ -47,6 +47,11 @@ const PROVIDER_DEFAULTS: Record<ProviderKind, { model: string; contextWindow: nu
   'openai-compat': { model: 'deepseek-chat', contextWindow: 128_000 },
 };
 
+/** provider 级默认上下文窗口（模型未标注 contextWindow 时使用） */
+export function defaultContextWindowFor(kind: ProviderKind): number {
+  return PROVIDER_DEFAULTS[kind].contextWindow;
+}
+
 /** providerId → 存放 API key 的环境变量名（与 server 既有约定一致） */
 export function apiKeyEnvName(providerId: string): string {
   if (providerId === 'anthropic') return 'ANTHROPIC_API_KEY';

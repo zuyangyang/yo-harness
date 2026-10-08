@@ -107,6 +107,7 @@ export function createSessionRoutes(deps: SessionsRouteDeps): Hono<ServerEnv> {
       workspaceId?: string | null;
       pinned?: boolean;
       status?: 'active' | 'archived';
+      model?: string;
     }>();
 
     const existing = await storage.sessions.get(id);
@@ -146,7 +147,23 @@ export function createSessionRoutes(deps: SessionsRouteDeps): Hono<ServerEnv> {
       patch.status = body.status;
     }
 
+    let modelChanged = false;
+    if (body.model !== undefined) {
+      const model = body.model.trim();
+      if (model === '') {
+        return c.json({ error: 'model must not be empty' }, 400);
+      }
+      patch.model = model;
+      modelChanged = model !== existing.model;
+    }
+
     const session = await storage.sessions.update(id, patch);
+
+    // 模型变更后丢弃该会话缓存的 loop，使其下一条消息按新模型重建
+    if (modelChanged) {
+      sessionManager.invalidateSession(id);
+    }
+
     return c.json({ session });
   });
 

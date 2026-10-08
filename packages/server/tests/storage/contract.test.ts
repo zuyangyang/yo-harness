@@ -93,6 +93,15 @@ function runContractTests(factory: BackendFactory) {
       expect(updated?.titleIsCustom).toBe(true);
     });
 
+    it('update 可以改写会话级 model', async () => {
+      const session = await backend.sessions.create({ model: 'wlyd-llm/deepseek-flash', cwd: '/tmp' });
+      expect(session.model).toBe('wlyd-llm/deepseek-flash');
+
+      const updated = await backend.sessions.update(session.id, { model: 'wlyd-llm/deepseek-v4-pro' });
+      expect(updated?.model).toBe('wlyd-llm/deepseek-v4-pro');
+      expect((await backend.sessions.get(session.id))?.model).toBe('wlyd-llm/deepseek-v4-pro');
+    });
+
     it('delete 级联清理事件/检查点，并解绑记忆', async () => {
       const session = await backend.sessions.create({ model: 'm', cwd: '/tmp' });
       await backend.events.append(session.id, { type: 'user_input', content: 'hello' });

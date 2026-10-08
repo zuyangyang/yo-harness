@@ -34,6 +34,7 @@ function mockSessionManager(): SessionManager {
     getPendingApprovals: () => [],
     resolveApproval: () => false,
     closeSession: () => {},
+    invalidateSession: () => false,
     destroyAll: async () => {},
   } as unknown as SessionManager;
 }
@@ -271,6 +272,29 @@ describe('session routes', () => {
       method: 'POST',
       headers: authHeader(token),
       body: JSON.stringify({ workspaceId: 'no-such-ws' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('PATCH model → 更新会话级模型', async () => {
+    const session = await storage.sessions.create({ model: 'wlyd-llm/deepseek-flash', cwd: '/tmp' });
+    const res = await app.request(`/api/v1/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ model: 'wlyd-llm/deepseek-v4-pro' }),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.session.model).toBe('wlyd-llm/deepseek-v4-pro');
+    expect((await storage.sessions.get(session.id))?.model).toBe('wlyd-llm/deepseek-v4-pro');
+  });
+
+  it('PATCH 空 model → 400', async () => {
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp' });
+    const res = await app.request(`/api/v1/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ model: '   ' }),
     });
     expect(res.status).toBe(400);
   });

@@ -30,13 +30,12 @@ function createDeps(overrides: Partial<SessionManagerDeps> = {}): SessionManager
     eventStore: storage.events,
     sessionStore: storage.sessions,
     tools: createBuiltinRegistry(),
-    getRouter: () => router,
+    resolveRuntime: async () => ({ router, contextWindow: 4096 }),
     costTracker: new CostTracker(),
     sandbox: createLocalSandbox('/tmp'),
     logger: createLogger('silent'),
     systemPrompt: 'test',
     maxTokens: 1024,
-    getContextWindow: () => 4096,
     budgetLimits: DEFAULT_BUDGET_LIMITS,
     permission: DEFAULT_PERMISSION_SETTINGS,
     ...overrides,
@@ -108,7 +107,7 @@ describe('SessionManager 模型配置变更', () => {
   it('在途 turn 不驱逐；空闲后驱逐，下一条消息用新 router', async () => {
     let currentRouter = routerWith('first');
     manager = new SessionManager(
-      createDeps({ getRouter: () => currentRouter, getContextWindow: () => 4096 }),
+      createDeps({ resolveRuntime: async () => ({ router: currentRouter, contextWindow: 4096 }) }),
     );
 
     const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
@@ -130,6 +129,28 @@ describe('SessionManager 模型配置变更', () => {
     await manager.destroyAll();
 
     expect((await assistantTexts(session.id)).at(-1)).toBe('second');
+  });
+
+  it('invalidateSession 只驱逐空闲会话（在途 turn 不打断）', async () => {
+    manager = new SessionManager(
+      createDeps({ resolveRuntime: async () => ({ router: routerWith('ok'), contextWindow: 4096 }) }),
+    );
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'hello');
+    expect(manager.invalidateSession(session.id)).toBe(false);
+
+    await waitForAssistantText(session.id, 1);
+
+    const deadline = Date.now() + 3000;
+    let evicted = false;
+    while (Date.now() < deadline && !evicted) {
+      evicted = manager.invalidateSession(session.id);
+      if (!evicted) await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    expect(evicted).toBe(true);
+    expect(manager.invalidateSession(session.id)).toBe(false);
   });
 });
 
