@@ -87,7 +87,11 @@ export async function createServer(options: CreateServerOptions) {
     tools,
     resolveRuntime: async (session) => {
       const runtime = await modelConfig.buildRuntimeForModel(session.model);
-      return { router: runtime.router, contextWindow: runtime.contextWindow };
+      return {
+        router: runtime.router,
+        contextWindow: runtime.contextWindow,
+        model: runtime.model,
+      };
     },
     costTracker,
     sandbox: createLocalSandbox(process.cwd()),

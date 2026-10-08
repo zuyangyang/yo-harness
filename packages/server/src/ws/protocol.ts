@@ -51,6 +51,18 @@ export interface ApprovalRequestMessage {
   summary: string;
 }
 
+/**
+ * LLM 流式文本增量 —— 实时渲染用，不落库。
+ *
+ * 最终文本始终以 `assistant_text` 事件为准；该消息只用于结果生成过程中的
+ * 渐进展示，客户端在收到 assistant_text 后应丢弃当前累积。
+ */
+export interface LlmDeltaMessage {
+  type: 'llm.delta';
+  sessionId: string;
+  delta: string;
+}
+
 export interface ErrorMessage {
   type: 'error';
   code: string;
@@ -71,6 +83,7 @@ export interface ModelConfigChangedMessage {
 
 export type ServerMessage =
   | EventMessage
+  | LlmDeltaMessage
   | ApprovalRequestMessage
   | ErrorMessage
   | PongMessage

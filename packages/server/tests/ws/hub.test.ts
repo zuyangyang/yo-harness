@@ -190,6 +190,24 @@ describe('广播', () => {
     expect(m.sent).toHaveLength(0);
   });
 
+  it('broadcastDelta 推送 llm.delta 给房间内客户端', () => {
+    const m1 = createMockWebSocket();
+    const m2 = createMockWebSocket();
+    hub.addConnection(m1.ws, 'u1');
+    hub.addConnection(m2.ws, 'u2');
+    hub.subscribe(m1.ws, 's1');
+
+    hub.broadcastDelta('s1', 'hello');
+
+    expect(m1.sent).toHaveLength(1);
+    expect(m2.sent).toHaveLength(0);
+    expect(JSON.parse(m1.sent[0]!)).toEqual({ type: 'llm.delta', sessionId: 's1', delta: 'hello' });
+  });
+
+  it('broadcastDelta 到空房间不报错', () => {
+    expect(() => hub.broadcastDelta('empty', 'x')).not.toThrow();
+  });
+
   it('broadcastApprovalRequest 推送审批请求', () => {
     const m = createMockWebSocket();
     hub.addConnection(m.ws, 'u1');

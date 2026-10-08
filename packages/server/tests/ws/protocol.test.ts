@@ -58,6 +58,15 @@ describe('encodeServerMessage', () => {
     expect(parsed.event.payload.content).toBe('hi');
   });
 
+  it('llm.delta 消息序列化', () => {
+    const msg: ServerMessage = { type: 'llm.delta', sessionId: 's1', delta: 'abc' };
+    expect(JSON.parse(encodeServerMessage(msg))).toEqual({
+      type: 'llm.delta',
+      sessionId: 's1',
+      delta: 'abc',
+    });
+  });
+
   it('pong 消息序列化', () => {
     const msg: ServerMessage = { type: 'pong' };
     expect(JSON.parse(encodeServerMessage(msg))).toEqual({ type: 'pong' });

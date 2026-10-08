@@ -58,6 +58,8 @@ interface DeferredApproval {
 export interface SessionRuntime {
   router: ModelRouter;
   contextWindow: number;
+  /** 实际生效的模型 id（写入 session_started 事件，供 UI 标注生成模型） */
+  model: string;
 }
 
 export interface SessionManagerDeps {
@@ -196,6 +198,11 @@ export class SessionManager {
       this.deps.wsHub?.broadcast(sessionId, envelope);
     });
 
+    // LLM 流式增量：仅实时渲染，不落库；最终文本以 assistant_text 事件为准
+    bus.on('llm_delta', (delta: string) => {
+      this.deps.wsHub?.broadcastDelta(sessionId, delta);
+    });
+
     // 首个 user_input 落库后自动补标题（仅当尚未命名且非自定义）
     let autoTitled = false;
     bus.on('event', (envelope: EventEnvelope) => {
@@ -222,6 +229,10 @@ export class SessionManager {
       const envelope = await this.deps.eventStore.append(sessionId, event);
       bus.emit('event', envelope);
     };
+
+    // 本次运行时的生效模型落库（会话级模型变更会重建 loop，从而开启新的一段运行时）。
+    // 前端据此在每条回复右下角标注由哪个模型生成。
+    await sink({ type: 'session_started', model: runtime.model, cwd: session.cwd });
 
     const serverAsk = async (request: ApprovalRequest): Promise<ApprovalAnswer> => {
       const approvalId = randomUUID();

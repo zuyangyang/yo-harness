@@ -30,7 +30,7 @@ function createDeps(overrides: Partial<SessionManagerDeps> = {}): SessionManager
     eventStore: storage.events,
     sessionStore: storage.sessions,
     tools: createBuiltinRegistry(),
-    resolveRuntime: async () => ({ router, contextWindow: 4096 }),
+    resolveRuntime: async () => ({ router, contextWindow: 4096, model: 'fake' }),
     costTracker: new CostTracker(),
     sandbox: createLocalSandbox('/tmp'),
     logger: createLogger('silent'),
@@ -107,7 +107,9 @@ describe('SessionManager 模型配置变更', () => {
   it('在途 turn 不驱逐；空闲后驱逐，下一条消息用新 router', async () => {
     let currentRouter = routerWith('first');
     manager = new SessionManager(
-      createDeps({ resolveRuntime: async () => ({ router: currentRouter, contextWindow: 4096 }) }),
+      createDeps({
+        resolveRuntime: async () => ({ router: currentRouter, contextWindow: 4096, model: 'fake' }),
+      }),
     );
 
     const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
@@ -133,7 +135,9 @@ describe('SessionManager 模型配置变更', () => {
 
   it('invalidateSession 只驱逐空闲会话（在途 turn 不打断）', async () => {
     manager = new SessionManager(
-      createDeps({ resolveRuntime: async () => ({ router: routerWith('ok'), contextWindow: 4096 }) }),
+      createDeps({
+        resolveRuntime: async () => ({ router: routerWith('ok'), contextWindow: 4096, model: 'fake' }),
+      }),
     );
     const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
 

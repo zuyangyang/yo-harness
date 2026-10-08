@@ -102,6 +102,19 @@ export class WebSocketHub {
     }
   }
 
+  /** 广播 LLM 流式文本增量（不落库，仅实时渲染） */
+  broadcastDelta(sessionId: string, delta: string): void {
+    const room = this.rooms.get(sessionId);
+    if (!room || room.size === 0) return;
+
+    const msg = encodeServerMessage({ type: 'llm.delta', sessionId, delta });
+    for (const ws of room) {
+      if (ws.readyState === ws.OPEN) {
+        ws.send(msg);
+      }
+    }
+  }
+
   /** 广播控制消息给所有连接（与 session 房间无关，如模型配置变更） */
   broadcastAll(msg: ServerMessage): void {
     const encoded = encodeServerMessage(msg);
