@@ -289,6 +289,18 @@ describe('session routes', () => {
     expect((await storage.sessions.get(session.id))?.model).toBe('wlyd-llm/deepseek-v4-pro');
   });
 
+  it('PATCH model=null → 清空会话级覆盖', async () => {
+    const session = await storage.sessions.create({ model: 'wlyd-llm/deepseek-v4-pro', cwd: '/tmp' });
+    const res = await app.request(`/api/v1/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ model: null }),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.session.model).toBe('');
+  });
+
   it('PATCH 空 model → 400', async () => {
     const session = await storage.sessions.create({ model: 'm', cwd: '/tmp' });
     const res = await app.request(`/api/v1/sessions/${session.id}`, {

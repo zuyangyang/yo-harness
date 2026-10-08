@@ -251,8 +251,8 @@ export function ChatArea(): JSX.Element {
               <ModelSelector
                 value={currentSession.model}
                 onChange={(model) => {
-                  // 会话级覆盖：只改这条会话，全局默认在「设置 → 模型」里维护
-                  void updateSession(currentSession.id, { model });
+                  // 会话级覆盖：只改这条会话；「跟随默认」传 null 清空覆盖
+                  void updateSession(currentSession.id, { model: model === '' ? null : model });
                 }}
               />
               {isAgentRunning ? (

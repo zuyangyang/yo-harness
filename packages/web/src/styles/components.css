@@ -926,6 +926,183 @@
   gap: var(--space-2);
 }
 
+/* ─── 会话模型选择器（自定义下拉） ─── */
+.model-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.model-picker__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 200px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.model-picker__trigger:hover:not(:disabled),
+.model-picker__trigger--open {
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.model-picker__trigger:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.model-picker__icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.model-picker__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.model-picker__chevron {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  transition: transform var(--motion-base) var(--ease-standard);
+}
+
+.model-picker__trigger--open .model-picker__chevron {
+  transform: rotate(180deg);
+}
+
+.model-picker__menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  max-height: 300px;
+  overflow: auto;
+  padding: var(--space-1);
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: model-picker-in var(--motion-base) var(--ease-out);
+}
+
+@keyframes model-picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.model-picker__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.model-picker__item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.model-picker__item--selected {
+  color: var(--accent);
+}
+
+.model-picker__check {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 14px;
+}
+
+.model-picker__check-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.model-picker__item-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ─── 输入区：更灵动的观感 ─── */
+.chat-input-form {
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--motion-base) var(--ease-standard),
+    box-shadow var(--motion-base) var(--ease-standard);
+}
+
+.chat-input-form:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--shadow-md);
+}
+
+.chat-send-btn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  box-shadow: 0 2px 10px var(--focus-ring);
+  transition:
+    transform var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
+}
+
+.chat-send-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-hover), var(--accent));
+  box-shadow: 0 4px 16px var(--focus-ring);
+  transform: translateY(-1px) scale(1.05);
+}
+
+.chat-send-btn:disabled {
+  background: var(--bg-active);
+  color: var(--text-tertiary);
+  box-shadow: none;
+}
+
+.chat-stop-btn {
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.chat-stop-btn:hover {
+  transform: scale(1.05);
+}
+
+
 
 .shortcut-keys {
   font-family: var(--font-mono);

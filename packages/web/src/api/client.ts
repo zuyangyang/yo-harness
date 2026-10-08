@@ -114,8 +114,8 @@ export interface SessionUpdateInput {
   workspaceId?: string | null;
   pinned?: boolean;
   status?: SessionStatus;
-  /** 会话级模型（"providerId/modelId"） */
-  model?: string;
+  /** 会话级模型（"providerId/modelId"）；null = 清空，回落全局默认 */
+  model?: string | null;
 }
 
 export interface Workspace {

@@ -50,8 +50,8 @@ export interface SessionUpdate {
   workspaceId?: string | null;
   pinned?: boolean;
   status?: 'active' | 'archived';
-  /** 会话级模型（形如 "providerId/modelId"）；缺省沿用全局默认模型 */
-  model?: string;
+  /** 会话级模型（形如 "providerId/modelId"）；null = 清空，回落到全局默认模型 */
+  model?: string | null;
 }
 
 export interface SessionStore {

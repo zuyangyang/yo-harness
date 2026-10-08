@@ -107,7 +107,7 @@ export function createSessionRoutes(deps: SessionsRouteDeps): Hono<ServerEnv> {
       workspaceId?: string | null;
       pinned?: boolean;
       status?: 'active' | 'archived';
-      model?: string;
+      model?: string | null;
     }>();
 
     const existing = await storage.sessions.get(id);
@@ -149,12 +149,18 @@ export function createSessionRoutes(deps: SessionsRouteDeps): Hono<ServerEnv> {
 
     let modelChanged = false;
     if (body.model !== undefined) {
-      const model = body.model.trim();
-      if (model === '') {
-        return c.json({ error: 'model must not be empty' }, 400);
+      if (body.model === null) {
+        // 清空会话级覆盖，回到全局默认
+        patch.model = null;
+        modelChanged = existing.model !== '';
+      } else {
+        const model = body.model.trim();
+        if (model === '') {
+          return c.json({ error: 'model must not be empty' }, 400);
+        }
+        patch.model = model;
+        modelChanged = model !== existing.model;
       }
-      patch.model = model;
-      modelChanged = model !== existing.model;
     }
 
     const session = await storage.sessions.update(id, patch);

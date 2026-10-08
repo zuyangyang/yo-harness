@@ -223,7 +223,7 @@ class PostgresSessionStore implements SessionStore {
         ...(patch.workspaceId !== undefined ? { workspaceId: patch.workspaceId } : {}),
         ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
         ...(patch.status !== undefined ? { status: patch.status } : {}),
-        ...(patch.model !== undefined ? { model: patch.model } : {}),
+        ...(patch.model !== undefined ? { model: patch.model ?? '' } : {}),
         updatedAt: new Date().toISOString(),
       })
       .where(eq(this.t.sessions.id, id));

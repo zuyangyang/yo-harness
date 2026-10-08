@@ -100,6 +100,10 @@ function runContractTests(factory: BackendFactory) {
       const updated = await backend.sessions.update(session.id, { model: 'wlyd-llm/deepseek-v4-pro' });
       expect(updated?.model).toBe('wlyd-llm/deepseek-v4-pro');
       expect((await backend.sessions.get(session.id))?.model).toBe('wlyd-llm/deepseek-v4-pro');
+
+      // null = 清空覆盖，回落全局默认
+      const cleared = await backend.sessions.update(session.id, { model: null });
+      expect(cleared?.model).toBe('');
     });
 
     it('delete 级联清理事件/检查点，并解绑记忆', async () => {
