@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useSession } from '../../hooks/useSession.js';
 import { useAuth } from '../../hooks/useAuth.js';
@@ -34,6 +35,7 @@ export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
     deleteWorkspace,
   } = useWorkspaceStore();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -68,7 +70,10 @@ export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
       workspaces={workspaces}
       isActive={session.id === currentSessionId}
       onSelect={() => {
+        // 侧栏在所有路由下都在，选中会话必须切回对话视图，
+        // 否则在「设置」等页面点击会话看不出任何变化。
         void selectSession(session.id);
+        void navigate('/chat');
       }}
       onRename={(title) => {
         void renameSession(session.id, title);
