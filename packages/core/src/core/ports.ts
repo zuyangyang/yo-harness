@@ -17,6 +17,15 @@ export interface EventStore {
   /** 按 seq 升序返回全部事件（会话恢复 / 重放校验用） */
   replay(sessionId: string): Promise<EventEnvelope[]>;
   lastSeq(sessionId: string): Promise<number>;
+  /**
+   * 删除 seq >= fromSeq 的事件（编辑 / 重试时回退到某条 user_input 之前）。
+   * 追加写不变量在回退这一显式动作处放宽：调用方负责丢弃的内存状态
+   * （活跃 loop 的 ContextManager）由 SessionManager 负责驱逐重建。
+   * @param sessionId - 目标会话。
+   * @param fromSeq - 起始 seq（含）；删除该 seq 及其之后的全部事件。
+   * @returns 实际删除的事件条数。
+   */
+  deleteFrom(sessionId: string, fromSeq: number): Promise<number>;
 }
 
 export interface Session {

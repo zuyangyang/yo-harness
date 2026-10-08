@@ -37,6 +37,8 @@ export interface TurnMetaItem {
 
 export interface Turn {
   id: string;
+  /** 本轮 user_input 事件的 seq（编辑 / 重试的回退锚点） */
+  userInputSeq: number;
   userMessage: string;
   thinkingTexts: string[];
   toolSteps: ToolStep[];
@@ -60,6 +62,7 @@ export function groupEventsIntoTurns(events: EventEnvelope[]): Turn[] {
 }
 
 interface RawTurn {
+  userInputSeq: number;
   userMessage: string;
   startTime: string;
   /** 本 turn 开始时的生效模型 */
@@ -81,6 +84,7 @@ function splitByUserInput(events: EventEnvelope[]): RawTurn[] {
     if (envelope.payload.type === 'user_input') {
       if (current) turns.push(current);
       current = {
+        userInputSeq: envelope.seq,
         userMessage: envelope.payload.content,
         startTime: envelope.ts,
         ...(activeModel !== undefined ? { model: activeModel } : {}),
@@ -218,6 +222,7 @@ function buildTurn(raw: RawTurn, index: number): Turn {
 
   return {
     id: 'turn-' + index,
+    userInputSeq: raw.userInputSeq,
     userMessage: raw.userMessage,
     thinkingTexts,
     toolSteps: Array.from(toolStepMap.values()),

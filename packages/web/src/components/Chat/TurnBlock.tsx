@@ -6,6 +6,7 @@
  * 光标；否则显示「正在生成…」等待动画。assistant_text 提交后由事件流渲染完整
  * 正文，避免与流式缓冲重复。
  */
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -13,6 +14,7 @@ import type { Turn } from '../../utils/turn-grouping.js';
 import { ThinkingSection } from './ThinkingSection.js';
 import { ToolSteps } from './ToolSteps.js';
 import { MessageActions } from './MessageActions.js';
+import { Button } from '../ui/Button.js';
 
 interface TurnBlockProps {
   turn: Turn;
@@ -22,6 +24,10 @@ interface TurnBlockProps {
   isRunning?: boolean;
   /** turn 未记录模型时的回退（会话级 / 全局默认模型） */
   fallbackModel?: string;
+  /** 重新生成本轮：回退并重发 user 消息原文 */
+  onRetry?: (() => void) | undefined;
+  /** 编辑本轮 user 消息并重发；成功后关闭编辑态，失败时保留以便修改 */
+  onEdit?: ((content: string) => Promise<void>) | undefined;
 }
 
 export function TurnBlock({
@@ -29,17 +35,89 @@ export function TurnBlock({
   streamingText = '',
   isRunning = false,
   fallbackModel,
+  onRetry,
+  onEdit,
 }: TurnBlockProps): JSX.Element {
   const durationMs = calculateDuration(turn);
   const showStreaming = isRunning && streamingText.length > 0;
   const showWaiting = isRunning && turn.finalText.length === 0 && !showStreaming;
 
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const startEdit = (): void => {
+    setDraft(turn.userMessage);
+    setEditing(true);
+  };
+
+  const cancelEdit = (): void => {
+    if (submitting) return;
+    setEditing(false);
+  };
+
+  const submitEdit = async (): Promise<void> => {
+    const text = draft.trim();
+    if (text === '' || submitting) return;
+    setSubmitting(true);
+    try {
+      await onEdit?.(text);
+      setEditing(false);
+    } catch {
+      // 失败提示由外层负责；保留编辑态，用户可修改后重试
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="turn-block">
       <div className="message-row message-row--user">
-        <div className="message-bubble message-bubble--user">
-          {turn.userMessage}
-        </div>
+        {editing ? (
+          <div className="message-edit">
+            <textarea
+              className="message-edit__input"
+              aria-label="编辑消息"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void submitEdit();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancelEdit();
+                }
+              }}
+              rows={Math.min(8, Math.max(2, draft.split('\n').length))}
+              autoFocus
+            />
+            <div className="message-edit__actions">
+              <Button
+                variant="primary"
+                size="sm"
+                type="button"
+                disabled={submitting || draft.trim() === ''}
+                onClick={() => { void submitEdit(); }}
+              >
+                保存并重新发送
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                disabled={submitting}
+                onClick={cancelEdit}
+              >
+                取消
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="message-bubble message-bubble--user">
+            {turn.userMessage}
+          </div>
+        )}
       </div>
 
       {turn.errors.length > 0 && (
@@ -71,7 +149,14 @@ export function TurnBlock({
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{turn.finalText}</ReactMarkdown>
             </div>
           </div>
-          {!isRunning && <MessageActions text={turn.finalText} />}
+          {!isRunning && (
+            <MessageActions
+              text={turn.finalText}
+              onRetry={onRetry}
+              onEdit={onEdit !== undefined ? startEdit : undefined}
+              disabled={submitting}
+            />
+          )}
         </>
       )}
 

@@ -31,6 +31,12 @@ interface SessionState {
   moveSession: (id: string, workspaceId: string | null) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
+  /** 回退重新生成某条 user 消息对应的 turn（删除其后旧事件并重发原文） */
+  regenerateTurn: (sessionId: string, userInputSeq: number) => Promise<void>;
+  /** 编辑某条 user 消息并以新内容重发 */
+  editTurn: (sessionId: string, userInputSeq: number, content: string) => Promise<void>;
+  /** 丢弃本地某会话 seq >= fromSeq 的事件（服务端回退通知的对齐动作） */
+  truncateEvents: (sessionId: string, fromSeq: number) => void;
   addEvent: (sessionId: string, envelope: EventEnvelope) => void;
   appendDelta: (sessionId: string, delta: string) => void;
   clearError: () => void;
@@ -171,6 +177,54 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }
   },
 
+  regenerateTurn: async (sessionId, userInputSeq) => {
+    const { truncateEvents } = get();
+    // 乐观回退：先丢弃本地旧回复，服务端成功后新事件按新 seq 追加；
+    // 失败时下面拉回完整事件流恢复。
+    truncateEvents(sessionId, userInputSeq);
+    try {
+      await api.sessions.regenerateTurn(sessionId, userInputSeq);
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Failed to regenerate response',
+      });
+      await reloadEvents(sessionId, set, get);
+      throw err;
+    }
+  },
+
+  editTurn: async (sessionId, userInputSeq, content) => {
+    const { truncateEvents } = get();
+    truncateEvents(sessionId, userInputSeq);
+    try {
+      await api.sessions.editTurn(sessionId, userInputSeq, content);
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Failed to edit message',
+      });
+      await reloadEvents(sessionId, set, get);
+      throw err;
+    }
+  },
+
+  truncateEvents: (sessionId, fromSeq) => {
+    const { events, deltas } = get();
+    const sessionEvents = events.get(sessionId);
+    if (sessionEvents === undefined) return;
+    const kept = sessionEvents.filter((e) => e.seq < fromSeq);
+    if (kept.length === sessionEvents.length) return;
+
+    const nextEvents = new Map(events).set(sessionId, kept);
+    // 回退使本轮流式增量失效，必须一并丢弃
+    if (deltas.has(sessionId)) {
+      const nextDeltas = new Map(deltas);
+      nextDeltas.delete(sessionId);
+      set({ events: nextEvents, deltas: nextDeltas });
+      return;
+    }
+    set({ events: nextEvents });
+  },
+
   addEvent: (sessionId, envelope) => {
     const { events, deltas } = get();
     const sessionEvents = events.get(sessionId) ?? [];
@@ -199,3 +253,22 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+
+/** 回退请求失败后重新拉取该会话完整事件流，恢复乐观删除的本地状态。 */
+async function reloadEvents(
+  sessionId: string,
+  set: (
+    partial:
+      | Partial<SessionState>
+      | ((state: SessionState) => Partial<SessionState>),
+  ) => void,
+  get: () => SessionState,
+): Promise<void> {
+  try {
+    const res = await api.sessions.getEvents(sessionId);
+    const sorted = (res.events as EventEnvelope[]).sort((a, b) => a.seq - b.seq);
+    set({ events: new Map(get().events).set(sessionId, sorted) });
+  } catch {
+    // 恢复失败仅保留错误提示；下次选中会话会重新拉取
+  }
+}

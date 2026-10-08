@@ -9,6 +9,22 @@ function env(payload: EventEnvelope['payload']): EventEnvelope {
   return { id: seq, sessionId: 's1', seq, ts: '2025-06-15T10:00:00.000Z', payload };
 }
 
+describe('groupEventsIntoTurns 回退锚点', () => {
+  it('每个 turn 记录其 user_input 事件的 seq', () => {
+    const events = [
+      env({ type: 'session_started', model: 'm', cwd: '/tmp' }),
+      env({ type: 'user_input', content: 'first' }),
+      env({ type: 'assistant_text', text: 'ok', toolCalls: [] }),
+      env({ type: 'user_input', content: 'second' }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+
+    expect(turns.map((t) => t.userInputSeq)).toEqual([events[1]!.seq, events[3]!.seq]);
+    expect(turns.map((t) => t.userMessage)).toEqual(['first', 'second']);
+  });
+});
+
 describe('groupEventsIntoTurns meta extraction', () => {
   it('collects context_compressed into a meta chip', () => {
     const events = [

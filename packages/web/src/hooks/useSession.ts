@@ -22,6 +22,9 @@ export function useSession() {
     moveSession,
     deleteSession,
     sendMessage,
+    regenerateTurn,
+    editTurn,
+    truncateEvents,
     clearError,
   } = useSessionStore();
 
@@ -48,6 +51,9 @@ export function useSession() {
     moveSession,
     deleteSession,
     sendMessage,
+    regenerateTurn,
+    editTurn,
+    truncateEvents,
     clearError,
   };
 }

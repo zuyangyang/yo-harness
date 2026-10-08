@@ -30,6 +30,8 @@ async function json<T = Record<string, any>>(res: Response): Promise<T> {
 function mockSessionManager(): SessionManager {
   return {
     sendMessage: async () => ({ accepted: true as const }),
+    regenerateTurn: async () => ({ accepted: true as const, fromSeq: 1 }),
+    editTurn: async () => ({ accepted: true as const, fromSeq: 1 }),
     interrupt: () => {},
     getPendingApprovals: () => [],
     resolveApproval: () => false,
@@ -455,6 +457,50 @@ describe('conversation routes', () => {
       headers: authHeader(token),
     });
     expect(res.status).toBe(200);
+  });
+
+  it('POST turns/:seq/regenerate → 202', async () => {
+    const session = await storage.sessions.create({ model: 'default', cwd: '/tmp', type: 'interactive' });
+    const res = await app.request(`/api/v1/sessions/${session.id}/turns/5/regenerate`, {
+      method: 'POST',
+      headers: authHeader(token),
+    });
+    expect(res.status).toBe(202);
+    expect(await json(res)).toEqual({ accepted: true, fromSeq: 1 });
+  });
+
+  it('POST turns/:seq/edit 携带新内容 → 202', async () => {
+    const session = await storage.sessions.create({ model: 'default', cwd: '/tmp', type: 'interactive' });
+    const res = await app.request(`/api/v1/sessions/${session.id}/turns/3/edit`, {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify({ content: '新内容' }),
+    });
+    expect(res.status).toBe(202);
+  });
+
+  it('regenerate / edit 非法 seq 或空 content → 400', async () => {
+    const session = await storage.sessions.create({ model: 'default', cwd: '/tmp', type: 'interactive' });
+    const badSeq = await app.request(`/api/v1/sessions/${session.id}/turns/abc/regenerate`, {
+      method: 'POST',
+      headers: authHeader(token),
+    });
+    expect(badSeq.status).toBe(400);
+
+    const emptyContent = await app.request(`/api/v1/sessions/${session.id}/turns/3/edit`, {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify({ content: '   ' }),
+    });
+    expect(emptyContent.status).toBe(400);
+  });
+
+  it('未知 session 的 regenerate → 404', async () => {
+    const res = await app.request('/api/v1/sessions/no-such-session/turns/1/regenerate', {
+      method: 'POST',
+      headers: authHeader(token),
+    });
+    expect(res.status).toBe(404);
   });
 });
 

@@ -17,6 +17,7 @@ import { useApprovalStore } from '../stores/approval.js';
 export function useWebSocket() {
   const addEvent = useSessionStore((state) => state.addEvent);
   const appendDelta = useSessionStore((state) => state.appendDelta);
+  const truncateEvents = useSessionStore((state) => state.truncateEvents);
   const upsertApproval = useApprovalStore((state) => state.upsert);
   const settleApproval = useApprovalStore((state) => state.settle);
 
@@ -27,6 +28,10 @@ export function useWebSocket() {
 
     const onDelta = (sessionId: string, delta: string): void => {
       appendDelta(sessionId, delta);
+    };
+
+    const onTruncated = (sessionId: string, fromSeq: number): void => {
+      truncateEvents(sessionId, fromSeq);
     };
 
     const onApproval = (req: ApprovalRequest): void => {
@@ -68,6 +73,7 @@ export function useWebSocket() {
 
     wsClient.on('event', onEvent);
     wsClient.on('delta', onDelta);
+    wsClient.on('truncated', onTruncated);
     wsClient.on('approval', onApproval);
     wsClient.on('approvalResolved', onResolved);
     wsClient.on('approvalCancelled', onCancelled);
@@ -76,10 +82,11 @@ export function useWebSocket() {
     return () => {
       wsClient.off('event', onEvent);
       wsClient.off('delta', onDelta);
+      wsClient.off('truncated', onTruncated);
       wsClient.off('approval', onApproval);
       wsClient.off('approvalResolved', onResolved);
       wsClient.off('approvalCancelled', onCancelled);
       wsClient.off('connected', onConnected);
     };
-  }, [addEvent, appendDelta, upsertApproval, settleApproval]);
+  }, [addEvent, appendDelta, truncateEvents, upsertApproval, settleApproval]);
 }

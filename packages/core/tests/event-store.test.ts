@@ -88,6 +88,39 @@ describe('SqliteEventStore', () => {
     expect(await events.lastSeq(otherId)).toBe(1);
   });
 
+  it('deleteFrom 删除 seq >= fromSeq 的事件，后续追加从剩余 seq 续接', async () => {
+    await events.append(sessionId, userInput('a'));
+    await events.append(sessionId, assistantText('b'));
+    await events.append(sessionId, userInput('c'));
+    await events.append(sessionId, assistantText('d'));
+
+    const removed = await events.deleteFrom(sessionId, 3);
+
+    expect(removed).toBe(2);
+    expect((await events.replay(sessionId)).map((e) => e.seq)).toEqual([1, 2]);
+    expect(await events.lastSeq(sessionId)).toBe(2);
+
+    const next = await events.append(sessionId, assistantText('e'));
+    expect(next.seq).toBe(3);
+  });
+
+  it('deleteFrom 只作用于目标会话', async () => {
+    const otherId = (await new SqliteSessionStore(db).create({ model: 'm', cwd: dir })).id;
+    await events.append(sessionId, userInput('a'));
+    await events.append(otherId, userInput('x'));
+    await events.append(sessionId, assistantText('b'));
+    await events.append(otherId, assistantText('y'));
+
+    expect(await events.deleteFrom(sessionId, 2)).toBe(1);
+    expect((await events.replay(otherId)).map((e) => e.seq)).toEqual([1, 2]);
+  });
+
+  it('deleteFrom 起始 seq 不存在时删除 0 条', async () => {
+    await events.append(sessionId, userInput('a'));
+    expect(await events.deleteFrom(sessionId, 99)).toBe(0);
+    expect((await events.replay(sessionId)).map((e) => e.seq)).toEqual([1]);
+  });
+
   it('replay 对损坏 payload 抛 FatalError 而非静默返回', async () => {
     await events.append(sessionId, userInput('a'));
     db.prepare('UPDATE events SET payload = ? WHERE session_id = ?').run('{not json', sessionId);

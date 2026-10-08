@@ -276,6 +276,19 @@ export const api = {
       fetchJson<void>('POST', `/api/v1/sessions/${id}/messages`, { content }),
     getEvents: (id: string) =>
       fetchJson<{ events: unknown[] }>('GET', `/api/v1/sessions/${id}/events`),
+    /** 重新生成：回退到指定 user_input 并重发原文 */
+    regenerateTurn: (id: string, seq: number) =>
+      fetchJson<{ accepted: true; fromSeq: number }>(
+        'POST',
+        `/api/v1/sessions/${id}/turns/${seq}/regenerate`,
+      ),
+    /** 编辑重发：回退到指定 user_input 并以新内容重新运行 */
+    editTurn: (id: string, seq: number, content: string) =>
+      fetchJson<{ accepted: true; fromSeq: number }>(
+        'POST',
+        `/api/v1/sessions/${id}/turns/${seq}/edit`,
+        { content },
+      ),
     interrupt: (id: string) => fetchJson<void>('POST', `/api/v1/sessions/${id}/interrupt`),
     getPendingApprovals: (id: string) =>
       fetchJson<{ approvals: PendingApproval[] }>('GET', `/api/v1/sessions/${id}/approvals/pending`),

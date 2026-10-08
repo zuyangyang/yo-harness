@@ -102,6 +102,19 @@ export interface LlmDeltaMessage {
   delta: string;
 }
 
+/**
+ * 会话事件流被回退（编辑 / 重试）：客户端应丢弃本地 seq >= fromSeq 的事件。
+ *
+ * 回退后服务端会紧接着按新的 seq 广播原回复的重建事件；截断通知先于这些
+ * 事件发出，保证订阅者按发送顺序得到一致的视图。
+ */
+export interface EventsTruncatedMessage {
+  type: 'events.truncated';
+  sessionId: string;
+  /** 起始 seq（含）：本会话该 seq 及其之后的本地事件都应丢弃 */
+  fromSeq: number;
+}
+
 export interface ErrorMessage {
   type: 'error';
   code: string;
@@ -123,6 +136,7 @@ export interface ModelConfigChangedMessage {
 export type ServerMessage =
   | EventMessage
   | LlmDeltaMessage
+  | EventsTruncatedMessage
   | ApprovalRequestMessage
   | ApprovalResolvedMessage
   | ApprovalCancelledMessage

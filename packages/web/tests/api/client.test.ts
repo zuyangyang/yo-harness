@@ -168,6 +168,26 @@ describe('API client', () => {
       expect(body).toEqual({ content: 'hello' });
     });
 
+    it('regenerateTurn POST 到 turns/:seq/regenerate', async () => {
+      mockFetchResponse({ accepted: true, fromSeq: 7 });
+      const res = await api.sessions.regenerateTurn('s1', 7);
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/sessions/s1/turns/7/regenerate');
+      expect(call?.init.method).toBe('POST');
+      expect(res).toEqual({ accepted: true, fromSeq: 7 });
+    });
+
+    it('editTurn POST 新内容到 turns/:seq/edit', async () => {
+      mockFetchResponse({ accepted: true, fromSeq: 3 });
+      await api.sessions.editTurn('s1', 3, '改过的内容');
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/sessions/s1/turns/3/edit');
+      expect(call?.init.method).toBe('POST');
+      expect(JSON.parse(call!.init.body as string)).toEqual({ content: '改过的内容' });
+    });
+
     it('update 发送会话级 model', async () => {
       mockFetchResponse({ session: { id: 's1' } });
       await api.sessions.update('s1', { model: 'wlyd-llm/deepseek-v4-pro' });

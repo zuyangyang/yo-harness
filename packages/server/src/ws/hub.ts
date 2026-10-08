@@ -120,6 +120,16 @@ export class WebSocketHub {
     }
   }
 
+  /**
+   * 广播事件流回退：房间内所有标签页丢弃本地 seq >= fromSeq 的事件。
+   *
+   * 编辑 / 重试在服务端删除旧事件后调用，先于重建事件到达，避免旧的
+   * 助手回复与新的回复在同一视图里叠加。
+   */
+  broadcastTruncated(sessionId: string, fromSeq: number): void {
+    this.broadcastToRoom(sessionId, { type: 'events.truncated', sessionId, fromSeq });
+  }
+
   /** 广播控制消息给所有连接（与 session 房间无关，如模型配置变更） */
   broadcastAll(msg: ServerMessage): void {
     const encoded = encodeServerMessage(msg);

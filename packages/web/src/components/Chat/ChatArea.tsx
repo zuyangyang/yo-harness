@@ -35,7 +35,14 @@ const PERMISSION_MODE_LABEL: Record<PermissionMode, string> = {
 };
 
 export function ChatArea(): JSX.Element {
-  const { currentSession, currentEvents, sendMessage, updateSession } = useSession();
+  const {
+    currentSession,
+    currentEvents,
+    sendMessage,
+    updateSession,
+    regenerateTurn,
+    editTurn,
+  } = useSession();
   const sessions = useSessionStore((s) => s.sessions);
   const deltas = useSessionStore((s) => s.deltas);
   const activeModel = useModelStore((s) => s.active);
@@ -198,6 +205,30 @@ export function ChatArea(): JSX.Element {
     }
   };
 
+  /** 重新生成：回退并重发该 turn 的 user 消息原文 */
+  const handleRegenerate = async (userInputSeq: number): Promise<void> => {
+    if (!currentSession) return;
+    try {
+      await regenerateTurn(currentSession.id, userInputSeq);
+      toast.success('已重新生成');
+    } catch {
+      toast.error('重新生成失败，请重试');
+    }
+  };
+
+  /** 编辑重发：以新内容替换该条 user 消息并重新运行 */
+  const handleEdit = async (userInputSeq: number, content: string): Promise<void> => {
+    if (!currentSession) return;
+    try {
+      await editTurn(currentSession.id, userInputSeq, content);
+      toast.success('已按新内容重新发送');
+    } catch (err) {
+      toast.error('编辑重发失败，请重试');
+      // 向上抛出：TurnBlock 据此保留编辑态，避免用户输入丢失
+      throw err;
+    }
+  };
+
   if (!currentSession) {
     return (
       <div className="chat-empty">
@@ -228,6 +259,8 @@ export function ChatArea(): JSX.Element {
                 isRunning={idx === turns.length - 1 && isAgentRunning}
                 streamingText={idx === turns.length - 1 ? streamingText : ''}
                 fallbackModel={fallbackModel}
+                onRetry={() => { void handleRegenerate(turn.userInputSeq); }}
+                onEdit={(content) => handleEdit(turn.userInputSeq, content)}
               />
             ))}
             {isSending && !isAgentRunning && <TurnWaiting />}

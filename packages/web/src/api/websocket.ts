@@ -53,6 +53,8 @@ interface EmitterEvents {
   connected: [];
   disconnected: [];
   event: [sessionId: string, event: EventEnvelope];
+  /** 服务端回退了事件流：丢弃本地 seq >= fromSeq 的事件 */
+  truncated: [sessionId: string, fromSeq: number];
   /** LLM 流式文本增量（实时渲染，不落库） */
   delta: [sessionId: string, delta: string];
   approval: [request: ApprovalRequest];
@@ -184,6 +186,9 @@ export class WebSocketClient extends SimpleEmitter {
     switch (msg.type) {
       case 'event':
         this.emit('event', msg.sessionId as string, msg.event as EventEnvelope);
+        break;
+      case 'events.truncated':
+        this.emit('truncated', msg.sessionId as string, msg.fromSeq as number);
         break;
       case 'llm.delta':
         this.emit('delta', msg.sessionId as string, msg.delta as string);

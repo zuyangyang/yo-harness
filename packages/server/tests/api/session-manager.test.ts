@@ -212,6 +212,7 @@ describe('SessionManager 审批广播', () => {
     return {
       broadcast: vi.fn(),
       broadcastDelta: vi.fn(),
+      broadcastTruncated: vi.fn(),
       broadcastApprovalRequest: vi.fn(),
       broadcastApprovalResolved: vi.fn(),
       broadcastApprovalCancelled: vi.fn(),
@@ -316,6 +317,117 @@ describe('SessionManager 审批广播', () => {
       'session closed or interrupted',
     );
     expect(manager.getPendingApprovals(session.id)).toEqual([]);
+    await manager.destroyAll();
+  });
+});
+
+describe('SessionManager 回退（重新生成 / 编辑重发）', () => {
+  function createHub(): WebSocketHub {
+    return {
+      broadcast: vi.fn(),
+      broadcastDelta: vi.fn(),
+      broadcastTruncated: vi.fn(),
+      broadcastApprovalRequest: vi.fn(),
+      broadcastApprovalResolved: vi.fn(),
+      broadcastApprovalCancelled: vi.fn(),
+    } as unknown as WebSocketHub;
+  }
+
+  /**
+   * 同一个 router 内两次脚本消费：首次 'first'，回退重跑 'second'。
+   * router 必须在 resolveRuntime 之外只建一次——回退会驱逐并重建 loop，
+   * 若每次重建都新建 router，FakeLLMClient 的游标会重置回第一条。
+   */
+  function twoTurnManager(overrides: Partial<SessionManagerDeps> = {}): SessionManager {
+    const router = routerFromScript([
+      { text: 'first', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } },
+      { text: 'second', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } },
+    ]);
+    return new SessionManager(
+      createDeps({
+        resolveRuntime: async () => ({ router, contextWindow: 4096, model: 'fake' }),
+        ...overrides,
+      }),
+    );
+  }
+
+  it('regenerateTurn 删除旧回复、保留同一 user 消息并重新生成', async () => {
+    const hub = createHub();
+    manager = twoTurnManager({ wsHub: hub });
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'hello');
+    await waitForAssistantText(session.id, 1);
+    expect(await assistantTexts(session.id)).toEqual(['first']);
+    await waitForEviction(manager);
+
+    const result = await manager.regenerateTurn(session.id);
+    expect(result.accepted).toBe(true);
+    expect(hub.broadcastTruncated).toHaveBeenCalledWith(session.id, result.fromSeq);
+
+    await waitForAssistantText(session.id, 1);
+    expect(await assistantTexts(session.id)).toEqual(['second']);
+
+    const userInputs = (await storage.events.replay(session.id)).filter(
+      (e) => e.payload.type === 'user_input',
+    );
+    expect(userInputs).toHaveLength(1);
+    expect((userInputs[0]!.payload as { content: string }).content).toBe('hello');
+    await manager.destroyAll();
+  });
+
+  it('editTurn 用新内容替换 user 消息并重发', async () => {
+    manager = twoTurnManager();
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+    await manager.sendMessage(session.id, 'hello');
+    await waitForAssistantText(session.id, 1);
+    await waitForEviction(manager);
+
+    const seq = (await storage.events.replay(session.id)).find(
+      (e) => e.payload.type === 'user_input',
+    )!.seq;
+    const result = await manager.editTurn(session.id, seq, 'edited');
+    expect(result.fromSeq).toBe(seq);
+
+    await waitForAssistantText(session.id, 1);
+    expect(await assistantTexts(session.id)).toEqual(['second']);
+
+    const userInputs = (await storage.events.replay(session.id)).filter(
+      (e) => e.payload.type === 'user_input',
+    );
+    expect(userInputs).toHaveLength(1);
+    expect((userInputs[0]!.payload as { content: string }).content).toBe('edited');
+    await manager.destroyAll();
+  });
+
+  it('无 user 消息 / 未知 seq / 空编辑内容 → 抛错', async () => {
+    manager = twoTurnManager();
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await expect(manager.regenerateTurn(session.id)).rejects.toThrow('no user message to regenerate');
+    await expect(manager.editTurn(session.id, 999, 'x')).rejects.toThrow(
+      'user message not found at seq 999',
+    );
+    await expect(manager.editTurn(session.id, 1, '   ')).rejects.toThrow(
+      'content must not be empty',
+    );
+  });
+
+  it('在途 turn 时 regenerateTurn / editTurn 拒绝执行', async () => {
+    manager = new SessionManager(
+      createDeps({
+        resolveRuntime: async () => ({
+          router: routerWith('ok'),
+          contextWindow: 4096,
+          model: 'fake',
+        }),
+      }),
+    );
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'hello');
+    await expect(manager.regenerateTurn(session.id)).rejects.toThrow('already running');
+    await expect(manager.editTurn(session.id, 1, 'x')).rejects.toThrow('already running');
     await manager.destroyAll();
   });
 });

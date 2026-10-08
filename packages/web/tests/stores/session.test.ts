@@ -60,3 +60,40 @@ describe('session store 流式增量', () => {
     expect(deltas.get('s2')).toBe('b');
   });
 });
+
+describe('session store 事件回退', () => {
+  it('truncateEvents 丢弃 seq >= fromSeq 的事件并保留更早事件', () => {
+    const store = useSessionStore.getState();
+    store.addEvent('s1', env({ type: 'user_input', content: 'a' }));
+    store.addEvent('s1', env({ type: 'assistant_text', text: 'b', toolCalls: [] }));
+    store.addEvent('s1', env({ type: 'user_input', content: 'c' }));
+
+    useSessionStore.getState().truncateEvents('s1', 2);
+
+    const events = useSessionStore.getState().events.get('s1') ?? [];
+    expect(events.map((e) => e.seq)).toEqual([1]);
+  });
+
+  it('truncateEvents 同时清空该会话的流式缓冲', () => {
+    const store = useSessionStore.getState();
+    store.addEvent('s1', env({ type: 'user_input', content: 'a' }));
+    store.appendDelta('s1', '半截');
+
+    useSessionStore.getState().truncateEvents('s1', 1);
+
+    expect(useSessionStore.getState().events.get('s1')).toEqual([]);
+    expect(useSessionStore.getState().deltas.has('s1')).toBe(false);
+  });
+
+  it('truncateEvents 只影响目标会话且对未知会话是 no-op', () => {
+    const store = useSessionStore.getState();
+    store.addEvent('s1', env({ type: 'user_input', content: 'a' }));
+    store.addEvent('s2', env({ type: 'user_input', content: 'x' }, 's2'));
+
+    expect(() => useSessionStore.getState().truncateEvents('missing', 1)).not.toThrow();
+    useSessionStore.getState().truncateEvents('s1', 1);
+
+    expect(useSessionStore.getState().events.get('s1')).toEqual([]);
+    expect(useSessionStore.getState().events.get('s2')).toHaveLength(1);
+  });
+});

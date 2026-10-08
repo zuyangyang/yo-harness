@@ -41,6 +41,55 @@ export function createConversationRoutes(deps: ConversationsRouteDeps): Hono<Ser
     }
   });
 
+  // 重新生成：回退到指定 user_input 并重发原文（删除该消息及其后的旧事件）
+  app.post('/:id/turns/:seq/regenerate', requirePermission('sessions:write'), async (c) => {
+    const storage = c.get('storage');
+    const sessionId = c.req.param('id');
+    const session = await storage.sessions.get(sessionId);
+    if (!session) {
+      return c.json({ error: 'session not found' }, 404);
+    }
+    const seq = Number(c.req.param('seq'));
+    if (!Number.isInteger(seq) || seq <= 0) {
+      return c.json({ error: 'invalid seq' }, 400);
+    }
+
+    try {
+      const result = await sessionManager.regenerateTurn(sessionId, seq);
+      return c.json(result, 202);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: msg }, 409);
+    }
+  });
+
+  // 编辑重发：回退到指定 user_input 并以新内容重新运行
+  app.post('/:id/turns/:seq/edit', requirePermission('sessions:write'), async (c) => {
+    const storage = c.get('storage');
+    const sessionId = c.req.param('id');
+    const session = await storage.sessions.get(sessionId);
+    if (!session) {
+      return c.json({ error: 'session not found' }, 404);
+    }
+    const seq = Number(c.req.param('seq'));
+    if (!Number.isInteger(seq) || seq <= 0) {
+      return c.json({ error: 'invalid seq' }, 400);
+    }
+
+    const body = await c.req.json<{ content?: string }>();
+    if (typeof body.content !== 'string' || body.content.trim() === '') {
+      return c.json({ error: 'content is required' }, 400);
+    }
+
+    try {
+      const result = await sessionManager.editTurn(sessionId, seq, body.content);
+      return c.json(result, 202);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: msg }, 409);
+    }
+  });
+
   app.get('/:id/events', async (c) => {
     const storage = c.get('storage');
     const sessionId = c.req.param('id');

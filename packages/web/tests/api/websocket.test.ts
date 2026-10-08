@@ -181,6 +181,24 @@ describe('WebSocketClient', () => {
       expect(deltas[0]).toEqual(['s1', '你好']);
     });
 
+    it('events.truncated 消息路由到 truncated 事件', () => {
+      const client = new WebSocketClient();
+      const truncated: unknown[] = [];
+      client.on('truncated', (...args) => truncated.push(args));
+
+      client.connect();
+      simulateOpen(mockWsInstances[0]!);
+
+      simulateMessage(mockWsInstances[0]!, {
+        type: 'events.truncated',
+        sessionId: 's1',
+        fromSeq: 5,
+      });
+
+      expect(truncated).toHaveLength(1);
+      expect(truncated[0]).toEqual(['s1', 5]);
+    });
+
     it('approval.request 消息路由到 approval 事件', () => {
       const client = new WebSocketClient();
       const approvals: unknown[] = [];

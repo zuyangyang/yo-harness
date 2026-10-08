@@ -94,6 +94,57 @@ export class SessionManager {
   }
 
   async sendMessage(sessionId: string, message: string): Promise<{ accepted: true }> {
+    await this.startTurn(sessionId, message);
+    return { accepted: true };
+  }
+
+  /**
+   * 重新生成：回退到指定 user_input（缺省为最近一条）并重发原文。
+   *
+   * 回退会删除该 user_input 及其之后的全部事件（含旧回复），因此其后的
+   * 所有 turn 一并丢弃 —— 与「从这条消息重新开始」的语义一致。
+   *
+   * @param sessionId - 目标会话。
+   * @param userInputSeq - 目标 user_input 事件的 seq；缺省 = 最近一条。
+   * @returns 受理结果与回退起点 seq（供前端丢弃本地旧事件）。
+   */
+  async regenerateTurn(
+    sessionId: string,
+    userInputSeq?: number,
+  ): Promise<{ accepted: true; fromSeq: number }> {
+    this.assertIdle(sessionId);
+    const target = await this.findUserInput(sessionId, userInputSeq);
+    await this.rewind(sessionId, target.seq);
+    await this.startTurn(sessionId, target.content);
+    return { accepted: true, fromSeq: target.seq };
+  }
+
+  /**
+   * 编辑重发：回退到指定 user_input 并以其新内容重新运行。
+   *
+   * @param sessionId - 目标会话。
+   * @param userInputSeq - 被编辑的 user_input 事件 seq。
+   * @param content - 替换后的用户消息（去除首尾空白后不得为空）。
+   * @returns 受理结果与回退起点 seq。
+   */
+  async editTurn(
+    sessionId: string,
+    userInputSeq: number,
+    content: string,
+  ): Promise<{ accepted: true; fromSeq: number }> {
+    const text = content.trim();
+    if (text === '') {
+      throw new Error('content must not be empty');
+    }
+    this.assertIdle(sessionId);
+    const target = await this.findUserInput(sessionId, userInputSeq);
+    await this.rewind(sessionId, target.seq);
+    await this.startTurn(sessionId, text);
+    return { accepted: true, fromSeq: target.seq };
+  }
+
+  /** 创建并启动一轮：复用 sendMessage 的 running 守卫与后台执行语义。 */
+  private async startTurn(sessionId: string, message: string): Promise<void> {
     const active = await this.getOrCreate(sessionId);
     if (active.running) {
       throw new Error('session already running a turn');
@@ -102,7 +153,43 @@ export class SessionManager {
     void this.runTurn(active, message).finally(() => {
       active.running = false;
     });
-    return { accepted: true };
+  }
+
+  /** 仅当会话没有在途 turn 时允许回退，避免与正在执行的 loop 抢事件流。 */
+  private assertIdle(sessionId: string): void {
+    const active = this.active.get(sessionId);
+    if (active?.running) {
+      throw new Error('session already running a turn');
+    }
+  }
+
+  private async findUserInput(
+    sessionId: string,
+    userInputSeq?: number,
+  ): Promise<{ seq: number; content: string }> {
+    const envelopes = await this.deps.eventStore.replay(sessionId);
+    const match =
+      userInputSeq === undefined
+        ? [...envelopes].reverse().find((e) => e.payload.type === 'user_input')
+        : envelopes.find((e) => e.seq === userInputSeq);
+    if (match?.payload.type !== 'user_input') {
+      throw new Error(
+        userInputSeq === undefined
+          ? 'no user message to regenerate'
+          : `user message not found at seq ${userInputSeq}`,
+      );
+    }
+    return { seq: match.seq, content: match.payload.content };
+  }
+
+  /**
+   * 回退事件流：驱逐活跃 loop（其 ContextManager 仍持有已删除事件的消息投影），
+   * 删除 seq >= fromSeq 的事件，并广播截断通知让所有标签页丢弃本地旧事件。
+   */
+  private async rewind(sessionId: string, fromSeq: number): Promise<void> {
+    this.closeSession(sessionId);
+    await this.deps.eventStore.deleteFrom(sessionId, fromSeq);
+    this.deps.wsHub?.broadcastTruncated(sessionId, fromSeq);
   }
 
   private async runTurn(active: ActiveSession, message: string): Promise<TurnEndReason> {

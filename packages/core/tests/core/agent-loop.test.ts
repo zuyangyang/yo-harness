@@ -65,6 +65,14 @@ class MemoryEventStore implements EventStore {
     const last = this.events.filter((e) => e.sessionId === sessionId).at(-1);
     return Promise.resolve(last?.seq ?? 0);
   }
+
+  deleteFrom(sessionId: string, fromSeq: number): Promise<number> {
+    const kept = this.events.filter((e) => e.sessionId !== sessionId || e.seq < fromSeq);
+    const removed = this.events.length - kept.length;
+    this.events.length = 0;
+    this.events.push(...kept);
+    return Promise.resolve(removed);
+  }
 }
 
 function resp(

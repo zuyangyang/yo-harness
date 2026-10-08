@@ -54,6 +54,13 @@ export class SqliteEventStore implements EventStore {
       .get(sessionId) as { seq: number };
     return row.seq;
   }
+
+  async deleteFrom(sessionId: string, fromSeq: number): Promise<number> {
+    const info = this.db
+      .prepare('DELETE FROM events WHERE session_id = ? AND seq >= ?')
+      .run(sessionId, fromSeq);
+    return info.changes;
+  }
 }
 
 function envelopeOf(row: EventRow): EventEnvelope {

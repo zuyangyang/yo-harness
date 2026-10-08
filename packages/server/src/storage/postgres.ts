@@ -6,7 +6,7 @@
  */
 import { Pool } from 'pg';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and, desc, asc, sql, count, or, like, isNull, inArray } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, count, or, like, isNull, inArray, gte } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 
 import type {
@@ -448,6 +448,14 @@ class PostgresEventStore implements EventStore {
       .from(this.t.events)
       .where(eq(this.t.events.sessionId, sessionId));
     return rows[0]?.seq ?? 0;
+  }
+
+  async deleteFrom(sessionId: string, fromSeq: number): Promise<number> {
+    const deleted = await this.db
+      .delete(this.t.events)
+      .where(and(eq(this.t.events.sessionId, sessionId), gte(this.t.events.seq, fromSeq)))
+      .returning({ id: this.t.events.id });
+    return deleted.length;
   }
 }
 
