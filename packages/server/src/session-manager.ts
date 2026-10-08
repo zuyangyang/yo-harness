@@ -129,6 +129,10 @@ export class SessionManager {
     const active = this.active.get(sessionId);
     if (active) {
       active.loop.interrupt();
+      // 关键：循环若正阻塞在 permission.request（等待审批），仅置中断标志
+      // 无法唤醒它。取消未决审批并广播 cancelled，让 ask 立刻返回拒绝，
+      // 循环收到 denied 结果后在下一步检查到中断标志并收尾（turn_completed）。
+      this.cancelPendingForSession(sessionId);
     }
     return Promise.resolve();
   }

@@ -273,6 +273,34 @@ describe('SessionManager 审批广播', () => {
     await manager.destroyAll();
   });
 
+  it('interrupt 唤醒阻塞在审批上的循环并广播 cancelled', async () => {
+    const hub = createHub();
+    manager = scriptedManager(hub);
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, '写一个文件');
+    const pending = await waitForPending(manager, session.id);
+
+    await manager.interrupt(session.id);
+
+    expect(hub.broadcastApprovalCancelled).toHaveBeenCalledWith(
+      session.id,
+      pending[0]!.id,
+      'session closed or interrupted',
+    );
+    expect(manager.getPendingApprovals(session.id)).toEqual([]);
+    // 中断后循环应结束：出现 turn_completed
+    const deadline = Date.now() + 3000;
+    let ended = false;
+    while (Date.now() < deadline && !ended) {
+      const events = await storage.events.replay(session.id);
+      ended = events.some((ev) => ev.payload.type === 'turn_completed');
+      if (!ended) await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(ended).toBe(true);
+    await manager.destroyAll();
+  });
+
   it('closeSession 取消未决审批并广播 cancelled', async () => {
     const hub = createHub();
     manager = scriptedManager(hub);
