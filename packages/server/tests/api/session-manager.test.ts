@@ -1,7 +1,7 @@
 /**
  * SessionManager 单元测试：审批机制 + 生命周期管理。
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createSqliteBackend } from '../../src/storage/sqlite.js';
 import type { StorageBackend } from '../../src/storage/interface.js';
 import { SessionManager } from '../../src/session-manager.js';
@@ -15,6 +15,8 @@ import { DEFAULT_BUDGET_LIMITS } from '@yo-harness/core/core/budget.js';
 import { DEFAULT_PERMISSION_SETTINGS } from '@yo-harness/core/core/permission.js';
 import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
 import type { SessionManagerDeps } from '../../src/session-manager.js';
+import type { WebSocketHub } from '../../src/ws/hub.js';
+import type { ChatResponse } from '@yo-harness/core/types/llm.js';
 
 let storage: StorageBackend;
 let manager: SessionManager;
@@ -76,6 +78,26 @@ function routerWith(text: string): ModelRouter {
   ]);
   const gateway = new LLMGateway(new Map([['fake', client]]), { defaultProvider: 'fake' });
   return new ModelRouter(gateway, {});
+}
+
+function routerFromScript(script: ChatResponse[]): ModelRouter {
+  const client = new FakeLLMClient(script);
+  const gateway = new LLMGateway(new Map([['fake', client]]), { defaultProvider: 'fake' });
+  return new ModelRouter(gateway, {});
+}
+
+async function waitForPending(
+  m: SessionManager,
+  sessionId: string,
+  timeoutMs = 3000,
+): Promise<{ id: string }[]> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const pending = m.getPendingApprovals(sessionId);
+    if (pending.length > 0) return pending;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('timed out waiting for a pending approval');
 }
 
 async function assistantTexts(sessionId: string): Promise<string[]> {
@@ -171,6 +193,73 @@ describe('SessionManager sendMessage', () => {
     });
     const result = await manager.sendMessage(session.id, 'hello');
     expect(result.accepted).toBe(true);
+    await manager.destroyAll();
+  });
+});
+
+describe('SessionManager 审批广播', () => {
+  function createHub(): WebSocketHub {
+    return {
+      broadcast: vi.fn(),
+      broadcastDelta: vi.fn(),
+      broadcastApprovalRequest: vi.fn(),
+      broadcastApprovalResolved: vi.fn(),
+      broadcastApprovalCancelled: vi.fn(),
+    } as unknown as WebSocketHub;
+  }
+
+  function scriptedManager(hub: WebSocketHub): SessionManager {
+    const writeCall = {
+      callId: 'c1',
+      toolName: 'write_file',
+      args: { path: 'yo-approval-test.txt', content: 'hi' },
+    };
+    return new SessionManager(
+      createDeps({
+        wsHub: hub,
+        resolveRuntime: async () => ({
+          router: routerFromScript([
+            { text: '', toolCalls: [writeCall], stopReason: 'tool_use', usage: { inputTokens: 1, outputTokens: 1 } },
+            { text: 'done', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } },
+          ]),
+          contextWindow: 4096,
+          model: 'fake',
+        }),
+      }),
+    );
+  }
+
+  it('serverAsk 广播审批请求；resolveApproval 广播已决', async () => {
+    const hub = createHub();
+    manager = scriptedManager(hub);
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, '写一个文件');
+
+    const pending = await waitForPending(manager, session.id);
+    expect(pending).toHaveLength(1);
+    expect(hub.broadcastApprovalRequest).toHaveBeenCalledWith(session.id, pending[0]);
+
+    expect(manager.resolveApproval(pending[0]!.id, true, 'once')).toBe(true);
+    expect(hub.broadcastApprovalResolved).toHaveBeenCalledWith(session.id, pending[0]!.id, 'once', 'user');
+    await manager.destroyAll();
+  });
+
+  it('closeSession 取消未决审批并广播 cancelled', async () => {
+    const hub = createHub();
+    manager = scriptedManager(hub);
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, '写一个文件');
+    const pending = await waitForPending(manager, session.id);
+
+    manager.closeSession(session.id);
+    expect(hub.broadcastApprovalCancelled).toHaveBeenCalledWith(
+      session.id,
+      pending[0]!.id,
+      'session closed or interrupted',
+    );
+    expect(manager.getPendingApprovals(session.id)).toEqual([]);
     await manager.destroyAll();
   });
 });

@@ -18,10 +18,15 @@ export interface UnsubscribeMessage {
   sessionId: string;
 }
 
+export type ApprovalResolution = 'once' | 'session' | 'always' | 'deny' | 'deny_and_stop';
+export type ApprovalSource = 'user' | 'timeout' | 'system';
+
 export interface ApprovalResolveMessage {
   type: 'approval.resolve';
   approvalId: string;
-  approved: boolean;
+  /** 新协议：显式裁决；缺省时回退 approved/scope（旧客户端兼容） */
+  resolution?: ApprovalResolution;
+  approved?: boolean;
   scope?: 'once' | 'session';
 }
 
@@ -43,12 +48,46 @@ export interface EventMessage {
   event: EventEnvelope;
 }
 
+/** 触发人工审批的风险摘要（供审批卡展示「为什么需要确认」） */
+export interface ApprovalRiskSummary {
+  level: 'none' | 'low' | 'medium' | 'high';
+  reasons: string[];
+  ruleIds: string[];
+}
+
 export interface ApprovalRequestMessage {
   type: 'approval.request';
   approvalId: string;
   sessionId: string;
+  callId: string;
   toolName: string;
   summary: string;
+  risk?: ApprovalRiskSummary;
+  options?: ApprovalResolution[];
+  createdAt?: string;
+  expiresAt?: string;
+  /** 同会话队列中的位置（从 1 开始） */
+  queuePosition?: number;
+  /** 刷新/断线重连时补发 */
+  replayed?: boolean;
+}
+
+/** 审批已决（含超时/系统）——所有标签页据此出队 */
+export interface ApprovalResolvedMessage {
+  type: 'approval.resolved';
+  approvalId: string;
+  sessionId: string;
+  approved: boolean;
+  resolution: ApprovalResolution;
+  source: ApprovalSource;
+}
+
+/** 审批被取消（中断 / 关闭会话） */
+export interface ApprovalCancelledMessage {
+  type: 'approval.cancelled';
+  approvalId: string;
+  sessionId: string;
+  reason: string;
 }
 
 /**
@@ -85,6 +124,8 @@ export type ServerMessage =
   | EventMessage
   | LlmDeltaMessage
   | ApprovalRequestMessage
+  | ApprovalResolvedMessage
+  | ApprovalCancelledMessage
   | ErrorMessage
   | PongMessage
   | ModelConfigChangedMessage;

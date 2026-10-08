@@ -76,6 +76,11 @@ export class WebSocketHub {
       this.rooms.set(sessionId, room);
     }
     room.add(ws);
+
+    // 刷新/断线重连后恢复该会话未决的审批（replayed 标记，前端按 approvalId 幂等去重）
+    for (const approval of this.deps.sessionManager.getPendingApprovals(sessionId)) {
+      this.sendApprovalRequest(ws, sessionId, approval, true);
+    }
   }
 
   unsubscribe(ws: WebSocket, sessionId: string): void {
@@ -125,20 +130,68 @@ export class WebSocketHub {
     }
   }
 
+  /** 向单个连接发送审批请求（replayed=true 表示刷新/重连补发） */
+  sendApprovalRequest(
+    ws: WebSocket,
+    sessionId: string,
+    approval: PendingApproval,
+    replayed = false,
+  ): void {
+    if (ws.readyState !== ws.OPEN) return;
+    const queuePosition =
+      this.deps.sessionManager.getPendingApprovals(sessionId).findIndex((a) => a.id === approval.id) + 1;
+    ws.send(
+      encodeServerMessage({
+        type: 'approval.request',
+        approvalId: approval.id,
+        sessionId,
+        callId: approval.callId,
+        toolName: approval.toolName,
+        summary: approval.summary,
+        createdAt: approval.createdAt,
+        ...(queuePosition > 0 ? { queuePosition } : {}),
+        ...(replayed ? { replayed: true } : {}),
+      }),
+    );
+  }
+
   broadcastApprovalRequest(sessionId: string, approval: PendingApproval): void {
     const room = this.rooms.get(sessionId);
     if (!room || room.size === 0) return;
+    for (const ws of room) {
+      this.sendApprovalRequest(ws, sessionId, approval);
+    }
+  }
 
-    const msg = encodeServerMessage({
-      type: 'approval.request',
-      approvalId: approval.id,
+  /** 审批已决（用户/超时/系统）→ 广播给房间，其他标签页据此出队 */
+  broadcastApprovalResolved(
+    sessionId: string,
+    approvalId: string,
+    resolution: 'once' | 'session' | 'always' | 'deny' | 'deny_and_stop',
+    source: 'user' | 'timeout' | 'system',
+  ): void {
+    this.broadcastToRoom(sessionId, {
+      type: 'approval.resolved',
+      approvalId,
       sessionId,
-      toolName: approval.toolName,
-      summary: approval.summary,
+      approved: resolution !== 'deny' && resolution !== 'deny_and_stop',
+      resolution,
+      source,
     });
+  }
+
+  /** 审批被取消（中断 / 关闭会话）→ 广播，避免前端残留僵尸卡片 */
+  broadcastApprovalCancelled(sessionId: string, approvalId: string, reason: string): void {
+    this.broadcastToRoom(sessionId, { type: 'approval.cancelled', approvalId, sessionId, reason });
+  }
+
+  private broadcastToRoom(sessionId: string, msg: ServerMessage): void {
+    const room = this.rooms.get(sessionId);
+    if (!room || room.size === 0) return;
+    const encoded = encodeServerMessage(msg);
     for (const ws of room) {
       if (ws.readyState === ws.OPEN) {
-        ws.send(msg);
+        ws.send(encoded);
       }
     }
   }
@@ -172,13 +225,19 @@ export class WebSocketHub {
       case 'unsubscribe':
         this.unsubscribe(info.ws, msg.sessionId);
         break;
-      case 'approval.resolve':
-        this.deps.sessionManager.resolveApproval(
-          msg.approvalId,
-          msg.approved,
-          msg.scope ?? 'once',
-        );
+      case 'approval.resolve': {
+        // 新协议优先 resolution；旧客户端回退 approved/scope
+        const approved =
+          msg.resolution !== undefined
+            ? msg.resolution !== 'deny' && msg.resolution !== 'deny_and_stop'
+            : msg.approved !== false;
+        const scope =
+          msg.resolution === 'session' || msg.resolution === 'always' || msg.scope === 'session'
+            ? 'session'
+            : 'once';
+        this.deps.sessionManager.resolveApproval(msg.approvalId, approved, scope);
         break;
+      }
       case 'ping':
         this.sendToWs(info.ws, { type: 'pong' });
         break;

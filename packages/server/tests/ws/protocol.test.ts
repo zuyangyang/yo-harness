@@ -83,6 +83,7 @@ describe('encodeServerMessage', () => {
     const msg: ServerMessage = {
       type: 'approval.request',
       approvalId: 'a1',
+      callId: 'c1',
       sessionId: 's1',
       toolName: 'Bash',
       summary: 'rm -rf /',

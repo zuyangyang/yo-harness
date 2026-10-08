@@ -131,8 +131,10 @@ export class SessionManager {
     const deferred = this.pendingApprovals.get(approvalId);
     if (!deferred) return false;
     const answer: ApprovalAnswer = approved ? (scope === 'session' ? 'always' : 'yes') : 'no';
+    const resolution: 'once' | 'session' | 'deny' = !approved ? 'deny' : scope === 'session' ? 'session' : 'once';
     deferred.resolve(answer);
     this.pendingApprovals.delete(approvalId);
+    this.deps.wsHub?.broadcastApprovalResolved(deferred.approval.sessionId, approvalId, resolution, 'user');
     return true;
   }
 
@@ -246,6 +248,10 @@ export class SessionManager {
         createdAt: new Date().toISOString(),
       };
       this.pendingApprovals.set(approvalId, { approval, resolve: deferred.resolve.bind(deferred) });
+
+      // ★ 关键：把待审批推送给订阅该会话的客户端，否则前端无入口可批准
+      this.deps.wsHub?.broadcastApprovalRequest(sessionId, approval);
+
       return deferred.promise;
     };
 
@@ -281,6 +287,7 @@ export class SessionManager {
       if (deferred.approval.sessionId === sessionId) {
         deferred.resolve('no');
         this.pendingApprovals.delete(id);
+        this.deps.wsHub?.broadcastApprovalCancelled(sessionId, id, 'session closed or interrupted');
       }
     }
   }

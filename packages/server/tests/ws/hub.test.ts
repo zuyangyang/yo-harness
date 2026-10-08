@@ -55,6 +55,7 @@ function createMockWebSocket(): MockWebSocket {
 function mockSessionManager(): SessionManager {
   return {
     resolveApproval: vi.fn().mockReturnValue(true),
+    getPendingApprovals: vi.fn().mockReturnValue([]),
   } as unknown as SessionManager;
 }
 
@@ -212,6 +213,9 @@ describe('广播', () => {
     const m = createMockWebSocket();
     hub.addConnection(m.ws, 'u1');
     hub.subscribe(m.ws, 's1');
+    vi.mocked(sm.getPendingApprovals).mockReturnValue([
+      { id: 'a1', sessionId: 's1', callId: 'c1', toolName: 'Bash', summary: 'rm -rf /', createdAt: '2026-01-01T00:00:00.000Z' },
+    ]);
 
     hub.broadcastApprovalRequest('s1', {
       id: 'a1',
@@ -227,6 +231,38 @@ describe('广播', () => {
     expect(parsed.type).toBe('approval.request');
     expect(parsed.approvalId).toBe('a1');
     expect(parsed.toolName).toBe('Bash');
+    expect(parsed.callId).toBe('c1');
+    expect(parsed.queuePosition).toBe(1);
+  });
+
+  it('subscribe 时补发该会话未决审批（replayed），修复刷新丢失', () => {
+    const m = createMockWebSocket();
+    hub.addConnection(m.ws, 'u1');
+    vi.mocked(sm.getPendingApprovals).mockReturnValue([
+      { id: 'a1', sessionId: 's1', callId: 'c1', toolName: 'write_file', summary: 'write_file a.txt (2 chars)', createdAt: '2026-01-01T00:00:00.000Z' },
+    ]);
+
+    hub.subscribe(m.ws, 's1');
+
+    expect(m.sent).toHaveLength(1);
+    expect(JSON.parse(m.sent[0]!)).toMatchObject({
+      type: 'approval.request',
+      approvalId: 'a1',
+      replayed: true,
+      queuePosition: 1,
+    });
+  });
+
+  it('broadcastApprovalResolved / Cancelled 推送终态', () => {
+    const m = createMockWebSocket();
+    hub.addConnection(m.ws, 'u1');
+    hub.subscribe(m.ws, 's1');
+
+    hub.broadcastApprovalResolved('s1', 'a1', 'deny', 'timeout');
+    hub.broadcastApprovalCancelled('s1', 'a1', 'interrupted');
+
+    expect(m.sent.map((s) => JSON.parse(s).type)).toEqual(['approval.resolved', 'approval.cancelled']);
+    expect(JSON.parse(m.sent[0]!)).toMatchObject({ approvalId: 'a1', approved: false, resolution: 'deny', source: 'timeout' });
   });
 });
 
