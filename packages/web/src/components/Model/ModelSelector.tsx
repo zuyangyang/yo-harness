@@ -81,7 +81,7 @@ export function ModelSelector({ value, onChange }: ModelSelectorProps): JSX.Elem
       </button>
 
       {open && selectable ? (
-        <div className="model-picker__menu" role="listbox" aria-label="会话模型">
+        <div className="model-picker__menu" role="listbox" aria-label="可选模型">
           {options.map((option) => {
             const selected = option.value === value;
             return (

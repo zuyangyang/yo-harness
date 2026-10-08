@@ -618,20 +618,6 @@ body {
   flex-shrink: 0;
 }
 
-.chat-input-right .select {
-  border: none;
-  background: transparent;
-  font-size: var(--font-size-base);
-  color: var(--text-secondary);
-  padding: var(--space-1) var(--space-2);
-  cursor: pointer;
-  max-width: 180px;
-}
-
-.chat-input-right .select:focus {
-  outline: none;
-}
-
 .chat-send-btn {
   flex-shrink: 0;
   width: 32px;
