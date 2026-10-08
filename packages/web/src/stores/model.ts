@@ -38,6 +38,12 @@ interface ModelState {
 
 const EMPTY_ACTIVE: ModelSelection = { providerId: '', model: '' };
 
+/** 全局默认模型的会话标签（"providerId/modelId"）；未配置时 undefined（沿用服务端默认） */
+export function defaultModelLabel(selection: ModelSelection): string | undefined {
+  if (selection.providerId === '' || selection.model === '') return undefined;
+  return `${selection.providerId}/${selection.model}`;
+}
+
 export const useModelStore = create<ModelState>()((set, get) => ({
   providers: [],
   active: EMPTY_ACTIVE,

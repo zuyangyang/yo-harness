@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { NAV_MODULES, NAV_TOOLS } from '../../config/navigation.js';
 import { useUiStore } from '../../stores/ui.js';
 import { useSessionStore } from '../../stores/session.js';
+import { useModelStore, defaultModelLabel } from '../../stores/model.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import { toast } from '../../stores/toast.js';
 import { SearchIcon } from '../Icons/index.js';
@@ -21,7 +22,8 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ onClose }: CommandPaletteProps): JSX.Element {
   const navigate = useNavigate();
-  const { toggleSidebar, toggleContextPanel, model } = useUiStore();
+  const { toggleSidebar, toggleContextPanel } = useUiStore();
+  const activeModel = useModelStore((s) => s.active);
   const { theme, toggleTheme } = useTheme();
   const createSession = useSessionStore((s) => s.createSession);
   const selectSession = useSessionStore((s) => s.selectSession);
@@ -77,7 +79,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps): JSX.Element {
         run: async () => {
           onClose();
           try {
-            const session = await createSession(model);
+            const session = await createSession(defaultModelLabel(activeModel));
             await selectSession(session.id);
           } catch {
             // 错误由 store 处理
@@ -104,7 +106,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps): JSX.Element {
     toggleContextPanel,
     createSession,
     selectSession,
-    model,
+    activeModel,
   ]);
 
   const filtered = useMemo(() => {

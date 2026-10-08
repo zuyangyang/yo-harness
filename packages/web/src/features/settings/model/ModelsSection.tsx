@@ -91,7 +91,7 @@ export function ModelsSection(): JSX.Element {
       ) : null}
 
       <section className="settings-section">
-        <h3 className="settings-section__title">当前使用的模型</h3>
+        <h3 className="settings-section__title">默认使用提供商及模型</h3>
         <div className="model-active">
           <select
             className="model-input"

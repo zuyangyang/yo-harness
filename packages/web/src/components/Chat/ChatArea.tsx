@@ -20,15 +20,10 @@ import {
   MicrophoneIcon,
 } from '../Icons/index.js';
 
-interface ChatAreaProps {
-  selectedModel: string;
-  onModelChange: (model: string) => void;
-}
-
 const MAX_INPUT_HEIGHT = 240;
 
-export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.Element {
-  const { currentSession, currentEvents, sendMessage } = useSession();
+export function ChatArea(): JSX.Element {
+  const { currentSession, currentEvents, sendMessage, updateSession } = useSession();
   const sessions = useSessionStore((s) => s.sessions);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -253,7 +248,13 @@ export function ChatArea({ selectedModel, onModelChange }: ChatAreaProps): JSX.E
             />
 
             <div className="chat-input-right">
-              <ModelSelector value={selectedModel} onChange={onModelChange} />
+              <ModelSelector
+                value={currentSession.model}
+                onChange={(model) => {
+                  // 会话级覆盖：只改这条会话，全局默认在「设置 → 模型」里维护
+                  void updateSession(currentSession.id, { model });
+                }}
+              />
               {isAgentRunning ? (
                 <button
                   className="chat-stop-btn"

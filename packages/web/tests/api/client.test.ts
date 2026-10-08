@@ -167,6 +167,16 @@ describe('API client', () => {
       const body = JSON.parse(call!.init.body as string);
       expect(body).toEqual({ content: 'hello' });
     });
+
+    it('update 发送会话级 model', async () => {
+      mockFetchResponse({ session: { id: 's1' } });
+      await api.sessions.update('s1', { model: 'wlyd-llm/deepseek-v4-pro' });
+
+      const call = lastFetchCall();
+      expect(call?.url).toBe('/api/v1/sessions/s1');
+      expect(call?.init.method).toBe('PATCH');
+      expect(JSON.parse(call!.init.body as string)).toEqual({ model: 'wlyd-llm/deepseek-v4-pro' });
+    });
   });
 
   describe('api.workspaces', () => {

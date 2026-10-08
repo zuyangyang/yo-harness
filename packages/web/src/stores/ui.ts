@@ -11,13 +11,11 @@ import { persist } from 'zustand/middleware';
 interface UiState {
   sidebarCollapsed: boolean;
   contextPanelOpen: boolean;
-  model: string;
 
   toggleSidebar: () => void;
   toggleContextPanel: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   setContextPanelOpen: (open: boolean) => void;
-  setModel: (model: string) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -25,20 +23,17 @@ export const useUiStore = create<UiState>()(
     (set) => ({
       sidebarCollapsed: false,
       contextPanelOpen: false,
-      model: '',
 
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       toggleContextPanel: () => set((s) => ({ contextPanelOpen: !s.contextPanelOpen })),
       setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
       setContextPanelOpen: (open) => set({ contextPanelOpen: open }),
-      setModel: (model) => set({ model }),
     }),
     {
       name: 'yo-ui-prefs',
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,
         contextPanelOpen: s.contextPanelOpen,
-        model: s.model,
       }),
     },
   ),

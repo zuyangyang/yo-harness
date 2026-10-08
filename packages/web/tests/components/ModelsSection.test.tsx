@@ -34,6 +34,7 @@ describe('ModelsSection', () => {
   it('渲染生效来源与提供商列表', () => {
     render(<ModelsSection />);
 
+    expect(screen.getByText('默认使用提供商及模型')).toBeTruthy();
     expect(screen.getByText('Web UI 配置')).toBeTruthy();
     // provider 名同时出现在当前模型下拉与卡片标题中
     expect(screen.getAllByText('wlyd').length).toBeGreaterThanOrEqual(1);
