@@ -7,13 +7,7 @@ import type { Workspace } from '../../api/client.js';
 import { SessionItem } from './SessionItem.js';
 import { WorkspaceDialog } from './WorkspaceDialog.js';
 import { useClickOutside } from '../../hooks/useClickOutside.js';
-import {
-  CogIcon,
-  ArrowRightOnRectangleIcon,
-  SearchIcon,
-  PlusIcon,
-  EllipsisHorizontalIcon,
-} from '../Icons/index.js';
+import { SearchIcon, PlusIcon, EllipsisHorizontalIcon } from '../Icons/index.js';
 
 interface SidebarProps {
   onNewSession: (workspaceId?: string | null) => void;
@@ -39,7 +33,7 @@ export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
     updateWorkspace,
     deleteWorkspace,
   } = useWorkspaceStore();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const [query, setQuery] = useState('');
   const [dialog, setDialog] = useState<DialogState>(null);
@@ -197,15 +191,8 @@ export function Sidebar({ onNewSession }: SidebarProps): JSX.Element {
           </button>
         </div>
         <div className="sidebar-user">
+          {/* 设置 / 退出登录统一由左侧 NavRail 管理，此处不再重复入口 */}
           <span className="sidebar-username">{user?.username ?? 'Unknown'}</span>
-          <div className="sidebar-footer-actions">
-            <button className="sidebar-footer-btn" title="Settings">
-              <CogIcon className="icon-footer" />
-            </button>
-            <button className="sidebar-logout-btn" onClick={logout} title="Logout">
-              <ArrowRightOnRectangleIcon className="icon-footer" />
-            </button>
-          </div>
         </div>
       </div>
 

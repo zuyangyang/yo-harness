@@ -283,43 +283,10 @@ body {
   justify-content: space-between;
 }
 
-.sidebar-footer-actions {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.sidebar-footer-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  padding: var(--space-1);
-  border-radius: var(--radius-sm);
-  transition: background 0.15s ease;
-}
-
-.sidebar-footer-btn:hover {
-  background: var(--bg-tertiary);
-}
-
 .sidebar-username {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
-}
-
-.sidebar-logout-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  padding: var(--space-1);
-  border-radius: var(--radius-sm);
-  transition: background 0.15s ease;
-}
-
-.sidebar-logout-btn:hover {
-  background: var(--bg-tertiary);
 }
 
 /* ─── Session Item ─── */
@@ -1605,18 +1572,6 @@ body {
 
 .theme-toggle-btn:hover .icon-theme {
   transform: rotate(180deg) scale(1.1);
-}
-
-/* Footer icons */
-.icon-footer {
-  width: 16px;
-  height: 16px;
-  transition: transform 0.2s ease;
-}
-
-.sidebar-footer-btn:hover .icon-footer,
-.sidebar-logout-btn:hover .icon-footer {
-  transform: scale(1.2);
 }
 
 /* Session icon */
