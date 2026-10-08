@@ -10,6 +10,7 @@ import { SlashMenu } from './SlashMenu.js';
 import { AtMentionMenu, type MentionItem } from './AtMentionMenu.js';
 import { ModelSelector } from '../Model/ModelSelector.js';
 import { PermissionModeSelector } from '../Permissions/PermissionModeSelector.js';
+import type { PermissionMode } from '../../api/client.js';
 import { ApprovalQueueBar } from '../Approval/ApprovalQueueBar.js';
 import { ApprovalDialog } from '../Approval/ApprovalDialog.js';
 import { useApprovalStore } from '../../stores/approval.js';
@@ -26,6 +27,12 @@ import {
 } from '../Icons/index.js';
 
 const MAX_INPUT_HEIGHT = 240;
+
+const PERMISSION_MODE_LABEL: Record<PermissionMode, string> = {
+  ask: '询问审批',
+  auto: '自动审批',
+  full: '完全访问',
+};
 
 export function ChatArea(): JSX.Element {
   const { currentSession, currentEvents, sendMessage, updateSession } = useSession();
@@ -258,7 +265,18 @@ export function ChatArea(): JSX.Element {
             <PermissionModeSelector
               value={currentSession.permissionMode}
               onChange={(mode) => {
-                void updateSession(currentSession.id, { permissionMode: mode });
+                void updateSession(currentSession.id, { permissionMode: mode })
+                  .then((session) => {
+                    // 旧版服务端会忽略该字段：显式提示，避免"点了没反应"
+                    if (session.permissionMode !== mode) {
+                      toast.error('服务端未接受权限模式变更，请重启服务端到最新版本后重试');
+                      return;
+                    }
+                    toast.success(`已切换为${PERMISSION_MODE_LABEL[mode]}`);
+                  })
+                  .catch(() => {
+                    toast.error('切换权限模式失败，请重试');
+                  });
               }}
             />
 
