@@ -84,6 +84,7 @@ export interface RegisterRequest {
 
 export type SessionStatus = 'active' | 'archived';
 export type SessionType = 'interactive' | 'background';
+export type PermissionMode = 'ask' | 'auto' | 'full';
 
 export interface Session {
   id: string;
@@ -95,6 +96,8 @@ export interface Session {
   workspaceId: string | null;
   pinned: boolean;
   titleIsCustom: boolean;
+  /** 会话级权限模式；null = 继承工作区/全局默认 */
+  permissionMode: PermissionMode | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -116,6 +119,8 @@ export interface SessionUpdateInput {
   status?: SessionStatus;
   /** 会话级模型（"providerId/modelId"）；null = 清空，回落全局默认 */
   model?: string | null;
+  /** 会话级权限模式；null = 清空，回落到默认 */
+  permissionMode?: PermissionMode | null;
 }
 
 export interface Workspace {

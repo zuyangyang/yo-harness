@@ -6,6 +6,7 @@
  * 由 eslint no-restricted-imports 强制。
  */
 import type { AgentEvent, EventEnvelope } from '../types/events.js';
+import type { PermissionMode } from './permission.js';
 import type { Memory, MemoryCategory, MemoryStatus } from '../types/memory.js';
 import type { Tool, ToolSpec } from '../types/tools.js';
 import type { BackgroundTask, BackgroundTaskStatus, CreateTaskInput } from '../daemon/types.js';
@@ -28,6 +29,8 @@ export interface Session {
   workspaceId: string | null;
   pinned: boolean;
   titleIsCustom: boolean;
+  /** 会话级权限模式；null = 继承工作区/全局默认 */
+  permissionMode: PermissionMode | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +55,8 @@ export interface SessionUpdate {
   status?: 'active' | 'archived';
   /** 会话级模型（形如 "providerId/modelId"）；null = 清空，回落到全局默认模型 */
   model?: string | null;
+  /** 会话级权限模式；null = 清空，回落到工作区/全局默认 */
+  permissionMode?: PermissionMode | null;
 }
 
 export interface SessionStore {
@@ -62,6 +67,7 @@ export interface SessionStore {
     titleIsCustom?: boolean;
     workspaceId?: string | null;
     type?: 'interactive' | 'background';
+    permissionMode?: PermissionMode | null;
   }): Promise<Session>;
   get(id: string): Promise<Session | undefined>;
   /** 带过滤/分页的列表（listRecent 的泛化） */

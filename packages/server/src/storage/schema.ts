@@ -46,6 +46,7 @@ export function createTenantSchema(schemaName: string) {
       workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null' }),
       pinned: boolean('pinned').notNull().default(false),
       titleIsCustom: boolean('title_is_custom').notNull().default(false),
+      permissionMode: text('permission_mode'),
       createdAt: text('created_at').notNull(),
       updatedAt: text('updated_at').notNull(),
     },

@@ -9,6 +9,7 @@
  * - v4（Phase 4）：+ users / api_keys
  * - v5（Phase 5）：+ workspaces；sessions +workspace_id/pinned/title_is_custom 列
  * - v6（Phase 6）：+ model_providers / model_settings（Web UI 模型配置）
+ * - v7（审批流）：sessions +permission_mode 列
  */
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -17,7 +18,7 @@ import { FatalError } from '../types/errors.js';
 
 export type SqliteDatabase = Database.Database;
 
-const SCHEMA_VERSION = '6';
+const SCHEMA_VERSION = '7';
 
 export function openDatabase(dbPath: string): SqliteDatabase {
   if (dbPath !== ':memory:') {
@@ -44,6 +45,7 @@ function initSchema(db: SqliteDatabase): void {
       model      TEXT NOT NULL,
       cwd        TEXT NOT NULL,
       status     TEXT NOT NULL DEFAULT 'active',
+      permission_mode TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -109,6 +111,14 @@ function initSchema(db: SqliteDatabase): void {
 
   if (afterV4 === '5') {
     migrateV5ToV6(db);
+  }
+
+  const afterV5 = (
+    db.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }
+  ).value;
+
+  if (afterV5 === '6') {
+    migrateV6ToV7(db);
   }
 
   const finalVersion = (
@@ -327,6 +337,20 @@ function migrateV5ToV6(db: SqliteDatabase): void {
     `);
 
     db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('6', 'schema_version');
+  });
+  migration();
+}
+
+/** v6 → v7：sessions 加 permission_mode 列（三级权限模式，NULL = 继承） */
+function migrateV6ToV7(db: SqliteDatabase): void {
+  const migration = db.transaction(() => {
+    const columns = db
+      .prepare('PRAGMA table_info(sessions)')
+      .all() as { name: string }[];
+    if (!columns.some((c) => c.name === 'permission_mode')) {
+      db.exec('ALTER TABLE sessions ADD COLUMN permission_mode TEXT');
+    }
+    db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('7', 'schema_version');
   });
   migration();
 }

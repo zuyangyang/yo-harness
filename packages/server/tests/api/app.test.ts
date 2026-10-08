@@ -35,6 +35,7 @@ function mockSessionManager(): SessionManager {
     resolveApproval: () => false,
     closeSession: () => {},
     invalidateSession: () => false,
+    applyPermissionMode: () => false,
     destroyAll: async () => {},
   } as unknown as SessionManager;
 }
@@ -307,6 +308,41 @@ describe('session routes', () => {
       method: 'PATCH',
       headers: authHeader(token),
       body: JSON.stringify({ model: '   ' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('PATCH permissionMode → 更新会话级权限模式', async () => {
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp' });
+    expect(session.permissionMode).toBeNull();
+
+    const res = await app.request(`/api/v1/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ permissionMode: 'auto' }),
+    });
+    expect(res.status).toBe(200);
+    expect((await json(res)).session.permissionMode).toBe('auto');
+    expect((await storage.sessions.get(session.id))?.permissionMode).toBe('auto');
+  });
+
+  it('PATCH permissionMode=null → 清空回落到默认', async () => {
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', permissionMode: 'full' });
+    const res = await app.request(`/api/v1/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ permissionMode: null }),
+    });
+    expect(res.status).toBe(200);
+    expect((await json(res)).session.permissionMode).toBeNull();
+  });
+
+  it('PATCH 非法 permissionMode → 400', async () => {
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp' });
+    const res = await app.request(`/api/v1/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ permissionMode: 'bogus' }),
     });
     expect(res.status).toBe(400);
   });

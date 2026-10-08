@@ -35,6 +35,7 @@ import { parseModelsJson } from '@yo-harness/core/storage/model-config-store.js'
 
 import type { StorageBackend } from './interface.js';
 import { createTenantSchema, type TenantTables } from './schema.js';
+import type { PermissionMode } from '@yo-harness/core/core/permission.js';
 import { runMigrations } from './migrate.js';
 import { PostgresUserStore } from './user-store.js';
 import { PostgresApiKeyStore } from './api-key-store.js';
@@ -127,12 +128,14 @@ class PostgresSessionStore implements SessionStore {
     titleIsCustom?: boolean;
     workspaceId?: string | null;
     type?: 'interactive' | 'background';
+    permissionMode?: PermissionMode | null;
   }): Promise<Session> {
     const id = randomUUID();
     const now = new Date().toISOString();
     const type = input.type ?? 'interactive';
     const workspaceId = input.workspaceId ?? null;
     const titleIsCustom = input.titleIsCustom ?? false;
+    const permissionMode = input.permissionMode ?? null;
 
     await this.db.insert(this.t.sessions).values({
       id,
@@ -144,6 +147,7 @@ class PostgresSessionStore implements SessionStore {
       workspaceId,
       pinned: false,
       titleIsCustom,
+      permissionMode,
       createdAt: now,
       updatedAt: now,
     });
@@ -158,6 +162,7 @@ class PostgresSessionStore implements SessionStore {
       workspaceId,
       pinned: false,
       titleIsCustom,
+      permissionMode,
       createdAt: now,
       updatedAt: now,
     };
@@ -224,6 +229,7 @@ class PostgresSessionStore implements SessionStore {
         ...(patch.pinned !== undefined ? { pinned: patch.pinned } : {}),
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         ...(patch.model !== undefined ? { model: patch.model ?? '' } : {}),
+        ...(patch.permissionMode !== undefined ? { permissionMode: patch.permissionMode } : {}),
         updatedAt: new Date().toISOString(),
       })
       .where(eq(this.t.sessions.id, id));
@@ -255,7 +261,8 @@ class PostgresSessionStore implements SessionStore {
 
 function mapSession(row: {
   id: string; title: string; model: string; cwd: string; status: string; type: string;
-  workspaceId: string | null; pinned: boolean; titleIsCustom: boolean; createdAt: string; updatedAt: string;
+  workspaceId: string | null; pinned: boolean; titleIsCustom: boolean;
+  permissionMode: string | null; createdAt: string; updatedAt: string;
 }): Session {
   return {
     id: row.id,
@@ -267,6 +274,10 @@ function mapSession(row: {
     workspaceId: row.workspaceId,
     pinned: row.pinned,
     titleIsCustom: row.titleIsCustom,
+    permissionMode:
+      row.permissionMode === 'ask' || row.permissionMode === 'auto' || row.permissionMode === 'full'
+        ? row.permissionMode
+        : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

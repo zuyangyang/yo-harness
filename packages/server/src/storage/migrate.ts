@@ -44,6 +44,7 @@ export async function runMigrations(client: PoolClient, schemaName: string): Pro
   await client.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS workspace_id TEXT REFERENCES workspaces(id) ON DELETE SET NULL`);
   await client.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE`);
   await client.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS title_is_custom BOOLEAN NOT NULL DEFAULT FALSE`);
+  await client.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS permission_mode TEXT`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_sessions_workspace ON sessions (workspace_id, updated_at DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions (status, updated_at DESC)`);
 

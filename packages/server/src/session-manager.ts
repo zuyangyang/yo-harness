@@ -19,9 +19,12 @@ import { ContextManager } from '@yo-harness/core/core/context-manager.js';
 import { EventBus } from '@yo-harness/core/core/event-bus.js';
 import {
   createInteractivePermission,
+  resolvePermissionMode,
   withApprovalEvents,
   type ApprovalRequest,
   type ApprovalAnswer,
+  type PermissionManager,
+  type PermissionMode,
   type PermissionSettings,
 } from '@yo-harness/core/core/permission.js';
 import type { EventStore, SessionStore, Session, ToolResolver } from '@yo-harness/core/core/ports.js';
@@ -47,6 +50,8 @@ interface ActiveSession {
   loop: AgentLoop;
   bus: EventBus;
   running: boolean;
+  /** 会话级权限管理器（支持运行期 setMode） */
+  permission: PermissionManager;
 }
 
 interface DeferredApproval {
@@ -107,6 +112,17 @@ export class SessionManager {
       this.deps.logger.error('turn failed', { sessionId: active.session.id, error: String(err) });
       return 'error';
     }
+  }
+
+  /**
+   * 运行期应用会话权限模式（仅对已激活会话生效）。
+   * mode=null 表示继承，回到全局默认。返回是否命中活跃会话。
+   */
+  applyPermissionMode(sessionId: string, mode: PermissionMode | null): boolean {
+    const active = this.active.get(sessionId);
+    if (!active) return false;
+    active.permission.setMode(mode ?? resolvePermissionMode(this.deps.permission));
+    return true;
   }
 
   interrupt(sessionId: string): Promise<void> {
@@ -255,10 +271,12 @@ export class SessionManager {
       return deferred.promise;
     };
 
-    const permission = createInteractivePermission(
-      withApprovalEvents(serverAsk, sink),
-      this.deps.permission,
-    );
+    // 会话级权限模式覆盖全局默认（null = 继承）
+    const policy: PermissionSettings =
+      session.permissionMode !== null
+        ? { ...this.deps.permission, mode: session.permissionMode }
+        : this.deps.permission;
+    const permission = createInteractivePermission(withApprovalEvents(serverAsk, sink), policy);
 
     const loop = new AgentLoop({
       sessionId,
@@ -277,7 +295,7 @@ export class SessionManager {
       logger: this.deps.logger,
     });
 
-    const active: ActiveSession = { session, loop, bus, running: false };
+    const active: ActiveSession = { session, loop, bus, running: false, permission };
     this.active.set(sessionId, active);
     return active;
   }

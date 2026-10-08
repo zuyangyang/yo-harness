@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { Session, SessionListFilter, SessionStore, SessionUpdate } from '../core/ports.js';
+import type { PermissionMode } from '../core/permission.js';
 import { FatalError } from '../types/errors.js';
 import type { SqliteDatabase } from './db.js';
 
@@ -14,6 +15,7 @@ interface SessionRow {
   workspace_id: string | null;
   pinned: number;
   title_is_custom: number;
+  permission_mode: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -32,18 +34,20 @@ export class SqliteSessionStore implements SessionStore {
     titleIsCustom?: boolean;
     workspaceId?: string | null;
     type?: 'interactive' | 'background';
+    permissionMode?: PermissionMode | null;
   }): Promise<Session> {
     const id = randomUUID();
     const now = new Date().toISOString();
     const type = input.type ?? 'interactive';
     const workspaceId = input.workspaceId ?? null;
     const titleIsCustom = input.titleIsCustom ?? false;
+    const permissionMode = input.permissionMode ?? null;
 
     this.db
       .prepare(
         `INSERT INTO sessions
-         (id, title, model, cwd, status, type, workspace_id, pinned, title_is_custom, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'active', ?, ?, 0, ?, ?, ?)`,
+         (id, title, model, cwd, status, type, workspace_id, pinned, title_is_custom, permission_mode, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'active', ?, ?, 0, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -53,6 +57,7 @@ export class SqliteSessionStore implements SessionStore {
         type,
         workspaceId,
         titleIsCustom ? 1 : 0,
+        permissionMode,
         now,
         now,
       );
@@ -67,6 +72,7 @@ export class SqliteSessionStore implements SessionStore {
       workspaceId,
       pinned: false,
       titleIsCustom,
+      permissionMode,
       createdAt: now,
       updatedAt: now,
     };
@@ -157,6 +163,10 @@ export class SqliteSessionStore implements SessionStore {
       sets.push('model = ?');
       params.push(patch.model ?? '');
     }
+    if (patch.permissionMode !== undefined) {
+      sets.push('permission_mode = ?');
+      params.push(patch.permissionMode);
+    }
 
     sets.push('updated_at = ?');
     params.push(new Date().toISOString());
@@ -208,7 +218,12 @@ function mapSession(row: SessionRow): Session {
     workspaceId: row.workspace_id,
     pinned: row.pinned === 1,
     titleIsCustom: row.title_is_custom === 1,
+    permissionMode: parsePermissionMode(row.permission_mode),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function parsePermissionMode(value: string | null): Session['permissionMode'] {
+  return value === 'ask' || value === 'auto' || value === 'full' ? value : null;
 }

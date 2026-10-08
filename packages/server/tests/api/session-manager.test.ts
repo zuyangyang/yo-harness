@@ -181,6 +181,16 @@ describe('SessionManager 模型配置变更', () => {
 });
 
 describe('SessionManager sendMessage', () => {
+  it('applyPermissionMode：活跃会话返回 true，未知会话 false', async () => {
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+    await manager.sendMessage(session.id, 'hello');
+    await waitForAssistantText(session.id, 1);
+
+    expect(manager.applyPermissionMode(session.id, 'full')).toBe(true);
+    expect(manager.applyPermissionMode('nonexistent', 'full')).toBe(false);
+    await manager.destroyAll();
+  });
+
   it('不存在的 session → 抛异常', async () => {
     await expect(manager.sendMessage('nonexistent', 'hello')).rejects.toThrow('session not found');
   });
@@ -242,6 +252,24 @@ describe('SessionManager 审批广播', () => {
 
     expect(manager.resolveApproval(pending[0]!.id, true, 'once')).toBe(true);
     expect(hub.broadcastApprovalResolved).toHaveBeenCalledWith(session.id, pending[0]!.id, 'once', 'user');
+    await manager.destroyAll();
+  });
+
+  it('会话 permissionMode=full → 写操作自动放行，不产生 pending', async () => {
+    const hub = createHub();
+    manager = scriptedManager(hub);
+    const session = await storage.sessions.create({
+      model: 'm',
+      cwd: '/tmp',
+      type: 'interactive',
+      permissionMode: 'full',
+    });
+
+    await manager.sendMessage(session.id, '写一个文件');
+    await waitForAssistantText(session.id, 2);
+
+    expect(manager.getPendingApprovals(session.id)).toEqual([]);
+    expect(hub.broadcastApprovalRequest).not.toHaveBeenCalled();
     await manager.destroyAll();
   });
 

@@ -31,6 +31,7 @@ const SESSION: Session = {
   workspaceId: null,
   pinned: false,
   titleIsCustom: true,
+  permissionMode: null,
   createdAt: '2026-09-30T00:00:00.000Z',
   updatedAt: '2026-09-30T00:00:00.000Z',
 };

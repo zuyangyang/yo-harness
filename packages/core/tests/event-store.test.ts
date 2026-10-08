@@ -154,13 +154,14 @@ describe('Schema v2 → 最新版 迁移', () => {
 
     // schema_version 已升级到最新版
     const version = (v3.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }).value;
-    expect(version).toBe('6');
+    expect(version).toBe('7');
 
     // 旧数据完整
     const session = v3.prepare('SELECT * FROM sessions WHERE id = ?').get('s1') as Record<string, unknown>;
     expect(session).toBeDefined();
     expect(session.title).toBe('old session');
     expect(session.type).toBe('interactive');
+    expect(session.permission_mode).toBeNull();
 
     const eventCount = (v3.prepare('SELECT COUNT(*) as cnt FROM events').get() as { cnt: number }).cnt;
     expect(eventCount).toBe(1);

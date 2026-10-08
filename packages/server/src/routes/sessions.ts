@@ -108,6 +108,7 @@ export function createSessionRoutes(deps: SessionsRouteDeps): Hono<ServerEnv> {
       pinned?: boolean;
       status?: 'active' | 'archived';
       model?: string | null;
+      permissionMode?: 'ask' | 'auto' | 'full' | null;
     }>();
 
     const existing = await storage.sessions.get(id);
@@ -163,11 +164,26 @@ export function createSessionRoutes(deps: SessionsRouteDeps): Hono<ServerEnv> {
       }
     }
 
+    let permissionChanged = false;
+    if (body.permissionMode !== undefined) {
+      const mode = body.permissionMode;
+      if (mode !== null && mode !== 'ask' && mode !== 'auto' && mode !== 'full') {
+        return c.json({ error: 'invalid permissionMode' }, 400);
+      }
+      patch.permissionMode = mode;
+      permissionChanged = mode !== existing.permissionMode;
+    }
+
     const session = await storage.sessions.update(id, patch);
 
     // 模型变更后丢弃该会话缓存的 loop，使其下一条消息按新模型重建
     if (modelChanged) {
       sessionManager.invalidateSession(id);
+    }
+
+    // 权限模式可在运行期即时生效（不打断在途 turn）
+    if (permissionChanged) {
+      sessionManager.applyPermissionMode(id, body.permissionMode ?? null);
     }
 
     return c.json({ session });

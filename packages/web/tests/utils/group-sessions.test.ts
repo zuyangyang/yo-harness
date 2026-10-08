@@ -18,6 +18,7 @@ function session(id: string, updatedAt: number): Session {
     workspaceId: null,
     pinned: false,
     titleIsCustom: false,
+    permissionMode: null,
     createdAt: iso,
     updatedAt: iso,
   };
