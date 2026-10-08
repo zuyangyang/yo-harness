@@ -15,7 +15,7 @@ import { useUiStore } from '../stores/ui.js';
 
 export function AppShell(): JSX.Element {
   const pendingApprovals = useApprovalStore((s) => s.pendingApprovals);
-  const removeApproval = useApprovalStore((s) => s.removeApproval);
+  const currentSessionId = useSessionStore((s) => s.currentSessionId);
   const createSession = useSessionStore((s) => s.createSession);
   const selectSession = useSessionStore((s) => s.selectSession);
   const activeModel = useModelStore((s) => s.active);
@@ -24,7 +24,9 @@ export function AppShell(): JSX.Element {
   const toggleContextPanel = useUiStore((s) => s.toggleContextPanel);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
-  const currentApproval = pendingApprovals[0] ?? null;
+  // 优先展示当前会话的待审批；没有则回退到任意（跨会话兜底）
+  const currentApproval =
+    pendingApprovals.find((a) => a.sessionId === currentSessionId) ?? pendingApprovals[0] ?? null;
 
   const handleNewSession = useCallback(async (workspaceId?: string | null): Promise<void> => {
     try {
@@ -73,12 +75,7 @@ export function AppShell(): JSX.Element {
       </main>
       <ContextPanel />
       {paletteOpen ? <CommandPalette onClose={() => setPaletteOpen(false)} /> : null}
-      {currentApproval ? (
-        <ApprovalDialog
-          request={currentApproval}
-          onDismiss={() => removeApproval(currentApproval.approvalId)}
-        />
-      ) : null}
+      {currentApproval ? <ApprovalDialog request={currentApproval} /> : null}
     </div>
   );
 }

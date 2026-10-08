@@ -206,6 +206,65 @@ describe('WebSocketClient', () => {
       });
     });
 
+    it('approval.request 携带 callId/risk/queuePosition', () => {
+      const client = new WebSocketClient();
+      const approvals: Record<string, unknown>[] = [];
+      client.on('approval', (req) => approvals.push(req as unknown as Record<string, unknown>));
+
+      client.connect();
+      simulateOpen(mockWsInstances[0]!);
+
+      simulateMessage(mockWsInstances[0]!, {
+        type: 'approval.request',
+        approvalId: 'a1',
+        sessionId: 's1',
+        callId: 'c1',
+        toolName: 'write_file',
+        summary: 'write_file a.txt (2 chars)',
+        risk: { level: 'low', reasons: ['工作区内写入'], ruleIds: ['write-in-workspace'] },
+        queuePosition: 1,
+        replayed: true,
+      });
+
+      expect(approvals[0]).toMatchObject({ callId: 'c1', queuePosition: 1, replayed: true });
+      expect((approvals[0]?.risk as { level: string }).level).toBe('low');
+    });
+
+    it('approval.resolved / approval.cancelled 路由到对应事件', () => {
+      const client = new WebSocketClient();
+      const resolved: unknown[] = [];
+      const cancelled: unknown[] = [];
+      client.on('approvalResolved', (p) => resolved.push(p));
+      client.on('approvalCancelled', (p) => cancelled.push(p));
+
+      client.connect();
+      simulateOpen(mockWsInstances[0]!);
+
+      simulateMessage(mockWsInstances[0]!, {
+        type: 'approval.resolved',
+        approvalId: 'a1',
+        sessionId: 's1',
+        approved: false,
+        resolution: 'deny',
+        source: 'timeout',
+      });
+      simulateMessage(mockWsInstances[0]!, {
+        type: 'approval.cancelled',
+        approvalId: 'a2',
+        sessionId: 's1',
+        reason: 'interrupted',
+      });
+
+      expect(resolved[0]).toEqual({
+        approvalId: 'a1',
+        sessionId: 's1',
+        approved: false,
+        resolution: 'deny',
+        source: 'timeout',
+      });
+      expect(cancelled[0]).toEqual({ approvalId: 'a2', sessionId: 's1', reason: 'interrupted' });
+    });
+
     it('error 消息路由到 error 事件', () => {
       const client = new WebSocketClient();
       const errors: unknown[] = [];
@@ -282,15 +341,25 @@ describe('WebSocketClient', () => {
   });
 
   describe('resolveApproval', () => {
-    it('发送 approval.resolve 消息', () => {
+    it('发送 approval.resolve 消息（resolution）', () => {
       const client = new WebSocketClient();
       client.connect();
       simulateOpen(mockWsInstances[0]!);
 
-      client.resolveApproval('a1', true, 'session');
+      client.resolveApproval('a1', 'session');
 
       expect(mockWsInstances[0]!.send).toHaveBeenCalledWith(
-        JSON.stringify({ type: 'approval.resolve', approvalId: 'a1', approved: true, scope: 'session' }),
+        JSON.stringify({ type: 'approval.resolve', approvalId: 'a1', resolution: 'session' }),
+      );
+    });
+
+    it('缺省 resolution 为 once', () => {
+      const client = new WebSocketClient();
+      client.connect();
+      simulateOpen(mockWsInstances[0]!);
+      client.resolveApproval('a1');
+      expect(mockWsInstances[0]!.send).toHaveBeenCalledWith(
+        JSON.stringify({ type: 'approval.resolve', approvalId: 'a1', resolution: 'once' }),
       );
     });
   });

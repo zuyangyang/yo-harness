@@ -8,13 +8,40 @@
  * - 事件发射：内部简易 EventEmitter，发射 'event' / 'approval' / 'error' / 'connected' / 'disconnected'
  */
 import type { EventEnvelope } from '@yo-harness/core/types/events.js';
-import { getToken } from './client.js';
+import { getToken, type ApprovalResolution } from './client.js';
+
+export interface ApprovalRiskSummary {
+  level: 'none' | 'low' | 'medium' | 'high';
+  reasons: string[];
+  ruleIds: string[];
+}
 
 export interface ApprovalRequest {
   approvalId: string;
   sessionId: string;
   toolName: string;
   summary: string;
+  callId?: string;
+  risk?: ApprovalRiskSummary;
+  options?: ApprovalResolution[];
+  createdAt?: string;
+  expiresAt?: string;
+  queuePosition?: number;
+  replayed?: boolean;
+}
+
+export interface ApprovalResolved {
+  approvalId: string;
+  sessionId: string;
+  approved: boolean;
+  resolution: ApprovalResolution;
+  source: 'user' | 'timeout' | 'system';
+}
+
+export interface ApprovalCancelled {
+  approvalId: string;
+  sessionId: string;
+  reason: string;
 }
 
 export interface RemoteError {
@@ -29,6 +56,8 @@ interface EmitterEvents {
   /** LLM 流式文本增量（实时渲染，不落库） */
   delta: [sessionId: string, delta: string];
   approval: [request: ApprovalRequest];
+  approvalResolved: [payload: ApprovalResolved];
+  approvalCancelled: [payload: ApprovalCancelled];
   error: [error: RemoteError];
 }
 
@@ -142,8 +171,13 @@ export class WebSocketClient extends SimpleEmitter {
     this.sendRaw({ type: 'unsubscribe', sessionId });
   }
 
-  resolveApproval(approvalId: string, approved: boolean, scope?: 'once' | 'session'): void {
-    this.sendRaw({ type: 'approval.resolve', approvalId, approved, scope });
+  resolveApproval(approvalId: string, resolution: ApprovalResolution = 'once'): void {
+    this.sendRaw({ type: 'approval.resolve', approvalId, resolution });
+  }
+
+  /** 连接是否处于 OPEN（供审批提交在 WS 不可用时降级 REST） */
+  isOpen(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
   }
 
   private handleMessage(msg: Record<string, unknown>): void {
@@ -154,12 +188,37 @@ export class WebSocketClient extends SimpleEmitter {
       case 'llm.delta':
         this.emit('delta', msg.sessionId as string, msg.delta as string);
         break;
-      case 'approval.request':
+      case 'approval.request': {
+        const risk = msg.risk as ApprovalRiskSummary | undefined;
         this.emit('approval', {
           approvalId: msg.approvalId as string,
           sessionId: msg.sessionId as string,
           toolName: msg.toolName as string,
           summary: msg.summary as string,
+          ...(typeof msg.callId === 'string' ? { callId: msg.callId } : {}),
+          ...(risk !== undefined ? { risk } : {}),
+          ...(Array.isArray(msg.options) ? { options: msg.options as ApprovalResolution[] } : {}),
+          ...(typeof msg.createdAt === 'string' ? { createdAt: msg.createdAt } : {}),
+          ...(typeof msg.expiresAt === 'string' ? { expiresAt: msg.expiresAt } : {}),
+          ...(typeof msg.queuePosition === 'number' ? { queuePosition: msg.queuePosition } : {}),
+          ...(msg.replayed === true ? { replayed: true } : {}),
+        });
+        break;
+      }
+      case 'approval.resolved':
+        this.emit('approvalResolved', {
+          approvalId: msg.approvalId as string,
+          sessionId: msg.sessionId as string,
+          approved: msg.approved === true,
+          resolution: msg.resolution as ApprovalResolution,
+          source: msg.source as ApprovalResolved['source'],
+        });
+        break;
+      case 'approval.cancelled':
+        this.emit('approvalCancelled', {
+          approvalId: msg.approvalId as string,
+          sessionId: msg.sessionId as string,
+          reason: msg.reason as string,
         });
         break;
       case 'error':

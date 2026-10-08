@@ -957,24 +957,24 @@ body {
   font-size: var(--font-size-sm);
 }
 
-.approval-scope {
-  display: flex;
-  gap: var(--space-5);
-  margin-bottom: var(--space-5);
+.approval-risk {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--warning-subtle);
+  color: var(--warning);
+  font-size: var(--font-size-sm);
 }
 
-.approval-scope label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  cursor: pointer;
-  font-size: var(--font-size-base);
+.approval-risk--high {
+  background: var(--danger-subtle);
+  color: var(--danger);
 }
 
 .approval-actions {
   display: flex;
   gap: var(--space-3);
   justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .approval-actions button {
