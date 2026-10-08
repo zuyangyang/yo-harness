@@ -5,10 +5,11 @@ import { groupEventsIntoTurns } from '../../utils/turn-grouping.js';
 import { api } from '../../api/client.js';
 import { filterSlashCommands } from '../../config/commands.js';
 import { useSessionStore } from '../../stores/session.js';
-import { TurnBlock } from './TurnBlock.js';
+import { TurnBlock, TurnWaiting } from './TurnBlock.js';
 import { SlashMenu } from './SlashMenu.js';
 import { AtMentionMenu, type MentionItem } from './AtMentionMenu.js';
 import { ModelSelector } from '../Model/ModelSelector.js';
+import { useModelStore, modelDisplayName } from '../../stores/model.js';
 import { IconButton } from '../ui/IconButton.js';
 import { toast } from '../../stores/toast.js';
 import {
@@ -25,6 +26,8 @@ const MAX_INPUT_HEIGHT = 240;
 export function ChatArea(): JSX.Element {
   const { currentSession, currentEvents, sendMessage, updateSession } = useSession();
   const sessions = useSessionStore((s) => s.sessions);
+  const deltas = useSessionStore((s) => s.deltas);
+  const activeModel = useModelStore((s) => s.active);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [menuIndex, setMenuIndex] = useState(0);
@@ -33,6 +36,10 @@ export function ChatArea(): JSX.Element {
   const turns = currentEvents.length > 0 ? groupEventsIntoTurns(currentEvents) : [];
   const lastTurn = turns[turns.length - 1];
   const isAgentRunning = Boolean(lastTurn && !lastTurn.endTime);
+  const streamingText = currentSession ? (deltas.get(currentSession.id) ?? '') : '';
+  const fallbackModel = currentSession
+    ? modelDisplayName(currentSession.model, activeModel)
+    : undefined;
 
   const slashOpen = input.startsWith('/');
   const slashMatches = slashOpen ? filterSlashCommands(input) : [];
@@ -190,15 +197,8 @@ export function ChatArea(): JSX.Element {
 
   return (
     <div className="chat-area">
-      <div className="chat-header">
-        <h2 className="chat-title">{currentSession.title ?? '(untitled)'}</h2>
-        <div className="chat-meta">
-          {currentSession.model} · {currentSession.cwd}
-        </div>
-      </div>
-
       <div className="chat-messages">
-        {turns.length === 0 ? (
+        {turns.length === 0 && !isSending ? (
           <div className="chat-empty">
             <div className="chat-empty-icon">
               <SparklesIcon className="icon-empty" />
@@ -206,7 +206,18 @@ export function ChatArea(): JSX.Element {
             <div className="chat-empty-text">Start a conversation by sending a message</div>
           </div>
         ) : (
-          turns.map((turn) => <TurnBlock key={turn.id} turn={turn} />)
+          <>
+            {turns.map((turn, idx) => (
+              <TurnBlock
+                key={turn.id}
+                turn={turn}
+                isRunning={idx === turns.length - 1 && isAgentRunning}
+                streamingText={idx === turns.length - 1 ? streamingText : ''}
+                fallbackModel={fallbackModel}
+              />
+            ))}
+            {isSending && !isAgentRunning && <TurnWaiting />}
+          </>
         )}
       </div>
 

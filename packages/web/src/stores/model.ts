@@ -44,6 +44,27 @@ export function defaultModelLabel(selection: ModelSelection): string | undefined
   return `${selection.providerId}/${selection.model}`;
 }
 
+/**
+ * 会话实际生效模型的展示名。
+ *
+ * - 会话级覆盖（"providerId/modelId"）→ 取 modelId；
+ * - 空串 / 'default'（跟随默认）→ 回退全局默认模型的 modelId。
+ *
+ * 仅用于展示（如每条回复右下角的生成模型）；旧会话没有 `session_started`
+ * 事件时也用它兜底。
+ */
+export function modelDisplayName(
+  sessionModel: string,
+  active: ModelSelection,
+): string | undefined {
+  const label = sessionModel.trim();
+  if (label !== '' && label !== 'default') {
+    const slash = label.indexOf('/');
+    return slash >= 0 ? label.slice(slash + 1) : label;
+  }
+  return active.model !== '' ? active.model : undefined;
+}
+
 export const useModelStore = create<ModelState>()((set, get) => ({
   providers: [],
   active: EMPTY_ACTIVE,

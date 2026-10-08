@@ -26,6 +26,8 @@ interface EmitterEvents {
   connected: [];
   disconnected: [];
   event: [sessionId: string, event: EventEnvelope];
+  /** LLM 流式文本增量（实时渲染，不落库） */
+  delta: [sessionId: string, delta: string];
   approval: [request: ApprovalRequest];
   error: [error: RemoteError];
 }
@@ -148,6 +150,9 @@ export class WebSocketClient extends SimpleEmitter {
     switch (msg.type) {
       case 'event':
         this.emit('event', msg.sessionId as string, msg.event as EventEnvelope);
+        break;
+      case 'llm.delta':
+        this.emit('delta', msg.sessionId as string, msg.delta as string);
         break;
       case 'approval.request':
         this.emit('approval', {

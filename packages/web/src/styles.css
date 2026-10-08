@@ -500,24 +500,6 @@ body {
   height: 100%;
 }
 
-.chat-header {
-  padding: var(--space-4) var(--space-6);
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-primary);
-}
-
-.chat-title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  margin-bottom: var(--space-1);
-}
-
-.chat-meta {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
 .chat-messages {
   flex: 1;
   overflow: auto;

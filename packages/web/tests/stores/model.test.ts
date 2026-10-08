@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ModelConfigView } from '../../src/api/client.js';
-import { useModelStore } from '../../src/stores/model.js';
+import { modelDisplayName, useModelStore } from '../../src/stores/model.js';
 
 function response(body: unknown, status = 200): Response {
   return {
@@ -56,6 +56,30 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('modelDisplayName', () => {
+  const active = { providerId: 'wlyd', model: 'deepseek-v4-pro' };
+
+  it('会话级覆盖取 modelId', () => {
+    expect(modelDisplayName('wlyd/claude-sonnet-4-5', active)).toBe('claude-sonnet-4-5');
+  });
+
+  it('无斜杠的旧标签原样返回', () => {
+    expect(modelDisplayName('gpt-4o', active)).toBe('gpt-4o');
+  });
+
+  it('跟随默认（空串）回退全局 active', () => {
+    expect(modelDisplayName('', active)).toBe('deepseek-v4-pro');
+  });
+
+  it("'default' 也回退全局 active", () => {
+    expect(modelDisplayName('default', active)).toBe('deepseek-v4-pro');
+  });
+
+  it('都为空时返回 undefined', () => {
+    expect(modelDisplayName('', { providerId: '', model: '' })).toBeUndefined();
+  });
 });
 
 describe('useModelStore', () => {

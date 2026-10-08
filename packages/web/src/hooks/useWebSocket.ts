@@ -14,6 +14,7 @@ import { useApprovalStore } from '../stores/approval.js';
 
 export function useWebSocket() {
   const addEvent = useSessionStore((state) => state.addEvent);
+  const appendDelta = useSessionStore((state) => state.appendDelta);
   const addApproval = useApprovalStore((state) => state.addApproval);
 
   useEffect(() => {
@@ -21,16 +22,22 @@ export function useWebSocket() {
       addEvent(sessionId, envelope);
     };
 
+    const onDelta = (sessionId: string, delta: string): void => {
+      appendDelta(sessionId, delta);
+    };
+
     const onApproval = (req: ApprovalRequest): void => {
       addApproval(req);
     };
 
     wsClient.on('event', onEvent);
+    wsClient.on('delta', onDelta);
     wsClient.on('approval', onApproval);
 
     return () => {
       wsClient.off('event', onEvent);
+      wsClient.off('delta', onDelta);
       wsClient.off('approval', onApproval);
     };
-  }, [addEvent, addApproval]);
+  }, [addEvent, appendDelta, addApproval]);
 }

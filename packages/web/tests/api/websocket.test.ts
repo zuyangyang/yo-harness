@@ -167,6 +167,20 @@ describe('WebSocketClient', () => {
       expect(events[0]).toEqual(['s1', envelope]);
     });
 
+    it('llm.delta 消息路由到 delta 事件', () => {
+      const client = new WebSocketClient();
+      const deltas: unknown[] = [];
+      client.on('delta', (...args) => deltas.push(args));
+
+      client.connect();
+      simulateOpen(mockWsInstances[0]!);
+
+      simulateMessage(mockWsInstances[0]!, { type: 'llm.delta', sessionId: 's1', delta: '你好' });
+
+      expect(deltas).toHaveLength(1);
+      expect(deltas[0]).toEqual(['s1', '你好']);
+    });
+
     it('approval.request 消息路由到 approval 事件', () => {
       const client = new WebSocketClient();
       const approvals: unknown[] = [];

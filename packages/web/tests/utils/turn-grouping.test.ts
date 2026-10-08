@@ -47,6 +47,29 @@ describe('groupEventsIntoTurns meta extraction', () => {
     expect(kinds).toEqual(['checkpoint', 'memory']);
   });
 
+  it('session_started 决定其后各 turn 的生效模型', () => {
+    const events = [
+      env({ type: 'session_started', model: 'deepseek-v4-pro', cwd: '/tmp' }),
+      env({ type: 'user_input', content: 'hi' }),
+      env({
+        type: 'turn_completed',
+        turnId: 't1',
+        reason: 'done',
+        usage: { inputTokens: 1, outputTokens: 1 },
+      }),
+      env({ type: 'session_started', model: 'claude-sonnet-4-5', cwd: '/tmp' }),
+      env({ type: 'user_input', content: 'again' }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns.map((t) => t.model)).toEqual(['deepseek-v4-pro', 'claude-sonnet-4-5']);
+  });
+
+  it('没有 session_started 时 model 缺省', () => {
+    const turns = groupEventsIntoTurns([env({ type: 'user_input', content: 'hi' })]);
+    expect(turns[0]?.model).toBeUndefined();
+  });
+
   it('uses the last tool-free assistant_text as the final reply', () => {
     const events = [
       env({ type: 'user_input', content: 'hi' }),

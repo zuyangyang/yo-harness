@@ -16,6 +16,8 @@ interface SessionState {
   sessions: Session[];
   currentSessionId: string | null;
   events: Map<string, EventEnvelope[]>;
+  /** 每个会话当前未提交的 LLM 流式文本（assistant_text 到达即清空） */
+  deltas: Map<string, string>;
   isLoading: boolean;
   error: string | null;
 
@@ -30,6 +32,7 @@ interface SessionState {
   deleteSession: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
   addEvent: (sessionId: string, envelope: EventEnvelope) => void;
+  appendDelta: (sessionId: string, delta: string) => void;
   clearError: () => void;
 }
 
@@ -37,6 +40,7 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   sessions: [],
   currentSessionId: null,
   events: new Map(),
+  deltas: new Map(),
   isLoading: false,
   error: null,
 
@@ -133,10 +137,13 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   deleteSession: async (id) => {
     try {
       await api.sessions.delete(id);
-      const { sessions, currentSessionId } = get();
+      const { sessions, currentSessionId, deltas } = get();
+      const nextDeltas = new Map(deltas);
+      nextDeltas.delete(id);
       set({
         sessions: sessions.filter((s) => s.id !== id),
         currentSessionId: currentSessionId === id ? null : currentSessionId,
+        deltas: nextDeltas,
       });
       if (currentSessionId === id) {
         wsClient.unsubscribe(id);
@@ -165,11 +172,29 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   },
 
   addEvent: (sessionId, envelope) => {
-    const { events } = get();
+    const { events, deltas } = get();
     const sessionEvents = events.get(sessionId) ?? [];
     sessionEvents.push(envelope);
     sessionEvents.sort((a, b) => a.seq - b.seq);
-    set({ events: new Map(events).set(sessionId, sessionEvents) });
+    const nextEvents = new Map(events).set(sessionId, sessionEvents);
+
+    // assistant_text 是流式文本的最终提交；turn_completed 兜底，避免残留半截流
+    const commit =
+      envelope.payload.type === 'assistant_text' || envelope.payload.type === 'turn_completed';
+    if (commit && deltas.has(sessionId)) {
+      const nextDeltas = new Map(deltas);
+      nextDeltas.delete(sessionId);
+      set({ events: nextEvents, deltas: nextDeltas });
+      return;
+    }
+    set({ events: nextEvents });
+  },
+
+  appendDelta: (sessionId, delta) => {
+    if (delta === '') return;
+    const { deltas } = get();
+    const current = deltas.get(sessionId) ?? '';
+    set({ deltas: new Map(deltas).set(sessionId, current + delta) });
   },
 
   clearError: () => set({ error: null }),

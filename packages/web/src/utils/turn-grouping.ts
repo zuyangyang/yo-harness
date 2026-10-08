@@ -42,6 +42,8 @@ export interface Turn {
     inputTokens: number;
     outputTokens: number;
   };
+  /** 生成本轮的生效模型（来自最近的 session_started 事件；旧数据可能缺失） */
+  model?: string;
   startTime: string;
   endTime?: string;
   endReason?: string;
@@ -55,19 +57,28 @@ export function groupEventsIntoTurns(events: EventEnvelope[]): Turn[] {
 interface RawTurn {
   userMessage: string;
   startTime: string;
+  /** 本 turn 开始时的生效模型 */
+  model?: string;
   events: EventEnvelope[];
 }
 
 function splitByUserInput(events: EventEnvelope[]): RawTurn[] {
   const turns: RawTurn[] = [];
   let current: RawTurn | null = null;
+  // 最近一次 session_started 声明的模型；下一条 user_input 起生效
+  let activeModel: string | undefined;
 
   for (const envelope of events) {
+    if (envelope.payload.type === 'session_started') {
+      activeModel = envelope.payload.model;
+      continue;
+    }
     if (envelope.payload.type === 'user_input') {
       if (current) turns.push(current);
       current = {
         userMessage: envelope.payload.content,
         startTime: envelope.ts,
+        ...(activeModel !== undefined ? { model: activeModel } : {}),
         events: [],
       };
       continue;
@@ -197,6 +208,7 @@ function buildTurn(raw: RawTurn, index: number): Turn {
     errors,
     meta,
     ...(usage ? { usage } : {}),
+    ...(raw.model !== undefined ? { model: raw.model } : {}),
     startTime: raw.startTime,
     ...(endTime ? { endTime } : {}),
     ...(endReason ? { endReason } : {}),
