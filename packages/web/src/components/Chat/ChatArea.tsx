@@ -9,6 +9,7 @@ import { TurnBlock, TurnWaiting } from './TurnBlock.js';
 import { SlashMenu } from './SlashMenu.js';
 import { AtMentionMenu, type MentionItem } from './AtMentionMenu.js';
 import { ModelSelector } from '../Model/ModelSelector.js';
+import { PermissionModeSelector } from '../Permissions/PermissionModeSelector.js';
 import { useModelStore, modelDisplayName } from '../../stores/model.js';
 import { IconButton } from '../ui/IconButton.js';
 import { toast } from '../../stores/toast.js';
@@ -246,6 +247,13 @@ export function ChatArea(): JSX.Element {
             <IconButton label="语音输入" size="sm" onClick={() => toast.info('语音输入开发中')}>
               <MicrophoneIcon className="icon-svg" />
             </IconButton>
+
+            <PermissionModeSelector
+              value={currentSession.permissionMode}
+              onChange={(mode) => {
+                void updateSession(currentSession.id, { permissionMode: mode });
+              }}
+            />
 
             <textarea
               ref={textareaRef}

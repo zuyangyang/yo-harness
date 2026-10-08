@@ -593,6 +593,131 @@ body {
   cursor: not-allowed;
 }
 
+/* ─── Permission mode selector (composer) ─── */
+.permission-mode {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.permission-mode__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.permission-mode__trigger:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.permission-mode__trigger--full {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-subtle);
+}
+
+.permission-mode__icon,
+.permission-mode__chevron {
+  width: 14px;
+  height: 14px;
+}
+
+.permission-mode__chevron {
+  opacity: 0.6;
+}
+
+.permission-mode__menu {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 40;
+  width: 320px;
+  padding: var(--space-1);
+  background: var(--bg-surface-raised, var(--bg-surface));
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.permission-mode__option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.permission-mode__option:hover {
+  background: var(--bg-hover);
+}
+
+.permission-mode__option--full .permission-mode__option-icon {
+  color: var(--danger);
+}
+
+.permission-mode__option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.permission-mode__option-label {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+}
+
+.permission-mode__option-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  line-height: var(--leading-normal);
+}
+
+.permission-mode__option-icon,
+.permission-mode__check {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.permission-mode__check {
+  color: var(--accent);
+}
+
+.permission-mode__confirm {
+  padding: var(--space-3);
+}
+
+.permission-mode__confirm-text {
+  font-size: var(--font-size-sm);
+  color: var(--danger);
+  margin-bottom: var(--space-3);
+  line-height: var(--leading-normal);
+}
+
+.permission-mode__confirm-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+
 .chat-input-right {
   display: flex;
   align-items: center;
