@@ -126,8 +126,12 @@ const configFileSchema = z.strictObject({
     .optional(),
   permission: z
     .strictObject({
-      shellMode: z.enum(['ask', 'allowlist', 'yolo']).optional(),
+      /** 三级权限模式（新）；缺省由 shellMode 推导 */
+      mode: z.enum(['ask', 'auto', 'full']).optional(),
+      shellMode: z.enum(['ask', 'allowlist', 'auto', 'yolo']).optional(),
       shellAllowlist: z.array(z.string().min(1)).optional(),
+      approvalTimeoutMs: z.number().int().nonnegative().optional(),
+      outsideWorkspace: z.enum(['ask', 'deny']).optional(),
     })
     .optional(),
   budget: z
@@ -379,6 +383,14 @@ export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
     shellMode: overrides.yolo === true ? 'yolo' : (file?.permission?.shellMode ?? 'ask'),
     shellAllowlist: file?.permission?.shellAllowlist ?? [],
   };
+  const configMode = overrides.yolo === true ? 'full' : file?.permission?.mode;
+  if (configMode !== undefined) permissionSettings.mode = configMode;
+  if (file?.permission?.approvalTimeoutMs !== undefined) {
+    permissionSettings.approvalTimeoutMs = file.permission.approvalTimeoutMs;
+  }
+  if (file?.permission?.outsideWorkspace !== undefined) {
+    permissionSettings.outsideWorkspace = file.permission.outsideWorkspace;
+  }
 
   const budgetFile = file?.budget;
   const activeModel =

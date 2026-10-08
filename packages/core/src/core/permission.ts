@@ -17,18 +17,39 @@
 import type { AgentEvent } from '../types/events.js';
 import type { Tool } from '../types/tools.js';
 
-export type ShellMode = 'ask' | 'allowlist' | 'yolo';
+export type ShellMode = 'ask' | 'allowlist' | 'auto' | 'yolo';
+
+/** UI 三级权限模式：询问 / 自动 / 完全访问 */
+export type PermissionMode = 'ask' | 'auto' | 'full';
 
 export interface PermissionSettings {
+  /**
+   * 三级权限模式。缺省时由 shellMode 推导（yolo→full，auto→auto，其余→ask），
+   * 以保持旧配置与 CLI 的兼容。
+   */
+  mode?: PermissionMode;
   shellMode: ShellMode;
   /** allowlist 模式下自动放行的命令（字面量，或作为整词前缀） */
   shellAllowlist: string[];
+  /** 等待人工审批的超时（ms）；0 / 缺省 = 不超时（fail-closed 在服务端实现） */
+  approvalTimeoutMs?: number;
+  /** 工作区外访问策略；缺省 ask */
+  outsideWorkspace?: 'ask' | 'deny';
 }
 
 export const DEFAULT_PERMISSION_SETTINGS: PermissionSettings = {
+  mode: 'ask',
   shellMode: 'ask',
   shellAllowlist: [],
 };
+
+/** 解析生效的权限模式：显式 mode 优先，否则由 shellMode 推导 */
+export function resolvePermissionMode(settings: PermissionSettings): PermissionMode {
+  if (settings.mode !== undefined) return settings.mode;
+  if (settings.shellMode === 'yolo') return 'full';
+  if (settings.shellMode === 'auto') return 'auto';
+  return 'ask';
+}
 
 export type ApprovalScope = 'once' | 'session';
 
@@ -51,6 +72,10 @@ export type ApprovalAsk = (request: ApprovalRequest) => Promise<ApprovalAnswer>;
 
 export interface PermissionManager {
   request(tool: Tool, args: Record<string, unknown>, callId: string): Promise<PermissionDecision>;
+  /** 运行期切换权限模式；不打断在途调用 */
+  setMode(mode: PermissionMode): void;
+  /** 当前生效模式 */
+  getMode(): PermissionMode;
 }
 
 /** allowlist 匹配：字面量相等，或以 "<entry> " 开头（"npm test" 放行 "npm test -- foo"） */
@@ -96,26 +121,30 @@ function autoApprove(
   args: Record<string, unknown>,
   settings: PermissionSettings,
 ): PermissionDecision | undefined {
-  // yolo：用户显式全量放行（含 write 与 danger）
-  if (settings.shellMode === 'yolo') return { approved: true, scope: 'once' };
+  const mode = resolvePermissionMode(settings);
+  // full：用户显式全量放行（含 write 与 danger）
+  if (mode === 'full') return { approved: true, scope: 'once' };
   if (tool.risk === 'read' || tool.risk === 'net') return { approved: true, scope: 'once' };
-  if (tool.risk === 'write') return undefined;
-  // danger（shell）按 shellMode
-  if (settings.shellMode === 'allowlist') {
+
+  // 显式白名单只作用于 danger（shell）；write 永远需要询问（除非 full）
+  if (tool.risk === 'danger' && (settings.shellMode === 'allowlist' || mode === 'auto')) {
     const command = typeof args.command === 'string' ? args.command : '';
     if (matchesAllowlist(command, settings.shellAllowlist)) {
       return { approved: true, scope: 'once' };
     }
   }
+
+  // ask：白名单未命中 → 询问；auto：write/danger 由风险引擎细化（P2），当前保守询问
   return undefined;
 }
 
 export function createInteractivePermission(
   ask: ApprovalAsk,
-  settings: PermissionSettings = DEFAULT_PERMISSION_SETTINGS,
+  initialSettings: PermissionSettings = DEFAULT_PERMISSION_SETTINGS,
 ): PermissionManager {
   /** "a" 记住的本会话放行工具；仅 write 级（danger 不做会话级放行，避免一次 "a" 后所有命令裸奔） */
   const sessionAllowed = new Set<string>();
+  let settings = initialSettings;
 
   return {
     async request(tool, args, callId) {
@@ -137,6 +166,12 @@ export function createInteractivePermission(
       }
       return { approved: true, scope: 'once' };
     },
+    setMode(mode) {
+      settings = { ...settings, mode };
+    },
+    getMode() {
+      return resolvePermissionMode(settings);
+    },
   };
 }
 
@@ -151,6 +186,13 @@ export function createNonInteractivePermission(
     request(tool, args) {
       const auto = autoApprove(tool, args, settings);
       return Promise.resolve(auto ?? { approved: false, scope: 'once' as const });
+    },
+    // 无人可问：运行期切换不改变"只放行自动规则、其余拒绝"的语义
+    setMode: () => {
+      return;
+    },
+    getMode() {
+      return resolvePermissionMode(settings);
     },
   };
 }

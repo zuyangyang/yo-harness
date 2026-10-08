@@ -98,6 +98,8 @@ class FakeToolResolver implements ToolResolver {
 /** 模拟权限管理器：始终批准 */
 const alwaysApprove: PermissionManager = {
   request: () => Promise.resolve({ approved: true as const, scope: 'once' as const }),
+  setMode: () => {},
+  getMode: () => 'ask' as const,
 };
 
 /** 创建有效计划 JSON */

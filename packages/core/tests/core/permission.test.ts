@@ -177,6 +177,34 @@ describe('createInteractivePermission', () => {
     expect(requests[1]?.toolName).toBe('write_config');
   });
 
+  it('mode=auto：白名单命中自动放行，未命中的 danger 仍询问', async () => {
+    const { ask, requests } = recordingAsk('yes');
+    const pm = createInteractivePermission(
+      ask,
+      { mode: 'auto', shellMode: 'ask', shellAllowlist: ['npm test'] },
+    );
+
+    // ARGS.command = 'npm test' 命中白名单
+    const allowed = await pm.request(shellTool, ARGS, 'call-1');
+    expect(allowed).toEqual({ approved: true, scope: 'once' });
+
+    const other = await pm.request(shellTool, { command: 'rm -rf /' }, 'call-2');
+    expect(other).toEqual({ approved: true, scope: 'once' });
+    expect(requests).toHaveLength(1);
+    expect(pm.getMode()).toBe('auto');
+  });
+
+  it('setMode：运行期切换到 full 后全量放行', async () => {
+    const { ask, requests } = recordingAsk('no');
+    const pm = createInteractivePermission(ask, { shellMode: 'ask', shellAllowlist: [] });
+
+    pm.setMode('full');
+    expect(pm.getMode()).toBe('full');
+    const decision = await pm.request(writeTool, ARGS, CALL_ID);
+    expect(decision).toEqual({ approved: true, scope: 'once' });
+    expect(requests).toHaveLength(0);
+  });
+
   it('danger + shellMode=ask → 每次都询问（yes 后下次仍询问）', async () => {
     const { ask, requests } = recordingAsk('yes');
     const pm = createInteractivePermission(ask, { shellMode: 'ask', shellAllowlist: [] });
