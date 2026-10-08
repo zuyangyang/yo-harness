@@ -228,11 +228,16 @@ export interface DiscoverModelsInput {
   apiKey?: string;
 }
 
+export type ApprovalResolution = 'once' | 'session' | 'always' | 'deny' | 'deny_and_stop';
+
 export interface PendingApproval {
   approvalId: string;
   sessionId: string;
+  callId?: string;
   toolName: string;
   summary: string;
+  createdAt?: string;
+  expiresAt?: string;
   args?: Record<string, unknown>;
 }
 
@@ -281,8 +286,8 @@ export const api = {
       fetchJson<{ ok: boolean }>('DELETE', `/api/v1/workspaces/${id}${purge ? '?purge=true' : ''}`),
   },
   approvals: {
-    resolve: (approvalId: string, approved: boolean, scope?: 'once' | 'session') =>
-      fetchJson<{ ok: boolean }>('POST', `/api/v1/approvals/${approvalId}/resolve`, { approved, scope }),
+    resolve: (approvalId: string, resolution: ApprovalResolution) =>
+      fetchJson<{ ok: boolean }>('POST', `/api/v1/approvals/${approvalId}/resolve`, { resolution }),
   },
   memories: {
     list: () => fetchJson<{ memories: Memory[] }>('GET', '/api/v1/memories'),
