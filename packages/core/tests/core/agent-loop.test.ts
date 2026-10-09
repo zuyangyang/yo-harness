@@ -30,7 +30,7 @@ import type {
 } from '../../src/types/events.js';
 import { TransientError, formatToolError, isTransientError } from '../../src/types/errors.js';
 import type { ChatResponse, LLMClient } from '../../src/types/llm.js';
-import type { Tool } from '../../src/types/tools.js';
+import type { ExecutionContext, Tool } from '../../src/types/tools.js';
 
 const SILENT_LOGGER: Logger = {
   debug: vi.fn(),
@@ -122,6 +122,10 @@ interface LoopOptions {
   ask?: ApprovalAsk;
   contextConfig?: ContextManagerConfig;
   budgetLimits?: Partial<BudgetLimits>;
+  /** 写前快照回调；提供时注入 AgentLoop.checkpoint */
+  checkpoint?: {
+    snapshotBeforeWrite: (relPath: string, seq: number) => Promise<string>;
+  };
 }
 
 interface LoopHarness {
@@ -175,6 +179,7 @@ function makeLoop(options: LoopOptions): LoopHarness {
     systemPrompt: 'You are yo.',
     maxTokens: 1024,
     logger: SILENT_LOGGER,
+    ...(options.checkpoint !== undefined ? { checkpoint: options.checkpoint } : {}),
   });
   return { loop, store, fake, bus, rec, contextConfig, costTracker };
 }
@@ -438,6 +443,40 @@ describe('AgentLoop', () => {
     expect(thirdToolMsg).toMatchObject({ role: 'tool', callId: 'c1' });
     if (thirdToolMsg?.role !== 'tool') throw new Error('expected tool message');
     expect(thirdToolMsg.text).toContain('[tool result elided');
+  });
+
+  it('写前快照：注入 checkpoint 后 tool.run 收到 snapshotBeforeWrite + 正确 seq', async () => {
+    const snapshotCalls: { relPath: string; seq: number }[] = [];
+    let capturedCtx: ExecutionContext | undefined;
+    const writer = makeTool('writer', 'write', (_args, ctx) => {
+      capturedCtx = ctx;
+      return Promise.resolve({ ok: true, content: 'wrote' });
+    });
+    const { loop, store } = makeLoop({
+      script: [resp('', [call('c1', 'writer')]), resp('done')],
+      tools: [writer],
+      // 放行 write，使工具真正执行、ctx 被捕获
+      permission: createNonInteractivePermission({ mode: 'full' }),
+      checkpoint: {
+        snapshotBeforeWrite: async (relPath, seq) => {
+          snapshotCalls.push({ relPath, seq });
+          return 'cp-1';
+        },
+      },
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    // tool_call 事件序号 = turn_started(1) + user_input(2) + assistant_text(3) + tool_call(4)
+    const toolCallEvent = store.events.find((e) => e.payload.type === 'tool_call');
+    expect(toolCallEvent).toBeDefined();
+    expect(capturedCtx?.currentSeq).toBe(toolCallEvent?.seq);
+    expect(capturedCtx?.snapshotBeforeWrite).toBeTypeOf('function');
+
+    // 触发快照回调，验证 relPath 与 seq 透传
+    await capturedCtx!.snapshotBeforeWrite!('a.txt');
+    expect(snapshotCalls).toEqual([{ relPath: 'a.txt', seq: toolCallEvent?.seq }]);
   });
 
   it('未知工具：ok=false 结果回传，回合继续', async () => {

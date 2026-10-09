@@ -21,6 +21,7 @@ import { AgentLoop } from '@yo-harness/core/core/agent-loop.js';
 import { TurnBudget } from '@yo-harness/core/core/budget.js';
 import { ContextManager } from '@yo-harness/core/core/context-manager.js';
 import { EventBus } from '@yo-harness/core/core/event-bus.js';
+import { CheckpointManager } from '@yo-harness/core/core/checkpoint.js';
 import { GoalTracker } from '@yo-harness/core/core/goal-tracker.js';
 import {
   createInteractivePermission,
@@ -286,7 +287,15 @@ async function launch(
         ? createNonInteractivePermission(config.permission)
         : createInteractivePermission(withApprovalEvents(bridge.ask, appendAndEmit), config.permission);
 
-    // 6) 主循环
+    // 6) 检查点存储（提前创建，供主循环写前快照注入）
+    const checkpointStore = config.checkpointing.enabled
+      ? new SqliteCheckpointStore(db)
+      : undefined;
+    const checkpointManager = checkpointStore !== undefined
+      ? new CheckpointManager(checkpointStore, session.id)
+      : undefined;
+
+    // 7) 主循环
     const loop = new AgentLoop({
       sessionId: session.id,
       cwd: session.cwd,
@@ -302,14 +311,17 @@ async function launch(
       systemPrompt: SYSTEM_PROMPT,
       maxTokens: DEFAULT_MAX_TOKENS,
       logger,
+      ...(checkpointManager !== undefined
+        ? {
+            checkpoint: {
+              snapshotBeforeWrite: (relPath: string, seq: number) =>
+                checkpointManager.snapshotBeforeWrite(session.cwd, relPath, seq),
+            },
+          }
+        : {}),
     });
 
     // ─── Phase 2 新增装配 ───
-
-    // 7) 检查点存储
-    const checkpointStore = config.checkpointing.enabled
-      ? new SqliteCheckpointStore(db)
-      : undefined;
 
     // 8) 目标追踪器
     const goalTracker = new GoalTracker({

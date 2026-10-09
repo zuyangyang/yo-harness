@@ -58,6 +58,13 @@ export interface AgentLoopDeps {
   logger: Logger;
   /** Phase 4：沙箱提供者 */
   sandbox: SandboxProvider;
+  /**
+   * 写前快照回调；undefined = 禁用（测试 / 无检查点场景）。
+   * relPath 相对 cwd，seq 为触发写的 tool_call 事件序号。
+   */
+  checkpoint?: {
+    snapshotBeforeWrite: (relPath: string, seq: number) => Promise<string>;
+  };
 }
 
 /** LLM 阶段失败的标记：error 事件 stage='llm'，原始错误保存在 original */
@@ -134,13 +141,13 @@ export class AgentLoop {
       });
       if (resp.toolCalls.length === 0) return 'done';
       for (const toolCall of resp.toolCalls) {
-        await this.appendAndPush({
+        const toolCallEnvelope = await this.appendAndPush({
           type: 'tool_call',
           callId: toolCall.callId,
           toolName: toolCall.toolName,
           args: toolCall.args,
         });
-        await this.executeTool(toolCall);
+        await this.executeTool(toolCall, toolCallEnvelope.seq);
       }
     }
   }
@@ -166,7 +173,7 @@ export class AgentLoop {
     }
   }
 
-  private async executeTool(toolCall: ToolCall): Promise<void> {
+  private async executeTool(toolCall: ToolCall, seq: number): Promise<void> {
     const tool = this.deps.tools.get(toolCall.toolName);
     if (tool === undefined) {
       await this.appendAndPush({
@@ -201,11 +208,19 @@ export class AgentLoop {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       let result: ToolResult;
       try {
+        const checkpoint = this.deps.checkpoint;
         result = await tool.run(toolCall.args, {
           sessionId: this.deps.sessionId,
           cwd: this.deps.cwd,
           logger: this.deps.logger,
           sandbox: this.deps.sandbox,
+          ...(checkpoint !== undefined
+            ? {
+                snapshotBeforeWrite: (relPath: string) =>
+                  checkpoint.snapshotBeforeWrite(relPath, seq),
+                currentSeq: seq,
+              }
+            : {}),
         });
       } catch (err) {
         // 契约：run() 永不 throw；违约降级为失败结果，回合继续
@@ -256,9 +271,10 @@ export class AgentLoop {
   }
 
   /** 落库 + 广播 + 投影。先 append 后 push：append 抛错时上下文保持一致 */
-  private async appendAndPush(event: AgentEvent): Promise<void> {
-    await this.append(event);
+  private async appendAndPush(event: AgentEvent): Promise<EventEnvelope> {
+    const envelope = await this.append(event);
     this.deps.context.push(event);
+    return envelope;
   }
 
   private async append(event: AgentEvent): Promise<EventEnvelope> {
