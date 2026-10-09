@@ -55,6 +55,7 @@ import { MemoryInjector } from '@yo-harness/core/memory/injector.js';
 import { createBuiltinRegistry } from '@yo-harness/core/tools/registry.js';
 import { createLogger, parseLogLevel } from '@yo-harness/core/utils/logger.js';
 import { yoHome } from '@yo-harness/core/utils/paths.js';
+import { TokenCalibrator } from '@yo-harness/core/utils/tokens.js';
 import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
 import type { Logger } from '@yo-harness/core/types/common.js';
 import { App } from './app.js';
@@ -236,9 +237,10 @@ async function launch(
     // 1) 网关
     const gateway = new LLMGateway(new Map([[providerName, llm]]), { defaultProvider: providerName });
 
-    // 1b) 路由器 + 成本追踪
+    // 1b) 路由器 + 成本追踪 + token 校准器
     const router = new ModelRouter(gateway, config.modelRoles ?? {});
     const costTracker = new CostTracker();
+    const tokenCalibrator = new TokenCalibrator();
 
     // 2) 工具注册表
     const registry = createBuiltinRegistry({
@@ -269,7 +271,12 @@ async function launch(
     }
 
     // 4) 上下文管理器：从历史事件重建（新会话只有 session_started，fromEvents 等价于空）
-    const context = ContextManager.fromEvents(priorEvents, { contextWindow: providerConf.contextWindow });
+    const context = ContextManager.fromEvents(priorEvents, {
+      contextWindow: providerConf.contextWindow,
+      calibrator: tokenCalibrator,
+      calibratorProvider: router.getProvider('main'),
+      calibratorModel: router.getClient('main').model,
+    });
 
     // 4b) 自适应压缩器：显式配置 compressor 角色时用 LLM 摘要，否则零成本截断兜底
     if (config.compression?.enabled ?? true) {
@@ -355,6 +362,7 @@ async function launch(
       goalTracker,
       pricing: DEFAULT_PRICING_TABLE,
       ...(config.toolsSchemaMode !== undefined ? { toolsSchemaMode: config.toolsSchemaMode } : {}),
+      tokenCalibrator,
     });
 
     // ─── Phase 2 新增装配 ───

@@ -7,6 +7,7 @@ import {
   estimateMessagesTokens,
   estimateTokens,
   logTokenCalibration,
+  TokenCalibrator,
 } from '../../src/utils/tokens.js';
 
 const usage = (inputTokens: number, outputTokens: number): Usage => ({
@@ -96,5 +97,41 @@ describe('logTokenCalibration', () => {
     logTokenCalibration(logger, 0, usage(300, 0));
     logTokenCalibration(logger, 100, usage(0, 0));
     expect(debug).not.toHaveBeenCalled();
+  });
+});
+
+describe('TokenCalibrator', () => {
+  it('未观测时 ratio 默认 1.0', () => {
+    const cal = new TokenCalibrator();
+    expect(cal.ratio('p', 'm')).toBe(1);
+  });
+
+  it('alpha=1 时完全采用最新样本', () => {
+    const cal = new TokenCalibrator(1);
+    cal.observe('p', 'm', 100, 300);
+    expect(cal.ratio('p', 'm')).toBe(3);
+  });
+
+  it('EMA 平滑：多次观测向真实比值收敛', () => {
+    const cal = new TokenCalibrator(0.5);
+    cal.observe('p', 'm', 100, 200); // 1 * 0.5 + 2 * 0.5 = 1.5
+    expect(cal.ratio('p', 'm')).toBe(1.5);
+    cal.observe('p', 'm', 100, 200); // 1.5 * 0.5 + 2 * 0.5 = 1.75
+    expect(cal.ratio('p', 'm')).toBe(1.75);
+  });
+
+  it('不同模型独立追踪', () => {
+    const cal = new TokenCalibrator(1);
+    cal.observe('p', 'a', 100, 200);
+    cal.observe('p', 'b', 100, 400);
+    expect(cal.ratio('p', 'a')).toBe(2);
+    expect(cal.ratio('p', 'b')).toBe(4);
+  });
+
+  it('估算或实际为 0 时忽略样本', () => {
+    const cal = new TokenCalibrator(1);
+    cal.observe('p', 'm', 0, 300);
+    cal.observe('p', 'm', 100, 0);
+    expect(cal.ratio('p', 'm')).toBe(1);
   });
 });

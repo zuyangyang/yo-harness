@@ -60,3 +60,34 @@ export function logTokenCalibration(
     ratio: Number(ratio.toFixed(2)),
   });
 }
+
+/**
+ * 逐模型 token 估算校准器（§10.1）。
+ *
+ * 用 EMA 跟踪「实际 inputTokens / 估算 tokens」的比值，
+ * 让预算决策（省略 / 丢弃）随真实偏差收敛。默认 ratio = 1.0（不校正）。
+ * 进程级内存态，暂不持久化。
+ */
+export class TokenCalibrator {
+  private readonly ratios = new Map<string, number>();
+  /** EMA 平滑系数：越大越追新样本 */
+  private readonly alpha: number;
+
+  constructor(alpha = 0.3) {
+    this.alpha = alpha;
+  }
+
+  /** 记录一次真实响应的估算偏差，EMA 更新该模型的 ratio */
+  observe(provider: string, model: string, estimated: number, actual: number): void {
+    if (estimated <= 0 || actual <= 0) return;
+    const key = `${provider}/${model}`;
+    const sample = actual / estimated;
+    const prev = this.ratios.get(key) ?? 1;
+    this.ratios.set(key, prev * (1 - this.alpha) + sample * this.alpha);
+  }
+
+  /** 该模型当前的校准系数（未观测过返回 1.0） */
+  ratio(provider: string, model: string): number {
+    return this.ratios.get(`${provider}/${model}`) ?? 1;
+  }
+}

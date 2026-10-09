@@ -31,7 +31,7 @@ import { BudgetStop, isTransientError, TransientError } from '../types/errors.js
 import type { ChatMessage, ChatRequest, ChatResponse, LLMClient } from '../types/llm.js';
 import type { ToolResult } from '../types/tools.js';
 import type { SandboxProvider } from '../types/sandbox.js';
-import { logTokenCalibration } from '../utils/tokens.js';
+import { TokenCalibrator } from '../utils/tokens.js';
 import type { TurnBudget } from './budget.js';
 import type { ContextBuildResult, ContextManager } from './context-manager.js';
 import type { EventBus } from './event-bus.js';
@@ -81,6 +81,8 @@ export interface AgentLoopDeps {
   pricing?: PricingTable;
   /** 工具 schema 下发模式（§9.3）；默认 full，compact 裁到顶层属性名 */
   toolsSchemaMode?: 'full' | 'compact';
+  /** 逐模型 token 估算校准器（§10.1）；undefined = 不校准 */
+  tokenCalibrator?: TokenCalibrator;
 }
 
 /** 连续 max_tokens 截断的续写上限，超过则按当前输出收尾，防止死循环 */
@@ -179,7 +181,7 @@ export class AgentLoop {
       budget.addUsage(resp.usage);
       this.turnUsage.inputTokens += resp.usage.inputTokens;
       this.turnUsage.outputTokens += resp.usage.outputTokens;
-      logTokenCalibration(logger, built.estTokens, resp.usage);
+      this.observeCalibration(built.estTokens, resp.usage);
       this.emitStatus(built);
 
       // max_tokens 截断：丢弃可能不完整的 toolCalls，落库文本并注入续写
@@ -380,6 +382,21 @@ export class AgentLoop {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /** 用真实 inputTokens 校准该模型估算比值，并 debug 记录（§10.1） */
+  private observeCalibration(estimatedTokens: number, usage: Usage): void {
+    if (this.deps.tokenCalibrator === undefined) return;
+    const provider = this.deps.router.getProvider('main');
+    const model = this.deps.router.getClient('main').model;
+    this.deps.tokenCalibrator.observe(provider, model, estimatedTokens, usage.inputTokens);
+    this.deps.logger.debug('token calibration', {
+      provider,
+      model,
+      estimated: estimatedTokens,
+      actual: usage.inputTokens,
+      ratio: Number(this.deps.tokenCalibrator.ratio(provider, model).toFixed(2)),
+    });
   }
 
   /** 查主角色当前模型的价格；未配置价格表返回 undefined */

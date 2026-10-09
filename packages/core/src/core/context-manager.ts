@@ -19,7 +19,7 @@
  */
 import type { AgentEvent } from '../types/events.js';
 import type { ChatMessage } from '../types/llm.js';
-import { estimateMessageTokens, estimateTokens } from '../utils/tokens.js';
+import { estimateMessageTokens, estimateTokens, TokenCalibrator } from '../utils/tokens.js';
 import type { Compressor } from './compressor.js';
 
 /** 输出预留：为模型本次回复保留的空间，不计入 body 预算 */
@@ -39,6 +39,11 @@ export interface ContextManagerConfig {
   toolsSystemReserveTokens?: number;
   /** (0, 1]，预算内目标占比 */
   bodyTargetRatio?: number;
+  /** Phase 4: 可选的 token 校准器；注入后估算 × ratio 校正预算 */
+  calibrator?: TokenCalibrator;
+  /** Phase 4: 校准键（provider + model）；与 calibrator 一起注入 */
+  calibratorProvider?: string;
+  calibratorModel?: string;
 }
 
 export interface ContextBuildResult {
@@ -99,12 +104,32 @@ export class ContextManager {
   /** Phase 2: 可选的压缩器 */
   private compressor: Compressor | undefined;
 
+  /** Phase 4: 可选的 token 校准器（估算 × ratio 校正预算） */
+  private readonly calibrator: TokenCalibrator | undefined;
+  private readonly calibratorProvider: string | undefined;
+  private readonly calibratorModel: string | undefined;
+
   constructor(readonly config: ContextManagerConfig) {
     this.keepRecent = config.keepRecent ?? DEFAULT_KEEP_RECENT;
     this.outputReserveTokens = config.outputReserveTokens ?? DEFAULT_OUTPUT_RESERVE_TOKENS;
     this.toolsSystemReserveTokens =
       config.toolsSystemReserveTokens ?? DEFAULT_TOOLS_SYSTEM_RESERVE_TOKENS;
     this.bodyTargetRatio = config.bodyTargetRatio ?? DEFAULT_BODY_TARGET_RATIO;
+    this.calibrator = config.calibrator;
+    this.calibratorProvider = config.calibratorProvider;
+    this.calibratorModel = config.calibratorModel;
+  }
+
+  /** 按当前模型的校准系数缩放估算值（未注入校准器时原样返回） */
+  private scale(tokens: number): number {
+    if (
+      this.calibrator === undefined ||
+      this.calibratorProvider === undefined ||
+      this.calibratorModel === undefined
+    ) {
+      return tokens;
+    }
+    return Math.ceil(tokens * this.calibrator.ratio(this.calibratorProvider, this.calibratorModel));
   }
 
   /** Phase 2: 注入压缩器（可选） */
@@ -136,7 +161,7 @@ export class ContextManager {
     const message = eventToMessage(event);
     if (message === undefined) return;
     this.messages.push(message);
-    const est = estimateMessageTokens(message);
+    const est = this.scale(estimateMessageTokens(message));
     this.ests.push(est);
     this.estTotal += est;
 
@@ -178,7 +203,7 @@ export class ContextManager {
         compressedAfterTokens = compressed.afterTokens;
         workingMessages = compressed.messages;
         // 重新计算 ests 和 estTotal
-        ests = workingMessages.map((m) => estimateMessageTokens(m));
+        ests = workingMessages.map((m) => this.scale(estimateMessageTokens(m)));
         estTotal = ests.reduce((sum, est) => sum + est, 0);
       }
     }
@@ -194,7 +219,7 @@ export class ContextManager {
           this.callIdToToolName.get(message.callId) ?? 'unknown',
           message.callId,
         );
-        const newEst = estimateTokens(placeholder);
+        const newEst = this.scale(estimateTokens(placeholder));
         if (newEst >= (ests[i] ?? 0)) continue; // 占位符不小于原文，省略无益
         estTotal -= (ests[i] ?? 0) - newEst;
         ests[i] = newEst;

@@ -11,7 +11,7 @@ import {
 import type { ContextManagerConfig } from '../../src/core/context-manager.js';
 import type { AgentEvent, ToolCall } from '../../src/types/events.js';
 import type { ChatMessage } from '../../src/types/llm.js';
-import { estimateMessagesTokens, estimateTokens } from '../../src/utils/tokens.js';
+import { estimateMessagesTokens, estimateTokens, TokenCalibrator } from '../../src/utils/tokens.js';
 
 // ---------------------------------------------------------------------------
 // 测试设施
@@ -85,6 +85,20 @@ describe('ContextManager', () => {
     const manager = new ContextManager({ contextWindow: 100_000 });
     expect(manager.bodyBudgetTokens()).toBe(Math.floor((100_000 - 4_000 - 8_000) * 0.8));
     expect(manager.bodyBudgetTokens()).toBe(70_400);
+  });
+
+  it('注入 calibrator 后估算按 ratio 缩放', async () => {
+    const cal = new TokenCalibrator(1);
+    cal.observe('p', 'm', 100, 300); // ratio = 3
+    const manager = new ContextManager({
+      ...tightConfig(100_000),
+      calibrator: cal,
+      calibratorProvider: 'p',
+      calibratorModel: 'm',
+    });
+    manager.push({ type: 'user_input', content: 'abcd' }); // est 1 -> ceil(1*3) = 3
+    const result = await manager.build();
+    expect(result.estTokens).toBe(3);
   });
 
   it('push 投影：10 个事件 → 8 条消息（tool_call 只登记名称不产出消息）', () => {
