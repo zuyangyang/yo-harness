@@ -36,11 +36,23 @@ export const DEFAULT_PRICING_TABLE: PricingTable = {
   },
 };
 
-/** 按 provider + model 查价格；未登记返回 undefined */
+/**
+ * 查价格：先精确匹配 `${provider}/${model}`，未命中再退化为「按模型名匹配」。
+ *
+ * 退化的意义：用户自定义 provider id（如网关别名 wlyd）与内置 key 对不上时，
+ * 只要模型名已登记仍能算出成本。同名模型被多家登记时按插入顺序取第一个。
+ * 未登记返回 undefined（调用方据此只展示 token，不展示金额）。
+ */
 export function lookupPrice(
   table: PricingTable,
   provider: string,
   model: string,
 ): ModelPrice | undefined {
-  return table[`${provider}/${model}`];
+  const exact = table[`${provider}/${model}`];
+  if (exact !== undefined) return exact;
+  const suffix = `/${model}`;
+  for (const [key, price] of Object.entries(table)) {
+    if (key.endsWith(suffix)) return price;
+  }
+  return undefined;
 }
