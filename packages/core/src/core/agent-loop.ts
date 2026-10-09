@@ -40,6 +40,7 @@ import type { PermissionManager } from './permission.js';
 import type { ModelRouter } from '../router/model-router.js';
 import type { CostTracker } from '../router/cost-tracker.js';
 import { lookupPrice } from '../llm/pricing.js';
+import { estimateCost } from '../types/pricing.js';
 import type { ModelPrice, PricingTable } from '../types/pricing.js';
 
 export interface AgentLoopDeps {
@@ -108,6 +109,8 @@ class InterruptedError extends Error {
 export class AgentLoop {
   private interruptFlag = false;
   private turnUsage: Usage = { inputTokens: 0, outputTokens: 0 };
+  /** 本轮累计成本（USD）；无价格表/无价格时为 undefined */
+  private turnCost: number | undefined;
   private truncationCount = 0;
   private recentToolCalls: ToolCall[] = [];
   private turnAbort: AbortController | undefined;
@@ -129,6 +132,7 @@ export class AgentLoop {
     const turnId = randomUUID();
     this.interruptFlag = false;
     this.turnUsage = { inputTokens: 0, outputTokens: 0 };
+    this.turnCost = undefined;
     this.truncationCount = 0;
     this.recentToolCalls = [];
     this.turnAbort = new AbortController();
@@ -221,6 +225,7 @@ export class AgentLoop {
         onTextDelta: (delta) => this.deps.bus.emit('llm_delta', delta),
         ...(this.turnAbort !== undefined ? { signal: this.turnAbort.signal } : {}),
       });
+      const price = this.priceFor(client);
       this.deps.costTracker.record(
         {
           role: 'main',
@@ -229,8 +234,12 @@ export class AgentLoop {
           inputTokens: resp.usage.inputTokens,
           outputTokens: resp.usage.outputTokens,
         },
-        this.priceFor(client),
+        price,
       );
+      if (price !== undefined) {
+        const cost = estimateCost(resp.usage, price);
+        if (cost !== undefined) this.turnCost = (this.turnCost ?? 0) + cost;
+      }
       return resp;
     } catch (err) {
       // 防御：熔断异常不该在这儿抛，别包丢 reason
@@ -457,16 +466,18 @@ export class AgentLoop {
       estTokens: built.estTokens,
       bodyBudgetTokens: built.bodyBudgetTokens,
       usage: { ...this.turnUsage },
+      ...(this.turnCost !== undefined ? { cost: this.turnCost } : {}),
     });
   }
 
   /** turn_completed 落库失败不允许掩盖真实结束原因；总线广播始终执行 */
   private async finishTurn(turnId: string, reason: TurnEndReason): Promise<void> {
+    const cost = this.turnCost !== undefined ? { cost: this.turnCost } : {};
     try {
-      await this.append({ type: 'turn_completed', turnId, reason, usage: this.turnUsage });
+      await this.append({ type: 'turn_completed', turnId, reason, usage: this.turnUsage, ...cost });
     } catch (err) {
       this.deps.logger.error('failed to persist turn_completed event', { error: String(err) });
     }
-    this.deps.bus.emit('turn_completed', { reason, usage: { ...this.turnUsage } });
+    this.deps.bus.emit('turn_completed', { reason, usage: { ...this.turnUsage }, ...cost });
   }
 }

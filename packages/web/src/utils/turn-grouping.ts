@@ -49,6 +49,8 @@ export interface Turn {
     inputTokens: number;
     outputTokens: number;
   };
+  /** 本轮累计成本（USD）；无价格时为缺省 */
+  cost?: number;
   /** 生成本轮的生效模型（来自最近的 session_started 事件；旧数据可能缺失） */
   model?: string;
   startTime: string;
@@ -109,6 +111,7 @@ function buildTurn(raw: RawTurn, index: number): Turn {
   const meta: TurnMetaItem[] = [];
   let metaSeq = 0;
   let usage: Turn['usage'];
+  let cost: number | undefined;
   let endTime: string | undefined;
   let endReason: string | undefined;
 
@@ -173,6 +176,7 @@ function buildTurn(raw: RawTurn, index: number): Turn {
 
       case 'turn_completed':
         usage = event.usage;
+        cost = event.cost;
         endTime = envelope.ts;
         endReason = event.reason;
         break;
@@ -230,6 +234,7 @@ function buildTurn(raw: RawTurn, index: number): Turn {
     errors,
     meta,
     ...(usage ? { usage } : {}),
+    ...(cost !== undefined ? { cost } : {}),
     ...(raw.model !== undefined ? { model: raw.model } : {}),
     startTime: raw.startTime,
     ...(endTime ? { endTime } : {}),

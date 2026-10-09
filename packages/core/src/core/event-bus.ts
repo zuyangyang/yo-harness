@@ -22,6 +22,8 @@ export interface AgentStatus {
   estTokens: number;
   bodyBudgetTokens: number;
   usage: Usage;
+  /** 本轮累计成本（USD）；无价格时为 undefined */
+  cost?: number;
 }
 
 /** 通道 → 载荷 */
@@ -29,7 +31,7 @@ export interface BusEventMap {
   event: EventEnvelope;
   llm_delta: string;
   status: AgentStatus;
-  turn_completed: { reason: TurnEndReason; usage: Usage };
+  turn_completed: { reason: TurnEndReason; usage: Usage; cost?: number };
 }
 
 export class EventBus {

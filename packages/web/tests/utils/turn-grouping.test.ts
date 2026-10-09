@@ -154,4 +154,35 @@ describe('groupEventsIntoTurns meta extraction', () => {
     expect(turns[0]?.finalText).toBe('final answer');
     expect(turns[0]?.thinkingTexts).toEqual(['thinking…']);
   });
+
+  it('turn_completed 的 cost 提取到 turn', () => {
+    const events = [
+      env({ type: 'user_input', content: 'hi' }),
+      env({
+        type: 'turn_completed',
+        turnId: 't1',
+        reason: 'done',
+        usage: { inputTokens: 10, outputTokens: 20 },
+        cost: 0.02,
+      }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0]?.cost).toBe(0.02);
+  });
+
+  it('无 cost 的 turn_completed 不产生 cost 字段', () => {
+    const events = [
+      env({ type: 'user_input', content: 'hi' }),
+      env({
+        type: 'turn_completed',
+        turnId: 't1',
+        reason: 'done',
+        usage: { inputTokens: 10, outputTokens: 20 },
+      }),
+    ];
+
+    const turns = groupEventsIntoTurns(events);
+    expect(turns[0]?.cost).toBeUndefined();
+  });
 });

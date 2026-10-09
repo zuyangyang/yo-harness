@@ -222,6 +222,10 @@ function TurnMeta({
     }
   }
 
+  if (turn.cost !== undefined) {
+    parts.push(`$${turn.cost.toFixed(4)}`);
+  }
+
   const model = turn.model ?? fallbackModel;
   const hasChips = turn.meta.length > 0;
   if (parts.length === 0 && !hasChips && model === undefined) return null;

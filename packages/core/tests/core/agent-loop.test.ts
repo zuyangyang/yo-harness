@@ -19,6 +19,7 @@ import { FakeLLMClient } from '../../src/llm/providers/fake.js';
 import { LLMGateway } from '../../src/llm/gateway.js';
 import { ModelRouter } from '../../src/router/model-router.js';
 import { CostTracker } from '../../src/router/cost-tracker.js';
+import type { PricingTable } from '../../src/types/pricing.js';
 import { ToolRegistry } from '../../src/tools/registry.js';
 import type { Logger } from '../../src/types/common.js';
 import type {
@@ -132,6 +133,8 @@ interface LoopOptions {
     checkDrift(currentStep: number, recentToolCalls: ToolCall[]): string | undefined;
     toSystemPromptInjection(): string | undefined;
   };
+  /** 价格表；提供时注入 AgentLoop.pricing（成本核算测试用） */
+  pricing?: PricingTable;
 }
 
 interface LoopHarness {
@@ -187,6 +190,7 @@ function makeLoop(options: LoopOptions): LoopHarness {
     logger: SILENT_LOGGER,
     ...(options.checkpoint !== undefined ? { checkpoint: options.checkpoint } : {}),
     ...(options.goalTracker !== undefined ? { goalTracker: options.goalTracker } : {}),
+    ...(options.pricing !== undefined ? { pricing: options.pricing } : {}),
   });
   return { loop, store, fake, bus, rec, contextConfig, costTracker };
 }
@@ -821,6 +825,35 @@ describe('AgentLoop', () => {
     expect(tr.ok).toBe(false);
     expect(tr.content).toContain('[PARAMETER]');
     expect(tr.content).toContain('invalid path');
+  });
+
+  it('有价格表时 turn_completed 事件含本轮成本', async () => {
+    const pricing: PricingTable = {
+      'fake/fake-model': { inputPerMillion: 1000, outputPerMillion: 2000 },
+    };
+    const { loop, store } = makeLoop({
+      script: [resp('done')],
+      pricing,
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    const completed = store.events.find((e) => e.payload.type === 'turn_completed');
+    if (completed?.payload.type !== 'turn_completed') throw new Error('expected turn_completed');
+    // 10 in / 1M * 1000 + 5 out / 1M * 2000 = 0.01 + 0.01 = 0.02
+    expect(completed.payload.cost).toBeCloseTo(0.02, 5);
+  });
+
+  it('无价格表时 turn_completed 事件无 cost 字段', async () => {
+    const { loop, store } = makeLoop({ script: [resp('done')] });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    const completed = store.events.find((e) => e.payload.type === 'turn_completed');
+    if (completed?.payload.type !== 'turn_completed') throw new Error('expected turn_completed');
+    expect(completed.payload.cost).toBeUndefined();
   });
 
   it('致命错误不重试：直接返回 [FATAL]', async () => {

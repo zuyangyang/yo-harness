@@ -93,6 +93,8 @@ export const AgentEventSchema = z.discriminatedUnion('type', [
     turnId: z.string(),
     reason: TurnEndReasonSchema,
     usage: UsageSchema,
+    /** 本轮累计成本（USD）；无价格时为缺省 */
+    cost: z.number().nonnegative().optional(),
   }),
   // ─── Phase 2 新增事件 ───
   z.object({

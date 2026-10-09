@@ -77,6 +77,12 @@ function formatTokens(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
 
+/** 成本展示：四舍五入到 0.0001 USD；极小值显式提示而非显示 0 */
+function formatCost(cost: number): string {
+  if (cost < 0.0001) return '$<0.0001';
+  return `$${cost.toFixed(4)}`;
+}
+
 export function App(props: AppProps): ReactElement {
   const {
     provider,
@@ -441,6 +447,7 @@ export function App(props: AppProps): ReactElement {
         {provider}/{model} · ctx {ctxPct}% · step {status?.step ?? 0}/{status?.maxSteps ?? '—'} · in{' '}
         {formatTokens(status?.usage.inputTokens ?? 0)} / out{' '}
         {formatTokens(status?.usage.outputTokens ?? 0)}
+        {status?.cost !== undefined ? ` · ${formatCost(status.cost)}` : ''}
         {turnActive ? ' · running' : ''}
       </Text>
     </Box>

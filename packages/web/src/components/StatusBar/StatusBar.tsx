@@ -9,18 +9,26 @@ import type { EventEnvelope } from '@yo-harness/core/types/events.js';
 import { wsClient } from '../../api/websocket.js';
 import { useSessionStore } from '../../stores/session.js';
 
-function extractStats(events: EventEnvelope[]): { steps: number; tokens: number } {
+function extractStats(events: EventEnvelope[]): { steps: number; tokens: number; cost: number; hasCost: boolean } {
   let steps = 0;
   let tokens = 0;
+  let cost = 0;
+  let hasCost = false;
   for (const env of events) {
     if (env.payload.type === 'turn_started') steps++;
     if (env.payload.type === 'turn_completed') {
-      const p = env.payload as Record<string, unknown>;
-      const usage = p.usage as { totalTokens?: number } | undefined;
-      if (usage?.totalTokens) tokens += usage.totalTokens;
+      const p = env.payload as {
+        usage?: { inputTokens?: number; outputTokens?: number };
+        cost?: number;
+      };
+      tokens += (p.usage?.inputTokens ?? 0) + (p.usage?.outputTokens ?? 0);
+      if (p.cost !== undefined) {
+        cost += p.cost;
+        hasCost = true;
+      }
     }
   }
-  return { steps, tokens };
+  return { steps, tokens, cost, hasCost };
 }
 
 export function StatusBar(): JSX.Element {
@@ -45,7 +53,7 @@ export function StatusBar(): JSX.Element {
     };
   }, []);
 
-  const { steps, tokens } = extractStats(events);
+  const { steps, tokens, cost, hasCost } = extractStats(events);
 
   return (
     <div className="status-bar">
@@ -54,6 +62,7 @@ export function StatusBar(): JSX.Element {
       </span>
       <span className="status-item">Steps: {steps}</span>
       <span className="status-item">Tokens: {tokens.toLocaleString()}</span>
+      {hasCost && <span className="status-item">Cost: ${cost.toFixed(4)}</span>}
       <span className="status-item">Events: {events.length}</span>
     </div>
   );
