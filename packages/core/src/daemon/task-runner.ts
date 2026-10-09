@@ -15,6 +15,8 @@
 import { AgentLoop } from '../core/agent-loop.js';
 import { TurnBudget } from '../core/budget.js';
 import { ContextManager } from '../core/context-manager.js';
+import { Compressor } from '../core/compressor.js';
+import { FallbackSummarizer } from '../core/summarizer.js';
 import { EventBus } from '../core/event-bus.js';
 import { createNonInteractivePermission } from '../core/permission.js';
 import type { EventStore, ToolResolver } from '../core/ports.js';
@@ -84,6 +86,9 @@ export class TaskRunner {
     const context = ContextManager.fromEvents([], {
       contextWindow: this.deps.contextWindow,
     });
+
+    // 自适应压缩：后台任务零成本截断兜底，保证长任务不超窗
+    context.setCompressor(new Compressor(new FallbackSummarizer()));
 
     const permission = createNonInteractivePermission({ shellMode: 'yolo', shellAllowlist: [] });
 

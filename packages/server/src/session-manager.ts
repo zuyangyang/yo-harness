@@ -16,6 +16,8 @@ import { randomUUID } from 'node:crypto';
 import { AgentLoop } from '@yo-harness/core/core/agent-loop.js';
 import { TurnBudget } from '@yo-harness/core/core/budget.js';
 import { ContextManager } from '@yo-harness/core/core/context-manager.js';
+import { Compressor } from '@yo-harness/core/core/compressor.js';
+import { FallbackSummarizer } from '@yo-harness/core/core/summarizer.js';
 import { EventBus } from '@yo-harness/core/core/event-bus.js';
 import {
   createInteractivePermission,
@@ -333,6 +335,10 @@ export class SessionManager {
     const context = ContextManager.fromEvents(priorEvents, {
       contextWindow: runtime.contextWindow,
     });
+
+    // 自适应压缩：server 端角色表恒空（无 compressor 角色），用零成本截断兜底，
+    // 保证长对话超阈值时保留关键信息而非完全省略。
+    context.setCompressor(new Compressor(new FallbackSummarizer()));
 
     const sink = async (event: AgentEvent): Promise<void> => {
       const envelope = await this.deps.eventStore.append(sessionId, event);

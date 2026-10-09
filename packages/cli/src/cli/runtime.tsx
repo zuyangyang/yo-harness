@@ -22,6 +22,8 @@ import { TurnBudget } from '@yo-harness/core/core/budget.js';
 import { ContextManager } from '@yo-harness/core/core/context-manager.js';
 import { EventBus } from '@yo-harness/core/core/event-bus.js';
 import { CheckpointManager } from '@yo-harness/core/core/checkpoint.js';
+import { Compressor } from '@yo-harness/core/core/compressor.js';
+import { FallbackSummarizer, LlmSummarizer } from '@yo-harness/core/core/summarizer.js';
 import { GoalTracker } from '@yo-harness/core/core/goal-tracker.js';
 import {
   createInteractivePermission,
@@ -263,6 +265,20 @@ async function launch(
 
     // 4) 上下文管理器：从历史事件重建（新会话只有 session_started，fromEvents 等价于空）
     const context = ContextManager.fromEvents(priorEvents, { contextWindow: providerConf.contextWindow });
+
+    // 4b) 自适应压缩器：显式配置 compressor 角色时用 LLM 摘要，否则零成本截断兜底
+    if (config.compression?.enabled ?? true) {
+      const compressorClient =
+        config.modelRoles?.compressor !== undefined ? router.getClient('compressor') : undefined;
+      const summarizer =
+        compressorClient !== undefined ? new LlmSummarizer(compressorClient) : new FallbackSummarizer();
+      context.setCompressor(
+        new Compressor(summarizer, {
+          triggerRatio: config.compression?.triggerRatio ?? 0.7,
+          maxTokensPerSummary: config.compression?.maxTokensPerSummary ?? 200,
+        }),
+      );
+    }
 
     // 首条 user_input 落库后顺手把会话标题补上（仅当标题为空时）
     const onFirstInput = (envelope: EventEnvelope): void => {
