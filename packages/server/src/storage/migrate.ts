@@ -117,6 +117,54 @@ export async function runMigrations(client: PoolClient, schemaName: string): Pro
     )
   `);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks (status)`);
+  // 存量库升级：定时任务关联列
+  await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS schedule_id TEXT`);
+  await client.query(`ALTER TABLE tasks ADD COLUMN IF NOT EXISTS trigger TEXT NOT NULL DEFAULT 'manual'`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_tasks_schedule ON tasks (schedule_id, created_at DESC)`);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS scheduled_tasks (
+      id                  TEXT PRIMARY KEY,
+      name                TEXT NOT NULL,
+      prompt              TEXT NOT NULL,
+      cron                TEXT NOT NULL,
+      timezone            TEXT NOT NULL DEFAULT 'UTC',
+      enabled             BOOLEAN NOT NULL DEFAULT TRUE,
+      workspace_id        TEXT,
+      cwd                 TEXT,
+      model               TEXT,
+      permission_mode     TEXT NOT NULL DEFAULT 'full',
+      allowed_tools       TEXT,
+      max_steps           INTEGER,
+      max_tokens          INTEGER,
+      max_duration_ms     INTEGER,
+      output_kind         TEXT NOT NULL DEFAULT 'report',
+      output_target       TEXT,
+      overlap_policy      TEXT NOT NULL DEFAULT 'skip',
+      catch_up_policy     TEXT NOT NULL DEFAULT 'skip',
+      next_run_at         TEXT NOT NULL,
+      last_run_at         TEXT,
+      last_run_id         TEXT,
+      last_status         TEXT,
+      consecutive_failures INTEGER NOT NULL DEFAULT 0,
+      created_at          TEXT NOT NULL,
+      updated_at          TEXT NOT NULL
+    )
+  `);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_due ON scheduled_tasks (enabled, next_run_at)`);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id         TEXT PRIMARY KEY,
+      session_id TEXT,
+      kind       TEXT NOT NULL,
+      title      TEXT NOT NULL,
+      body       TEXT,
+      read_at    TEXT,
+      created_at TEXT NOT NULL
+    )
+  `);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications (read_at, created_at DESC)`);
 
   await client.query(`
     CREATE TABLE IF NOT EXISTS users (

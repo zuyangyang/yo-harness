@@ -10,6 +10,8 @@ import { SqliteSessionStore } from '@yo-harness/core/storage/session-store.js';
 import { SqliteCheckpointStore } from '@yo-harness/core/storage/checkpoint-store.js';
 import { SqliteMemoryStore } from '@yo-harness/core/storage/memory-store.js';
 import { SqliteTaskStore } from '@yo-harness/core/storage/task-store.js';
+import { SqliteScheduledTaskStore } from '@yo-harness/core/storage/scheduled-task-store.js';
+import { SqliteNotificationStore } from '@yo-harness/core/storage/notification-store.js';
 import { SqliteWorkspaceStore } from '@yo-harness/core/storage/workspace-store.js';
 import { SqliteModelConfigStore } from '@yo-harness/core/storage/model-config-store.js';
 import { SqliteUserStore } from './sqlite-user-store.js';
@@ -24,6 +26,8 @@ export class SqliteBackend implements StorageBackend {
   readonly checkpoints: SqliteCheckpointStore;
   readonly memories: SqliteMemoryStore;
   readonly tasks: SqliteTaskStore;
+  readonly scheduledTasks: SqliteScheduledTaskStore;
+  readonly notifications: SqliteNotificationStore;
   readonly users: SqliteUserStore;
   readonly apiKeys: SqliteApiKeyStore;
 
@@ -35,6 +39,8 @@ export class SqliteBackend implements StorageBackend {
     this.checkpoints = new SqliteCheckpointStore(db);
     this.memories = new SqliteMemoryStore(db);
     this.tasks = new SqliteTaskStore(db);
+    this.scheduledTasks = new SqliteScheduledTaskStore(db);
+    this.notifications = new SqliteNotificationStore(db);
     this.users = new SqliteUserStore(db);
     this.apiKeys = new SqliteApiKeyStore(db);
   }

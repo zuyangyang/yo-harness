@@ -131,9 +131,61 @@ export function createTenantSchema(schemaName: string) {
       endReason: text('end_reason'),
       summary: text('summary'),
       errorMessage: text('error_message'),
+      scheduleId: text('schedule_id'),
+      trigger: text('trigger').notNull().default('manual'),
     },
     (table) => [
       index('tasks_status_idx').on(table.status),
+    ],
+  );
+
+  const scheduledTasks = schema.table(
+    'scheduled_tasks',
+    {
+      id: text('id').primaryKey(),
+      name: text('name').notNull(),
+      prompt: text('prompt').notNull(),
+      cron: text('cron').notNull(),
+      timezone: text('timezone').notNull().default('UTC'),
+      enabled: boolean('enabled').notNull().default(true),
+      workspaceId: text('workspace_id'),
+      cwd: text('cwd'),
+      model: text('model'),
+      permissionMode: text('permission_mode').notNull().default('full'),
+      allowedTools: text('allowed_tools'),
+      maxSteps: integer('max_steps'),
+      maxTokens: integer('max_tokens'),
+      maxDurationMs: integer('max_duration_ms'),
+      outputKind: text('output_kind').notNull().default('report'),
+      outputTarget: text('output_target'),
+      overlapPolicy: text('overlap_policy').notNull().default('skip'),
+      catchUpPolicy: text('catch_up_policy').notNull().default('skip'),
+      nextRunAt: text('next_run_at').notNull(),
+      lastRunAt: text('last_run_at'),
+      lastRunId: text('last_run_id'),
+      lastStatus: text('last_status'),
+      consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+      createdAt: text('created_at').notNull(),
+      updatedAt: text('updated_at').notNull(),
+    },
+    (table) => [
+      index('scheduled_tasks_due_idx').on(table.enabled, table.nextRunAt),
+    ],
+  );
+
+  const notifications = schema.table(
+    'notifications',
+    {
+      id: text('id').primaryKey(),
+      sessionId: text('session_id'),
+      kind: text('kind').notNull(),
+      title: text('title').notNull(),
+      body: text('body'),
+      readAt: text('read_at'),
+      createdAt: text('created_at').notNull(),
+    },
+    (table) => [
+      index('notifications_read_idx').on(table.readAt, table.createdAt),
     ],
   );
 
@@ -208,6 +260,8 @@ export function createTenantSchema(schemaName: string) {
     checkpointFiles,
     memories,
     tasks,
+    scheduledTasks,
+    notifications,
     users,
     apiKeys,
   };

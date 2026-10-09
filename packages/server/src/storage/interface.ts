@@ -12,6 +12,8 @@ import type {
   TaskStore,
   WorkspaceStore,
   ModelConfigStore,
+  ScheduledTaskStore,
+  NotificationStore,
 } from '@yo-harness/core/core/ports.js';
 import type { UserStore } from './user-store.js';
 import type { ApiKeyStore } from './api-key-store.js';
@@ -24,6 +26,8 @@ export type {
   TaskStore,
   WorkspaceStore,
   ModelConfigStore,
+  ScheduledTaskStore,
+  NotificationStore,
 } from '@yo-harness/core/core/ports.js';
 
 export type { UserStore } from './user-store.js';
@@ -37,6 +41,8 @@ export interface StorageBackend {
   checkpoints: CheckpointStore;
   memories: MemoryStore;
   tasks: TaskStore;
+  scheduledTasks: ScheduledTaskStore;
+  notifications: NotificationStore;
   users: UserStore;
   apiKeys: ApiKeyStore;
 

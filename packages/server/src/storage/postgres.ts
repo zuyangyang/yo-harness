@@ -6,7 +6,7 @@
  */
 import { Pool } from 'pg';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and, desc, asc, sql, count, or, like, isNull, inArray, gte } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, count, or, like, isNull, inArray, gte, lte } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 
 import type {
@@ -25,6 +25,11 @@ import type {
   CheckpointFileInfo,
   CheckpointSummary,
   MemorySearchOptions,
+  ScheduledTask,
+  ScheduledTaskCreateInput,
+  ScheduledTaskStore,
+  Notification,
+  NotificationStore,
 } from '@yo-harness/core/core/ports.js';
 import type { AgentEvent, EventEnvelope } from '@yo-harness/core/types/events.js';
 import { AgentEventSchema } from '@yo-harness/core/types/events.js';
@@ -58,6 +63,8 @@ export class PostgresBackend implements StorageBackend {
   readonly checkpoints: PostgresCheckpointStore;
   readonly memories: PostgresMemoryStore;
   readonly tasks: PostgresTaskStore;
+  readonly scheduledTasks: PostgresScheduledTaskStore;
+  readonly notifications: PostgresNotificationStore;
   readonly users: PostgresUserStore;
   readonly apiKeys: PostgresApiKeyStore;
 
@@ -86,6 +93,8 @@ export class PostgresBackend implements StorageBackend {
     this.checkpoints = new PostgresCheckpointStore(this);
     this.memories = new PostgresMemoryStore(this);
     this.tasks = new PostgresTaskStore(this);
+    this.scheduledTasks = new PostgresScheduledTaskStore(this);
+    this.notifications = new PostgresNotificationStore(this);
     this.users = new PostgresUserStore(this.db, this.tables);
     this.apiKeys = new PostgresApiKeyStore(this.db, this.tables);
   }
@@ -730,19 +739,24 @@ class PostgresTaskStore implements TaskStore {
 
   async create(input: CreateTaskInput): Promise<BackgroundTask> {
     const taskId = randomUUID();
-    const sessionId = randomUUID();
+    const sessionId = input.sessionId ?? randomUUID();
     const now = new Date().toISOString();
+    const trigger = input.trigger ?? 'manual';
+    const scheduleId = input.scheduleId ?? null;
 
-    await this.db.insert(this.t.sessions).values({
-      id: sessionId,
-      title: input.description.slice(0, 60),
-      model: input.model,
-      cwd: input.cwd,
-      status: 'active',
-      type: 'background',
-      createdAt: now,
-      updatedAt: now,
-    });
+    // 调用方已建会话（定时任务需要自定义权限/标题）时不再自动建
+    if (input.sessionId === undefined) {
+      await this.db.insert(this.t.sessions).values({
+        id: sessionId,
+        title: input.description.slice(0, 60),
+        model: input.model,
+        cwd: input.cwd,
+        status: 'active',
+        type: 'background',
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
 
     await this.db.insert(this.t.tasks).values({
       id: taskId,
@@ -751,6 +765,8 @@ class PostgresTaskStore implements TaskStore {
       status: 'pending',
       cwd: input.cwd,
       model: input.model,
+      scheduleId,
+      trigger,
       createdAt: now,
     });
 
@@ -767,6 +783,8 @@ class PostgresTaskStore implements TaskStore {
       createdAt: now,
       cwd: input.cwd,
       model: input.model,
+      scheduleId,
+      trigger,
     };
   }
 
@@ -775,8 +793,9 @@ class PostgresTaskStore implements TaskStore {
     return rows[0] ? mapTask(rows[0]) : undefined;
   }
 
-  async list(limit = 50): Promise<BackgroundTask[]> {
+  async list(limit = 50, scheduleId?: string): Promise<BackgroundTask[]> {
     const rows = await this.db.select().from(this.t.tasks)
+      .where(scheduleId === undefined ? sql`true` : eq(this.t.tasks.scheduleId, scheduleId))
       .orderBy(desc(this.t.tasks.createdAt))
       .limit(limit);
     return rows.map(mapTask);
@@ -797,6 +816,7 @@ function mapTask(row: {
   pid: number | null; cwd: string; model: string; createdAt: string;
   completedAt: string | null; endReason: string | null;
   summary: string | null; errorMessage: string | null;
+  scheduleId: string | null; trigger: string;
 }): BackgroundTask {
   return {
     id: row.id,
@@ -811,7 +831,233 @@ function mapTask(row: {
     createdAt: row.createdAt,
     cwd: row.cwd,
     model: row.model,
+    scheduleId: row.scheduleId,
+    trigger: row.trigger as BackgroundTask['trigger'],
   };
+}
+
+// ─── ScheduledTaskStore ───
+
+interface ScheduledTaskRowLike {
+  id: string; name: string; prompt: string; cron: string; timezone: string;
+  enabled: boolean; workspaceId: string | null; cwd: string | null; model: string | null;
+  permissionMode: string; allowedTools: string | null; maxSteps: number | null;
+  maxTokens: number | null; maxDurationMs: number | null; outputKind: string;
+  outputTarget: string | null; overlapPolicy: string; catchUpPolicy: string;
+  nextRunAt: string; lastRunAt: string | null; lastRunId: string | null;
+  lastStatus: string | null; consecutiveFailures: number; createdAt: string; updatedAt: string;
+}
+
+function mapScheduledTask(row: ScheduledTaskRowLike): ScheduledTask {
+  let allowedTools: string[] | null = null;
+  if (row.allowedTools !== null && row.allowedTools !== '') {
+    try {
+      const parsed = JSON.parse(row.allowedTools) as unknown;
+      if (Array.isArray(parsed)) allowedTools = parsed as string[];
+    } catch {
+      allowedTools = null;
+    }
+  }
+
+  return {
+    id: row.id,
+    name: row.name,
+    prompt: row.prompt,
+    cron: row.cron,
+    timezone: row.timezone,
+    enabled: row.enabled,
+    workspaceId: row.workspaceId,
+    cwd: row.cwd,
+    model: row.model,
+    permissionMode: 'full',
+    allowedTools,
+    maxSteps: row.maxSteps,
+    maxTokens: row.maxTokens,
+    maxDurationMs: row.maxDurationMs,
+    outputKind: row.outputKind as ScheduledTask['outputKind'],
+    outputTarget: row.outputTarget,
+    overlapPolicy: row.overlapPolicy as ScheduledTask['overlapPolicy'],
+    catchUpPolicy: row.catchUpPolicy as ScheduledTask['catchUpPolicy'],
+    nextRunAt: row.nextRunAt,
+    lastRunAt: row.lastRunAt,
+    lastRunId: row.lastRunId,
+    lastStatus: row.lastStatus,
+    consecutiveFailures: row.consecutiveFailures,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function serializeAllowedTools(value: string[] | null): string | null {
+  return value === null ? null : JSON.stringify(value);
+}
+
+class PostgresScheduledTaskStore implements ScheduledTaskStore {
+  constructor(private readonly backend: PostgresBackend) {}
+
+  private get t() { return this.backend.getTables(); }
+  private get db() { return this.backend.getDb(); }
+
+  async create(input: ScheduledTaskCreateInput): Promise<ScheduledTask> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+
+    await this.db.insert(this.t.scheduledTasks).values({
+      id,
+      name: input.name,
+      prompt: input.prompt,
+      cron: input.cron,
+      timezone: input.timezone ?? 'UTC',
+      enabled: input.enabled ?? true,
+      workspaceId: input.workspaceId ?? null,
+      cwd: input.cwd ?? null,
+      model: input.model ?? null,
+      permissionMode: 'full',
+      allowedTools: serializeAllowedTools(input.allowedTools ?? null),
+      maxSteps: input.maxSteps ?? null,
+      maxTokens: input.maxTokens ?? null,
+      maxDurationMs: input.maxDurationMs ?? null,
+      outputKind: input.outputKind ?? 'report',
+      outputTarget: input.outputTarget ?? null,
+      overlapPolicy: input.overlapPolicy ?? 'skip',
+      catchUpPolicy: input.catchUpPolicy ?? 'skip',
+      nextRunAt: input.nextRunAt,
+      consecutiveFailures: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const created = await this.get(id);
+    if (created === undefined) throw new Error('failed to create scheduled task');
+    return created;
+  }
+
+  async get(id: string): Promise<ScheduledTask | undefined> {
+    const rows = await this.db.select().from(this.t.scheduledTasks)
+      .where(eq(this.t.scheduledTasks.id, id)).limit(1);
+    return rows[0] ? mapScheduledTask(rows[0]) : undefined;
+  }
+
+  async list(): Promise<ScheduledTask[]> {
+    const rows = await this.db.select().from(this.t.scheduledTasks)
+      .orderBy(desc(this.t.scheduledTasks.createdAt));
+    return rows.map(mapScheduledTask);
+  }
+
+  async update(id: string, patch: Partial<ScheduledTask>): Promise<ScheduledTask | undefined> {
+    const existing = await this.get(id);
+    if (existing === undefined) return undefined;
+
+    await this.db.update(this.t.scheduledTasks).set({
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.prompt !== undefined ? { prompt: patch.prompt } : {}),
+      ...(patch.cron !== undefined ? { cron: patch.cron } : {}),
+      ...(patch.timezone !== undefined ? { timezone: patch.timezone } : {}),
+      ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+      ...(patch.workspaceId !== undefined ? { workspaceId: patch.workspaceId } : {}),
+      ...(patch.cwd !== undefined ? { cwd: patch.cwd } : {}),
+      ...(patch.model !== undefined ? { model: patch.model } : {}),
+      ...(patch.allowedTools !== undefined ? { allowedTools: serializeAllowedTools(patch.allowedTools) } : {}),
+      ...(patch.maxSteps !== undefined ? { maxSteps: patch.maxSteps } : {}),
+      ...(patch.maxTokens !== undefined ? { maxTokens: patch.maxTokens } : {}),
+      ...(patch.maxDurationMs !== undefined ? { maxDurationMs: patch.maxDurationMs } : {}),
+      ...(patch.outputKind !== undefined ? { outputKind: patch.outputKind } : {}),
+      ...(patch.outputTarget !== undefined ? { outputTarget: patch.outputTarget } : {}),
+      ...(patch.overlapPolicy !== undefined ? { overlapPolicy: patch.overlapPolicy } : {}),
+      ...(patch.catchUpPolicy !== undefined ? { catchUpPolicy: patch.catchUpPolicy } : {}),
+      ...(patch.nextRunAt !== undefined ? { nextRunAt: patch.nextRunAt } : {}),
+      ...(patch.lastRunAt !== undefined ? { lastRunAt: patch.lastRunAt } : {}),
+      ...(patch.lastRunId !== undefined ? { lastRunId: patch.lastRunId } : {}),
+      ...(patch.lastStatus !== undefined ? { lastStatus: patch.lastStatus } : {}),
+      ...(patch.consecutiveFailures !== undefined ? { consecutiveFailures: patch.consecutiveFailures } : {}),
+      updatedAt: new Date().toISOString(),
+    }).where(eq(this.t.scheduledTasks.id, id));
+
+    return this.get(id);
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.db.delete(this.t.scheduledTasks).where(eq(this.t.scheduledTasks.id, id));
+  }
+
+  async listDue(at: string): Promise<ScheduledTask[]> {
+    const rows = await this.db.select().from(this.t.scheduledTasks)
+      .where(and(eq(this.t.scheduledTasks.enabled, true), lte(this.t.scheduledTasks.nextRunAt, at)))
+      .orderBy(asc(this.t.scheduledTasks.nextRunAt));
+    return rows.map(mapScheduledTask);
+  }
+}
+
+// ─── NotificationStore ───
+
+class PostgresNotificationStore implements NotificationStore {
+  constructor(private readonly backend: PostgresBackend) {}
+
+  private get t() { return this.backend.getTables(); }
+  private get db() { return this.backend.getDb(); }
+
+  async create(input: {
+    sessionId: string | null;
+    kind: string;
+    title: string;
+    body: string | null;
+  }): Promise<Notification> {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+
+    await this.db.insert(this.t.notifications).values({
+      id,
+      sessionId: input.sessionId,
+      kind: input.kind,
+      title: input.title,
+      body: input.body,
+      readAt: null,
+      createdAt: now,
+    });
+
+    return {
+      id,
+      sessionId: input.sessionId,
+      kind: input.kind,
+      title: input.title,
+      body: input.body,
+      readAt: null,
+      createdAt: now,
+    };
+  }
+
+  async list(limit = 50): Promise<Notification[]> {
+    const rows = await this.db.select().from(this.t.notifications)
+      .orderBy(desc(this.t.notifications.createdAt))
+      .limit(limit);
+    return rows.map((row) => ({
+      id: row.id,
+      sessionId: row.sessionId,
+      kind: row.kind,
+      title: row.title,
+      body: row.body,
+      readAt: row.readAt,
+      createdAt: row.createdAt,
+    }));
+  }
+
+  async markRead(id: string): Promise<void> {
+    await this.db.update(this.t.notifications)
+      .set({ readAt: new Date().toISOString() })
+      .where(and(eq(this.t.notifications.id, id), isNull(this.t.notifications.readAt)));
+  }
+
+  async markAllRead(): Promise<void> {
+    await this.db.update(this.t.notifications)
+      .set({ readAt: new Date().toISOString() })
+      .where(isNull(this.t.notifications.readAt));
+  }
+
+  async countUnread(): Promise<number> {
+    const rows = await this.db.select({ n: count() }).from(this.t.notifications)
+      .where(isNull(this.t.notifications.readAt));
+    return Number(rows[0]?.n ?? 0);
+  }
 }
 
 // ─── ModelConfigStore ───
