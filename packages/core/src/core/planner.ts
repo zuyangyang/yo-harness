@@ -34,6 +34,8 @@ export interface PlannerDeps {
   bus: EventBus;
   /** 最大探索步数（防止规划阶段空转） */
   maxExploreSteps: number;
+  /** 规划 LLM 的 temperature（缺省 0，结构化输出求稳定） */
+  temperature?: number;
 }
 
 /** 规划阶段 system prompt：强调只读探索与结构化输出 */
@@ -102,6 +104,7 @@ export class Planner {
         messages,
         tools: tools.specs(),
         maxTokens: 4096,
+        temperature: this.deps.temperature ?? 0,
       });
 
       // 检查是否有工具调用

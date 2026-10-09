@@ -27,7 +27,10 @@ export interface Summarizer {
 
 /** LLM 摘要器：调便宜模型做摘要 */
 export class LlmSummarizer implements Summarizer {
-  constructor(private readonly llm: LLMClient) {}
+  constructor(
+    private readonly llm: LLMClient,
+    private readonly temperature = 0,
+  ) {}
 
   async summarizeToolResult(input: {
     toolName: string;
@@ -49,6 +52,7 @@ Provide a concise summary:`;
       messages: [{ role: 'user', text: prompt }],
       tools: [],
       maxTokens: input.maxTokens,
+      temperature: this.temperature,
     });
     return resp.text.trim();
   }
@@ -76,6 +80,7 @@ Provide a concise summary:`;
       messages: [{ role: 'user', text: prompt }],
       tools: [],
       maxTokens: input.maxTokens,
+      temperature: this.temperature,
     });
     return resp.text.trim();
   }

@@ -17,7 +17,7 @@ import type { McpServerConfig } from '../mcp/types.js';
 import type { BudgetLimits } from '../core/budget.js';
 import { DEFAULT_BUDGET_LIMITS } from '../core/budget.js';
 import type { PermissionSettings } from '../core/permission.js';
-import type { ModelRoleMap } from '../types/router.js';
+import type { ModelRole, ModelRoleMap } from '../types/router.js';
 import type { WebSearchSettings } from '../tools/web.js';
 import { FatalError } from '../types/errors.js';
 import { yoHome } from '../utils/paths.js';
@@ -87,6 +87,10 @@ export interface AppConfig {
   goalTracking: GoalTrackingSettings | undefined;
   /** Phase 3: 角色 → 模型映射（可选，未配置的角色回退默认 provider） */
   modelRoles: ModelRoleMap | undefined;
+  /** 主对话 temperature（缺省 undefined = 不传 = provider 默认） */
+  temperature: number | undefined;
+  /** 角色级 temperature 覆盖（缺省 undefined = 子任务固定 0） */
+  roleTemperature: Partial<Record<ModelRole, number>> | undefined;
   /** Phase 3: MCP server 配置（可选，未配置则不启动任何 MCP client） */
   mcp: Record<string, McpServerConfig>;
   /** Phase 3: daemon 配置（可选） */
@@ -171,6 +175,15 @@ const configFileSchema = z.strictObject({
       planner: z.strictObject({ provider: z.string().min(1), model: z.string().min(1) }).optional(),
       compressor: z.strictObject({ provider: z.string().min(1), model: z.string().min(1) }).optional(),
       extractor: z.strictObject({ provider: z.string().min(1), model: z.string().min(1) }).optional(),
+    })
+    .optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  roleTemperature: z
+    .strictObject({
+      main: z.number().min(0).max(2).optional(),
+      planner: z.number().min(0).max(2).optional(),
+      compressor: z.number().min(0).max(2).optional(),
+      extractor: z.number().min(0).max(2).optional(),
     })
     .optional(),
   mcp: z
@@ -336,6 +349,21 @@ function buildGoalTracking(file: ConfigFile | undefined): GoalTrackingSettings |
   };
 }
 
+/** Phase 4: 构建角色级 temperature 覆盖 */
+function buildRoleTemperature(
+  file: ConfigFile | undefined,
+): Partial<Record<ModelRole, number>> | undefined {
+  const fromFile = file?.roleTemperature;
+  if (fromFile === undefined) return undefined;
+  const result: Partial<Record<ModelRole, number>> = {};
+  if (fromFile.main !== undefined) result.main = fromFile.main;
+  if (fromFile.planner !== undefined) result.planner = fromFile.planner;
+  if (fromFile.compressor !== undefined) result.compressor = fromFile.compressor;
+  if (fromFile.extractor !== undefined) result.extractor = fromFile.extractor;
+  if (Object.keys(result).length === 0) return undefined;
+  return result;
+}
+
 /** Phase 3: 构建角色 → 模型映射 */
 function buildModelRoles(file: ConfigFile | undefined): ModelRoleMap | undefined {
   const fromFile = file?.modelRoles;
@@ -419,6 +447,8 @@ export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
     planner: buildPlanner(file),
     goalTracking: buildGoalTracking(file),
     modelRoles: buildModelRoles(file),
+    temperature: file?.temperature,
+    roleTemperature: buildRoleTemperature(file),
     mcp: buildMcp(file),
     daemon: buildDaemon(file),
   };

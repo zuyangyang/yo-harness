@@ -16,6 +16,7 @@ export class MemoryExtractor {
     private readonly llm: LLMClient,
     private readonly store: MemoryStore,
     private readonly logger: Logger,
+    private readonly temperature = 0,
   ) {}
 
   /**
@@ -42,6 +43,7 @@ export class MemoryExtractor {
           messages: [{ role: 'user', text: prompt.user }],
           tools: [],
           maxTokens: 2000,
+          temperature: this.temperature,
         },
       );
     } catch (err) {

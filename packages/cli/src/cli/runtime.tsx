@@ -271,7 +271,9 @@ async function launch(
       const compressorClient =
         config.modelRoles?.compressor !== undefined ? router.getClient('compressor') : undefined;
       const summarizer =
-        compressorClient !== undefined ? new LlmSummarizer(compressorClient) : new FallbackSummarizer();
+        compressorClient !== undefined
+          ? new LlmSummarizer(compressorClient, config.roleTemperature?.compressor ?? 0)
+          : new FallbackSummarizer();
       context.setCompressor(
         new Compressor(summarizer, {
           triggerRatio: config.compression?.triggerRatio ?? 0.7,
@@ -326,6 +328,7 @@ async function launch(
       sandbox: createLocalSandbox(session.cwd),
       systemPrompt: SYSTEM_PROMPT,
       maxTokens: DEFAULT_MAX_TOKENS,
+      ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
       logger,
       ...(checkpointManager !== undefined
         ? {
@@ -356,6 +359,7 @@ async function launch(
         logger,
         bus,
         maxExploreSteps: config.planner?.maxExploreSteps ?? 10,
+        temperature: config.roleTemperature?.planner ?? 0,
       });
       const result = await planner.plan(description);
       return result?.plan ?? null;
@@ -373,6 +377,7 @@ async function launch(
         logger,
         bus,
         maxExploreSteps: config.planner?.maxExploreSteps ?? 10,
+        temperature: config.roleTemperature?.planner ?? 0,
       });
       const planResult = await planner.plan(flags.plan);
       if (planResult !== null) {
