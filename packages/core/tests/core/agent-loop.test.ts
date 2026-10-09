@@ -621,6 +621,38 @@ describe('AgentLoop', () => {
     expect(maxConcurrent).toBe(1);
   });
 
+  it('中断：LLM 调用期间 abort 立即返回 interrupted', async () => {
+    let receivedSignal: AbortSignal | undefined;
+    const blockingLlm: LLMClient = {
+      name: 'blocking',
+      async chat(_req, opts) {
+        receivedSignal = opts?.signal;
+        await new Promise<void>((_resolve, reject) => {
+          const signal = opts?.signal;
+          if (signal?.aborted) {
+            reject(new DOMException('aborted', 'AbortError'));
+            return;
+          }
+          signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('aborted', 'AbortError')),
+            { once: true },
+          );
+        });
+        return { text: '', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 0, outputTokens: 0 } };
+      },
+    };
+    const { loop, rec } = makeLoop({ script: [], llm: blockingLlm });
+
+    const runPromise = loop.runTurn('go');
+    await vi.waitFor(() => expect(receivedSignal).toBeDefined());
+    loop.interrupt();
+    const reason = await runPromise;
+
+    expect(reason).toBe('interrupted');
+    expect(rec.turns.at(-1)?.reason).toBe('interrupted');
+  });
+
   it('未知工具：ok=false 结果回传，回合继续', async () => {
     const { loop, store, fake } = makeLoop({
       script: [resp('', [call('c1', 'nope')]), resp('recovered')],

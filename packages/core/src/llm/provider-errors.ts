@@ -41,5 +41,6 @@ function readStatus(err: unknown): number | undefined {
 
 function isConnectionError(err: unknown): boolean {
   const name = err instanceof Error ? err.name : '';
-  return name.includes('Connection') || name.includes('Timeout');
+  // AbortError（中断/超时 signal）也按 Transient 处理，由网关层区分用户中断与超时
+  return name.includes('Connection') || name.includes('Timeout') || name === 'AbortError';
 }

@@ -90,11 +90,19 @@ class LlmStageError extends Error {
   }
 }
 
+/** 中断中止标记：LLM 调用被 abort，runSteps 映射为 'interrupted' */
+class InterruptedError extends Error {
+  constructor() {
+    super('llm chat interrupted');
+  }
+}
+
 export class AgentLoop {
   private interruptFlag = false;
   private turnUsage: Usage = { inputTokens: 0, outputTokens: 0 };
   private truncationCount = 0;
   private recentToolCalls: ToolCall[] = [];
+  private turnAbort: AbortController | undefined;
 
   constructor(private readonly deps: AgentLoopDeps) {}
 
@@ -103,9 +111,10 @@ export class AgentLoop {
     return this.deps.context;
   }
 
-  /** 请求中断：当前工具结束后、下一次 LLM 调用前生效 */
+  /** 请求中断：中止当前 LLM 流式调用；工具执行结束后、下一次 LLM 调用前生效 */
   interrupt(): void {
     this.interruptFlag = true;
+    this.turnAbort?.abort();
   }
 
   async runTurn(userText: string): Promise<TurnEndReason> {
@@ -114,6 +123,7 @@ export class AgentLoop {
     this.turnUsage = { inputTokens: 0, outputTokens: 0 };
     this.truncationCount = 0;
     this.recentToolCalls = [];
+    this.turnAbort = new AbortController();
     this.deps.goalTracker?.initialize(userText);
     let reason: TurnEndReason = 'done';
     try {
@@ -122,9 +132,11 @@ export class AgentLoop {
       await this.appendAndPush({ type: 'user_input', content: userText });
       reason = await this.runSteps();
     } catch (err) {
-      // BudgetStop 是计划内熔断，直接映射原因；其余落 error 事件
+      // BudgetStop 是计划内熔断，直接映射原因；中断映射 interrupted；其余落 error 事件
       if (err instanceof BudgetStop) {
         reason = err.reason;
+      } else if (err instanceof InterruptedError) {
+        reason = 'interrupted';
       } else {
         reason = 'error';
         await this.appendError(err);
@@ -199,6 +211,7 @@ export class AgentLoop {
       const client = this.deps.router.getClient('main');
       const resp = await client.chat(this.toRequest(messages), {
         onTextDelta: (delta) => this.deps.bus.emit('llm_delta', delta),
+        ...(this.turnAbort !== undefined ? { signal: this.turnAbort.signal } : {}),
       });
       this.deps.costTracker.record({
         role: 'main',
@@ -211,6 +224,10 @@ export class AgentLoop {
     } catch (err) {
       // 防御：熔断异常不该在这儿抛，别包丢 reason
       if (err instanceof BudgetStop) throw err;
+      // 中断：abort 错误 → 专用标记（区别于其他 LLM 错误）
+      if (this.turnAbort?.signal.aborted) {
+        throw new InterruptedError();
+      }
       throw new LlmStageError(err);
     }
   }

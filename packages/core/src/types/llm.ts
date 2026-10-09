@@ -32,6 +32,8 @@ export interface ChatResponse {
 export interface ChatOptions {
   /** 流式文本增量（仅用于 UI 实时渲染，最终以 ChatResponse.text 为准） */
   onTextDelta?: (delta: string) => void;
+  /** 中止信号：中断 / 超时用，provider 透传给 SDK */
+  signal?: AbortSignal;
 }
 
 /** Provider 端口：anthropic / openai-compat / fake 都实现它 */

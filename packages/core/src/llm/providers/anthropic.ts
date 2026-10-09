@@ -25,15 +25,21 @@ import { asRecord, parseToolArgs } from './tool-args.js';
  * 抽象成两方法而非整个 Messages 资源类，是为了 mock 不必构造 APIPromise。
  */
 export interface AnthropicTransport {
-  create(params: Anthropic.MessageCreateParamsNonStreaming): Promise<Anthropic.Message>;
-  createStream(params: Anthropic.MessageCreateParamsStreaming): Promise<AsyncIterable<Anthropic.RawMessageStreamEvent>>;
+  create(
+    params: Anthropic.MessageCreateParamsNonStreaming,
+    options?: { signal?: AbortSignal },
+  ): Promise<Anthropic.Message>;
+  createStream(
+    params: Anthropic.MessageCreateParamsStreaming,
+    options?: { signal?: AbortSignal },
+  ): Promise<AsyncIterable<Anthropic.RawMessageStreamEvent>>;
 }
 
 /** 生产装配：真 SDK client → 传输端口 */
 export function anthropicSdkTransport(client: Anthropic): AnthropicTransport {
   return {
-    create: (params) => client.messages.create(params),
-    createStream: (params) => client.messages.create(params),
+    create: (params, options) => client.messages.create(params, options),
+    createStream: (params, options) => client.messages.create(params, options),
   };
 }
 
@@ -74,11 +80,12 @@ export class AnthropicLLMClient implements LLMClient {
         ...(req.tools.length > 0 ? { tools: toAnthropicTools(req.tools) } : {}),
         ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
       };
+      const signalOpt = opts?.signal !== undefined ? { signal: opts.signal } : undefined;
       if (opts?.onTextDelta) {
-        const stream = await this.transport.createStream({ ...base, stream: true });
+        const stream = await this.transport.createStream({ ...base, stream: true }, signalOpt);
         return await foldStream(stream, opts.onTextDelta);
       }
-      const msg = await this.transport.create({ ...base, stream: false });
+      const msg = await this.transport.create({ ...base, stream: false }, signalOpt);
       return fromAnthropicMessage(msg);
     } catch (err) {
       throw classifyProviderError(err);

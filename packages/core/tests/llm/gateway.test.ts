@@ -180,4 +180,74 @@ describe('LLMGateway', () => {
     });
     expect(gateway.totalUsage()).toEqual({ inputTokens: 20, outputTokens: 10 });
   });
+
+  it('超时中止：requestTimeoutMs 到期后每次尝试独立计时并按 TransientError 重试', async () => {
+    let abortCount = 0;
+    const slowClient: LLMClient = {
+      name: 'slow',
+      async chat(_req, opts) {
+        await new Promise<void>((_resolve, reject) => {
+          const signal = opts?.signal;
+          // provider 层已把 abort 分类为 TransientError（这里直接抛分类后的错误）
+          const rejectFn = () => reject(new TransientError('request timed out'));
+          if (signal?.aborted) {
+            abortCount += 1;
+            rejectFn();
+            return;
+          }
+          signal?.addEventListener('abort', () => { abortCount += 1; rejectFn(); }, { once: true });
+        });
+        return OK;
+      },
+    };
+    const delays: number[] = [];
+    const gateway = new LLMGateway(new Map([['slow', slowClient]]), {
+      defaultProvider: 'slow',
+      requestTimeoutMs: 10,
+      sleeper: fakeSleeper(delays),
+    });
+
+    await expect(
+      gateway.chat({ system: 's', messages: [], tools: [], maxTokens: 1 }),
+    ).rejects.toBeInstanceOf(TransientError);
+    expect(abortCount).toBe(4); // 初始 1 次 + 3 次重试，每次超时
+    expect(delays).toEqual([1000, 2000, 4000]);
+  });
+
+  it('用户中断：外部 signal 已 abort 时不重试直接上抛', async () => {
+    const slowClient: LLMClient = {
+      name: 'slow',
+      async chat(_req, opts) {
+        await new Promise<void>((_resolve, reject) => {
+          const signal = opts?.signal;
+          if (signal?.aborted) {
+            reject(new DOMException('aborted', 'AbortError'));
+            return;
+          }
+          signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('aborted', 'AbortError')),
+            { once: true },
+          );
+        });
+        return OK;
+      },
+    };
+    const delays: number[] = [];
+    const gateway = new LLMGateway(new Map([['slow', slowClient]]), {
+      defaultProvider: 'slow',
+      sleeper: fakeSleeper(delays),
+    });
+
+    const controller = new AbortController();
+    const chatPromise = gateway.chat(
+      { system: 's', messages: [], tools: [], maxTokens: 1 },
+      { signal: controller.signal },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    controller.abort();
+
+    await expect(chatPromise).rejects.toBeInstanceOf(DOMException);
+    expect(delays).toEqual([]); // 不重试
+  });
 });

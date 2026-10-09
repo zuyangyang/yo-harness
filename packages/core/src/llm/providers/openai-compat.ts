@@ -21,15 +21,21 @@ import { parseToolArgs } from './tool-args.js';
 
 /** 窄传输端口：真 SDK client 结构性满足；测试注入 mock（CI 零网络） */
 export interface OpenAICompatTransport {
-  create(params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming): Promise<OpenAI.Chat.ChatCompletion>;
-  createStream(params: OpenAI.Chat.ChatCompletionCreateParamsStreaming): Promise<AsyncIterable<OpenAI.Chat.ChatCompletionChunk>>;
+  create(
+    params: OpenAI.Chat.ChatCompletionCreateParamsNonStreaming,
+    options?: { signal?: AbortSignal },
+  ): Promise<OpenAI.Chat.ChatCompletion>;
+  createStream(
+    params: OpenAI.Chat.ChatCompletionCreateParamsStreaming,
+    options?: { signal?: AbortSignal },
+  ): Promise<AsyncIterable<OpenAI.Chat.ChatCompletionChunk>>;
 }
 
 /** 生产装配：真 SDK client → 传输端口 */
 export function openaiSdkTransport(client: OpenAI): OpenAICompatTransport {
   return {
-    create: (params) => client.chat.completions.create(params),
-    createStream: (params) => client.chat.completions.create(params),
+    create: (params, options) => client.chat.completions.create(params, options),
+    createStream: (params, options) => client.chat.completions.create(params, options),
   };
 }
 
@@ -76,15 +82,19 @@ export class OpenAICompatLLMClient implements LLMClient {
         ...(req.tools.length > 0 ? { tools: toOpenAITools(req.tools) } : {}),
         ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
       };
+      const signalOpt = opts?.signal !== undefined ? { signal: opts.signal } : undefined;
       if (opts?.onTextDelta) {
-        const stream = await this.transport.createStream({
-          ...base,
-          stream: true,
-          stream_options: { include_usage: true },
-        });
+        const stream = await this.transport.createStream(
+          {
+            ...base,
+            stream: true,
+            stream_options: { include_usage: true },
+          },
+          signalOpt,
+        );
         return await foldStream(stream, opts.onTextDelta);
       }
-      const completion = await this.transport.create({ ...base, stream: false });
+      const completion = await this.transport.create({ ...base, stream: false }, signalOpt);
       return fromCompletion(completion);
     } catch (err) {
       throw classifyProviderError(err);

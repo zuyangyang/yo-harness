@@ -22,9 +22,12 @@ export interface LLMGatewayConfig {
   sleeper?: (ms: number) => Promise<void>;
   /** 每次成功调用的用量上报（会话记账） */
   onUsage?: (usage: Usage, provider: string) => void;
+  /** 单次请求超时（毫秒），默认 120000；用 AbortSignal.timeout 与外部 signal 合并 */
+  requestTimeoutMs?: number;
 }
 
 const DEFAULT_BACKOFF: readonly number[] = [1000, 2000, 4000];
+const DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
 
 export class LLMGateway {
   private readonly clients: ReadonlyMap<string, LLMClient>;
@@ -74,15 +77,24 @@ export class LLMGateway {
     const maxRetries = this.config.maxRetries ?? DEFAULT_BACKOFF.length;
     const backoff = this.config.backoffMs ?? DEFAULT_BACKOFF;
     const sleep = this.config.sleeper ?? defaultSleep;
+    const timeoutMs = this.config.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 
     for (let attempt = 0; ; attempt++) {
+      // 每次尝试独立计时：合并外部 signal（中断）与超时 signal
+      const timeoutSignal = AbortSignal.timeout(timeoutMs);
+      const signal = opts?.signal !== undefined ? AbortSignal.any([opts.signal, timeoutSignal]) : timeoutSignal;
+
       try {
-        const res = await client.chat(req, opts);
+        const res = await client.chat(req, { ...opts, signal });
         this.total.inputTokens += res.usage.inputTokens;
         this.total.outputTokens += res.usage.outputTokens;
         this.config.onUsage?.(res.usage, client.name);
         return res;
       } catch (err) {
+        // 用户中断：外部 signal 已 abort，不重试，直接上抛（AgentLoop 识别为 interrupted）
+        if (opts?.signal?.aborted) {
+          throw err;
+        }
         if (!(err instanceof TransientError) || attempt >= maxRetries) {
           throw err;
         }
