@@ -49,6 +49,15 @@ export interface RemoteError {
   message: string;
 }
 
+export interface TaskCompleted {
+  scheduleId: string;
+  runId: string;
+  sessionId: string;
+  name: string;
+  status: 'completed' | 'failed' | 'cancelled';
+  summary: string | null;
+}
+
 interface EmitterEvents {
   connected: [];
   disconnected: [];
@@ -60,6 +69,8 @@ interface EmitterEvents {
   approval: [request: ApprovalRequest];
   approvalResolved: [payload: ApprovalResolved];
   approvalCancelled: [payload: ApprovalCancelled];
+  /** 定时任务一次运行结束 */
+  taskCompleted: [payload: TaskCompleted];
   error: [error: RemoteError];
 }
 
@@ -224,6 +235,16 @@ export class WebSocketClient extends SimpleEmitter {
           approvalId: msg.approvalId as string,
           sessionId: msg.sessionId as string,
           reason: msg.reason as string,
+        });
+        break;
+      case 'task.completed':
+        this.emit('taskCompleted', {
+          scheduleId: msg.scheduleId as string,
+          runId: msg.runId as string,
+          sessionId: msg.sessionId as string,
+          name: msg.name as string,
+          status: msg.status as TaskCompleted['status'],
+          summary: (msg.summary as string | null | undefined) ?? null,
         });
         break;
       case 'error':

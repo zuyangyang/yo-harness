@@ -13,6 +13,8 @@ import { api } from '../api/client.js';
 import { wsClient, type ApprovalRequest } from '../api/websocket.js';
 import { useSessionStore } from '../stores/session.js';
 import { useApprovalStore } from '../stores/approval.js';
+import { useNotificationStore } from '../stores/notifications.js';
+import { useScheduleStore } from '../stores/schedules.js';
 
 export function useWebSocket() {
   const addEvent = useSessionStore((state) => state.addEvent);
@@ -20,6 +22,8 @@ export function useWebSocket() {
   const truncateEvents = useSessionStore((state) => state.truncateEvents);
   const upsertApproval = useApprovalStore((state) => state.upsert);
   const settleApproval = useApprovalStore((state) => state.settle);
+  const bumpUnread = useNotificationStore((state) => state.bumpUnread);
+  const reloadSchedules = useScheduleStore((state) => state.load);
 
   useEffect(() => {
     const onEvent = (sessionId: string, envelope: EventEnvelope): void => {
@@ -44,6 +48,12 @@ export function useWebSocket() {
 
     const onCancelled = (payload: { approvalId: string }): void => {
       settleApproval(payload.approvalId);
+    };
+
+    /** 定时任务运行结束：未读 +1 并刷新列表（nextRunAt/lastStatus 已变化） */
+    const onTaskCompleted = (): void => {
+      bumpUnread();
+      void reloadSchedules();
     };
 
     /** 连接/重连后用 REST 兜底恢复当前会话未决审批（WS 补发之外的保险） */
@@ -77,6 +87,7 @@ export function useWebSocket() {
     wsClient.on('approval', onApproval);
     wsClient.on('approvalResolved', onResolved);
     wsClient.on('approvalCancelled', onCancelled);
+    wsClient.on('taskCompleted', onTaskCompleted);
     wsClient.on('connected', onConnected);
 
     return () => {
@@ -86,7 +97,16 @@ export function useWebSocket() {
       wsClient.off('approval', onApproval);
       wsClient.off('approvalResolved', onResolved);
       wsClient.off('approvalCancelled', onCancelled);
+      wsClient.off('taskCompleted', onTaskCompleted);
       wsClient.off('connected', onConnected);
     };
-  }, [addEvent, appendDelta, truncateEvents, upsertApproval, settleApproval]);
+  }, [
+    addEvent,
+    appendDelta,
+    truncateEvents,
+    upsertApproval,
+    settleApproval,
+    bumpUnread,
+    reloadSchedules,
+  ]);
 }

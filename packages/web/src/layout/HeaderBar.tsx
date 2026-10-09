@@ -4,6 +4,7 @@ import { moduleLabelForPath } from '../config/navigation.js';
 import { useSessionStore } from '../stores/session.js';
 import { useUiStore } from '../stores/ui.js';
 import { IconButton } from '../components/ui/IconButton.js';
+import { NotificationBell } from '../components/Notification/NotificationBell.js';
 import { PanelLeftIcon, PanelRightIcon } from '../components/Icons/index.js';
 
 export function HeaderBar(): JSX.Element {
@@ -33,6 +34,7 @@ export function HeaderBar(): JSX.Element {
         </div>
       </div>
       <div className="header-bar__right">
+        <NotificationBell />
         <IconButton
           label={contextPanelOpen ? '收起上下文面板' : '展开上下文面板'}
           active={contextPanelOpen}

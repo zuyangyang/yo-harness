@@ -9,6 +9,7 @@ export {
   ArrowUpIcon,
   WrenchScrewdriverIcon,
   ClockIcon,
+  BellIcon,
   CheckIcon,
   XMarkIcon,
   ChevronRightIcon,
