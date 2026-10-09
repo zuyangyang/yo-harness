@@ -479,6 +479,50 @@ describe('AgentLoop', () => {
     expect(snapshotCalls).toEqual([{ relPath: 'a.txt', seq: toolCallEvent?.seq }]);
   });
 
+  it('max_tokens 截断：丢弃工具调用、注入续写并从截断处继续', async () => {
+    const { loop, store } = makeLoop({
+      script: [
+        { text: 'part 1', toolCalls: [], stopReason: 'max_tokens', usage: { inputTokens: 10, outputTokens: 5 } },
+        { text: 'part 2', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 5 } },
+      ],
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    const assistantTexts = store.events.filter((e) => e.payload.type === 'assistant_text');
+    expect(assistantTexts).toHaveLength(2);
+    const continuation = store.events.find(
+      (e) =>
+        e.payload.type === 'user_input' &&
+        (e.payload as { content: string }).content.includes('max_tokens'),
+    );
+    expect(continuation).toBeDefined();
+  });
+
+  it('max_tokens 连续截断：续写 3 次后熔断收尾', async () => {
+    const truncated: ChatResponse = {
+      text: 'x',
+      toolCalls: [],
+      stopReason: 'max_tokens',
+      usage: { inputTokens: 10, outputTokens: 5 },
+    };
+    const { loop, store } = makeLoop({
+      script: [truncated, truncated, truncated, truncated, truncated],
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    const continuations = store.events.filter(
+      (e) =>
+        e.payload.type === 'user_input' &&
+        (e.payload as { content: string }).content.includes('max_tokens'),
+    );
+    // MAX_CONTINUATIONS=3：第 1-3 次截断各续写一次，第 4 次截断熔断
+    expect(continuations).toHaveLength(3);
+  });
+
   it('未知工具：ok=false 结果回传，回合继续', async () => {
     const { loop, store, fake } = makeLoop({
       script: [resp('', [call('c1', 'nope')]), resp('recovered')],

@@ -67,6 +67,9 @@ export interface AgentLoopDeps {
   };
 }
 
+/** 连续 max_tokens 截断的续写上限，超过则按当前输出收尾，防止死循环 */
+const MAX_CONTINUATIONS = 3;
+
 /** LLM 阶段失败的标记：error 事件 stage='llm'，原始错误保存在 original */
 class LlmStageError extends Error {
   constructor(public readonly original: unknown) {
@@ -77,6 +80,7 @@ class LlmStageError extends Error {
 export class AgentLoop {
   private interruptFlag = false;
   private turnUsage: Usage = { inputTokens: 0, outputTokens: 0 };
+  private truncationCount = 0;
 
   constructor(private readonly deps: AgentLoopDeps) {}
 
@@ -94,6 +98,7 @@ export class AgentLoop {
     const turnId = randomUUID();
     this.interruptFlag = false;
     this.turnUsage = { inputTokens: 0, outputTokens: 0 };
+    this.truncationCount = 0;
     let reason: TurnEndReason = 'done';
     try {
       await this.append({ type: 'turn_started', turnId });
@@ -134,6 +139,27 @@ export class AgentLoop {
       this.turnUsage.outputTokens += resp.usage.outputTokens;
       logTokenCalibration(logger, built.estTokens, resp.usage);
       this.emitStatus(built);
+
+      // max_tokens 截断：丢弃可能不完整的 toolCalls，落库文本并注入续写
+      if (resp.stopReason === 'max_tokens') {
+        await this.appendAndPush({
+          type: 'assistant_text',
+          text: resp.text,
+          toolCalls: [],
+        });
+        if (this.truncationCount >= MAX_CONTINUATIONS) {
+          // 续写次数用尽：按当前输出收尾，避免死循环
+          return 'done';
+        }
+        this.truncationCount += 1;
+        await this.appendAndPush({
+          type: 'user_input',
+          content: '[上一回复因达到 max_tokens 被截断，请从被截断处继续，不要重复已输出内容]',
+        });
+        continue;
+      }
+      this.truncationCount = 0;
+
       await this.appendAndPush({
         type: 'assistant_text',
         text: resp.text,
