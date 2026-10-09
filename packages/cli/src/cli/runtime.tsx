@@ -321,6 +321,11 @@ async function launch(
       ? new CheckpointManager(checkpointStore, session.id)
       : undefined;
 
+    // 6b) 目标追踪器（提前创建，注入主循环）
+    const goalTracker = new GoalTracker({
+      driftThreshold: config.goalTracking?.driftThreshold ?? 8,
+    });
+
     // 7) 主循环
     const loop = new AgentLoop({
       sessionId: session.id,
@@ -346,14 +351,10 @@ async function launch(
             },
           }
         : {}),
+      goalTracker,
     });
 
     // ─── Phase 2 新增装配 ───
-
-    // 8) 目标追踪器
-    const goalTracker = new GoalTracker({
-      driftThreshold: config.goalTracking?.driftThreshold ?? 8,
-    });
 
     // 9) 规划器回调
     const runPlannerFn = async (description: string): Promise<Plan | null> => {

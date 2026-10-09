@@ -65,6 +65,16 @@ export interface AgentLoopDeps {
   checkpoint?: {
     snapshotBeforeWrite: (relPath: string, seq: number) => Promise<string>;
   };
+  /**
+   * 目标追踪 hook；undefined = 禁用。
+   * initialize 在每轮开始时用用户输入初始化目标，
+   * checkDrift 每步调用检测漂移，systemPromptInjection 拼进 system prompt。
+   */
+  goalTracker?: {
+    initialize(userInput: string): void;
+    checkDrift(currentStep: number, recentToolCalls: ToolCall[]): string | undefined;
+    toSystemPromptInjection(): string | undefined;
+  };
 }
 
 /** 连续 max_tokens 截断的续写上限，超过则按当前输出收尾，防止死循环 */
@@ -81,6 +91,7 @@ export class AgentLoop {
   private interruptFlag = false;
   private turnUsage: Usage = { inputTokens: 0, outputTokens: 0 };
   private truncationCount = 0;
+  private recentToolCalls: ToolCall[] = [];
 
   constructor(private readonly deps: AgentLoopDeps) {}
 
@@ -99,6 +110,8 @@ export class AgentLoop {
     this.interruptFlag = false;
     this.turnUsage = { inputTokens: 0, outputTokens: 0 };
     this.truncationCount = 0;
+    this.recentToolCalls = [];
+    this.deps.goalTracker?.initialize(userText);
     let reason: TurnEndReason = 'done';
     try {
       await this.append({ type: 'turn_started', turnId });
@@ -133,7 +146,15 @@ export class AgentLoop {
           freedEstTokens: built.freedEstTokens,
         });
       }
-      const resp = await this.chat(built.messages);
+      // 目标漂移提醒：临时注入本轮消息（不落库），不污染事件流
+      const drift = this.deps.goalTracker?.checkDrift(
+        budget.snapshot().steps,
+        this.recentToolCalls,
+      );
+      const messages = drift !== undefined
+        ? [...built.messages, { role: 'user' as const, text: drift }]
+        : built.messages;
+      const resp = await this.chat(messages);
       budget.addUsage(resp.usage);
       this.turnUsage.inputTokens += resp.usage.inputTokens;
       this.turnUsage.outputTokens += resp.usage.outputTokens;
@@ -167,6 +188,7 @@ export class AgentLoop {
       });
       if (resp.toolCalls.length === 0) return 'done';
       for (const toolCall of resp.toolCalls) {
+        this.recentToolCalls.push(toolCall);
         const toolCallEnvelope = await this.appendAndPush({
           type: 'tool_call',
           callId: toolCall.callId,
@@ -291,9 +313,11 @@ export class AgentLoop {
 
   private toRequest(messages: ChatMessage[]): ChatRequest {
     const { systemPrompt, maxTokens, temperature, tools } = this.deps;
+    const goalInjection = this.deps.goalTracker?.toSystemPromptInjection();
+    const system = goalInjection !== undefined ? `${systemPrompt}\n\n${goalInjection}` : systemPrompt;
     return temperature !== undefined
-      ? { system: systemPrompt, messages, tools: tools.specs(), maxTokens, temperature }
-      : { system: systemPrompt, messages, tools: tools.specs(), maxTokens };
+      ? { system, messages, tools: tools.specs(), maxTokens, temperature }
+      : { system, messages, tools: tools.specs(), maxTokens };
   }
 
   /** 落库 + 广播 + 投影。先 append 后 push：append 抛错时上下文保持一致 */

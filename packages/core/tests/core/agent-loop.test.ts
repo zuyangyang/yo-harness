@@ -126,6 +126,12 @@ interface LoopOptions {
   checkpoint?: {
     snapshotBeforeWrite: (relPath: string, seq: number) => Promise<string>;
   };
+  /** 目标追踪 hook；提供时注入 AgentLoop.goalTracker */
+  goalTracker?: {
+    initialize(userInput: string): void;
+    checkDrift(currentStep: number, recentToolCalls: ToolCall[]): string | undefined;
+    toSystemPromptInjection(): string | undefined;
+  };
 }
 
 interface LoopHarness {
@@ -180,6 +186,7 @@ function makeLoop(options: LoopOptions): LoopHarness {
     maxTokens: 1024,
     logger: SILENT_LOGGER,
     ...(options.checkpoint !== undefined ? { checkpoint: options.checkpoint } : {}),
+    ...(options.goalTracker !== undefined ? { goalTracker: options.goalTracker } : {}),
   });
   return { loop, store, fake, bus, rec, contextConfig, costTracker };
 }
@@ -521,6 +528,50 @@ describe('AgentLoop', () => {
     );
     // MAX_CONTINUATIONS=3：第 1-3 次截断各续写一次，第 4 次截断熔断
     expect(continuations).toHaveLength(3);
+  });
+
+  it('目标追踪：初始化目标、每步检查漂移、goal 注入 system prompt', async () => {
+    const driftSteps: number[] = [];
+    let initInput: string | undefined;
+    const { loop, fake } = makeLoop({
+      script: [resp('done')],
+      goalTracker: {
+        initialize: (userInput) => {
+          initInput = userInput;
+        },
+        checkDrift: (step) => {
+          driftSteps.push(step);
+          return undefined;
+        },
+        toSystemPromptInjection: () => '<current-goal>build a thing</current-goal>',
+      },
+    });
+
+    const reason = await loop.runTurn('build a thing');
+
+    expect(reason).toBe('done');
+    expect(initInput).toBe('build a thing');
+    expect(driftSteps).toEqual([1]);
+    expect(fake.requests[0]?.system).toContain('<current-goal>build a thing</current-goal>');
+  });
+
+  it('目标追踪：漂移提醒作为临时消息注入本轮调用且不落库', async () => {
+    const { loop, fake, store } = makeLoop({
+      script: [resp('done')],
+      goalTracker: {
+        initialize: () => {},
+        checkDrift: () => '⚠ drift reminder',
+        toSystemPromptInjection: () => undefined,
+      },
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    const lastMessage = fake.requests[0]?.messages.at(-1);
+    expect(lastMessage).toEqual({ role: 'user', text: '⚠ drift reminder' });
+    const userInputs = store.events.filter((e) => e.payload.type === 'user_input');
+    expect(userInputs.map((e) => (e.payload as { content: string }).content)).toEqual(['go']);
   });
 
   it('未知工具：ok=false 结果回传，回合继续', async () => {
