@@ -20,9 +20,11 @@ import { FallbackSummarizer } from '../core/summarizer.js';
 import { EventBus } from '../core/event-bus.js';
 import { createNonInteractivePermission } from '../core/permission.js';
 import type { EventStore, ToolResolver } from '../core/ports.js';
+import { DEFAULT_PRICING_TABLE } from '../llm/pricing.js';
 import type { CostTracker } from '../router/cost-tracker.js';
 import type { ModelRouter } from '../router/model-router.js';
 import type { Logger } from '../types/common.js';
+import type { PricingTable } from '../types/pricing.js';
 import type { TurnEndReason } from '../types/events.js';
 import type { SandboxProvider } from '../types/sandbox.js';
 import type { SessionStore } from '../core/ports.js';
@@ -35,6 +37,8 @@ export interface TaskRunnerDeps {
   tools: ToolResolver;
   router: ModelRouter;
   costTracker: CostTracker;
+  /** 价格表（缺省用内置默认） */
+  pricing?: PricingTable;
   sandbox: SandboxProvider;
   logger: Logger;
   systemPrompt: string;
@@ -74,6 +78,7 @@ export class TaskRunner {
 
   async run(input: RunTaskInput): Promise<RunTaskResult> {
     const { taskStore, eventStore, tools, router, costTracker, logger } = this.deps;
+    const pricing = this.deps.pricing ?? DEFAULT_PRICING_TABLE;
 
     const task = await taskStore.get(input.taskId);
     if (task === undefined) {
@@ -97,6 +102,7 @@ export class TaskRunner {
       cwd: input.cwd,
       router,
       costTracker,
+      pricing,
       store: eventStore,
       tools,
       permission,

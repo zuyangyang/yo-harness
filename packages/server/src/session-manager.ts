@@ -31,9 +31,11 @@ import {
 } from '@yo-harness/core/core/permission.js';
 import type { EventStore, SessionStore, Session, ToolResolver } from '@yo-harness/core/core/ports.js';
 import { deriveTitle } from '@yo-harness/core/utils/title.js';
+import { DEFAULT_PRICING_TABLE } from '@yo-harness/core/llm/pricing.js';
 import type { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
 import type { ModelRouter } from '@yo-harness/core/router/model-router.js';
 import type { Logger } from '@yo-harness/core/types/common.js';
+import type { PricingTable } from '@yo-harness/core/types/pricing.js';
 import type { AgentEvent, EventEnvelope, TurnEndReason } from '@yo-harness/core/types/events.js';
 import type { SandboxProvider } from '@yo-harness/core/types/sandbox.js';
 import type { WebSocketHub } from './ws/hub.js';
@@ -76,6 +78,8 @@ export interface SessionManagerDeps {
   /** 解析该会话生效的运行时：会话级模型优先，其次全局默认（可在运行期变更） */
   resolveRuntime: (session: Session) => Promise<SessionRuntime>;
   costTracker: CostTracker;
+  /** 价格表（缺省用内置默认）；决定 turn_completed 是否带 cost */
+  pricing?: PricingTable;
   sandbox: SandboxProvider;
   logger: Logger;
   systemPrompt: string;
@@ -380,6 +384,7 @@ export class SessionManager {
       cwd: session.cwd,
       router: runtime.router,
       costTracker: this.deps.costTracker,
+      pricing: this.deps.pricing ?? DEFAULT_PRICING_TABLE,
       store: this.deps.eventStore,
       tools: this.deps.tools,
       permission,
