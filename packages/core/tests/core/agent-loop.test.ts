@@ -456,7 +456,7 @@ describe('AgentLoop', () => {
       script: [resp('', [call('c1', 'writer')]), resp('done')],
       tools: [writer],
       // 放行 write，使工具真正执行、ctx 被捕获
-      permission: createNonInteractivePermission({ mode: 'full' }),
+      permission: createNonInteractivePermission({ mode: 'full', shellMode: 'ask', shellAllowlist: [] }),
       checkpoint: {
         snapshotBeforeWrite: async (relPath, seq) => {
           snapshotCalls.push({ relPath, seq });
