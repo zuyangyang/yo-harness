@@ -9,6 +9,9 @@
 
 export type BackgroundTaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
+/** 任务触发来源 */
+export type TaskTrigger = 'manual' | 'schedule' | 'cli';
+
 export interface BackgroundTask {
   id: string;
   sessionId: string;
@@ -31,10 +34,20 @@ export interface BackgroundTask {
   cwd: string;
   /** 使用的模型（provider/model 格式） */
   model: string;
+  /** 关联的定时任务；null = 手动/CLI 触发 */
+  scheduleId: string | null;
+  /** 触发来源 */
+  trigger: TaskTrigger;
 }
 
 export interface CreateTaskInput {
   description: string;
   cwd: string;
   model: string;
+  /** 复用已有 session（定时任务自行建会话）；缺省时自动创建 background session */
+  sessionId?: string;
+  /** 关联的定时任务 */
+  scheduleId?: string;
+  /** 触发来源，缺省 manual */
+  trigger?: TaskTrigger;
 }

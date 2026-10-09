@@ -10,6 +10,7 @@
  * - v5（Phase 5）：+ workspaces；sessions +workspace_id/pinned/title_is_custom 列
  * - v6（Phase 6）：+ model_providers / model_settings（Web UI 模型配置）
  * - v7（审批流）：sessions +permission_mode 列
+ * - v8（定时任务）：+ scheduled_tasks / notifications；tasks +schedule_id/trigger 列
  */
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -18,7 +19,7 @@ import { FatalError } from '../types/errors.js';
 
 export type SqliteDatabase = Database.Database;
 
-const SCHEMA_VERSION = '7';
+const SCHEMA_VERSION = '8';
 
 export function openDatabase(dbPath: string): SqliteDatabase {
   if (dbPath !== ':memory:') {
@@ -119,6 +120,14 @@ function initSchema(db: SqliteDatabase): void {
 
   if (afterV5 === '6') {
     migrateV6ToV7(db);
+  }
+
+  const afterV6 = (
+    db.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }
+  ).value;
+
+  if (afterV6 === '7') {
+    migrateV7ToV8(db);
   }
 
   const finalVersion = (
@@ -351,6 +360,66 @@ function migrateV6ToV7(db: SqliteDatabase): void {
       db.exec('ALTER TABLE sessions ADD COLUMN permission_mode TEXT');
     }
     db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('7', 'schema_version');
+  });
+  migration();
+}
+
+/** v7 → v8：新增定时任务、站内通知表；tasks 加 schedule_id / trigger 列 */
+function migrateV7ToV8(db: SqliteDatabase): void {
+  const migration = db.transaction(() => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS scheduled_tasks (
+        id                  TEXT PRIMARY KEY,
+        name                TEXT NOT NULL,
+        prompt              TEXT NOT NULL,
+        cron                TEXT NOT NULL,
+        timezone            TEXT NOT NULL DEFAULT 'UTC',
+        enabled             INTEGER NOT NULL DEFAULT 1,
+        workspace_id        TEXT,
+        cwd                 TEXT,
+        model               TEXT,
+        permission_mode     TEXT NOT NULL DEFAULT 'full',
+        allowed_tools       TEXT,
+        max_steps           INTEGER,
+        max_tokens          INTEGER,
+        max_duration_ms     INTEGER,
+        output_kind         TEXT NOT NULL DEFAULT 'report',
+        output_target       TEXT,
+        overlap_policy      TEXT NOT NULL DEFAULT 'skip',
+        catch_up_policy     TEXT NOT NULL DEFAULT 'skip',
+        next_run_at         TEXT NOT NULL,
+        last_run_at         TEXT,
+        last_run_id         TEXT,
+        last_status         TEXT,
+        consecutive_failures INTEGER NOT NULL DEFAULT 0,
+        created_at          TEXT NOT NULL,
+        updated_at          TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_due ON scheduled_tasks (enabled, next_run_at);
+
+      CREATE TABLE IF NOT EXISTS notifications (
+        id         TEXT PRIMARY KEY,
+        session_id TEXT,
+        kind       TEXT NOT NULL,
+        title      TEXT NOT NULL,
+        body       TEXT,
+        read_at    TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications (read_at, created_at DESC);
+    `);
+
+    const columns = db
+      .prepare('PRAGMA table_info(tasks)')
+      .all() as { name: string }[];
+    if (!columns.some((c) => c.name === 'schedule_id')) {
+      db.exec('ALTER TABLE tasks ADD COLUMN schedule_id TEXT');
+    }
+    if (!columns.some((c) => c.name === 'trigger')) {
+      db.exec("ALTER TABLE tasks ADD COLUMN trigger TEXT NOT NULL DEFAULT 'manual'");
+    }
+
+    db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('8', 'schema_version');
   });
   migration();
 }

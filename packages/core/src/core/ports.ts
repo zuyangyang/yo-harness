@@ -198,7 +198,8 @@ export interface MemoryStore {
 export interface TaskStore {
   create(input: CreateTaskInput): Promise<BackgroundTask>;
   get(id: string): Promise<BackgroundTask | undefined>;
-  list(limit?: number): Promise<BackgroundTask[]>;
+  /** scheduleId 提供时仅返回该定时任务的运行历史 */
+  list(limit?: number, scheduleId?: string): Promise<BackgroundTask[]>;
   updateStatus(
     id: string,
     status: BackgroundTaskStatus,
@@ -206,6 +207,94 @@ export interface TaskStore {
     errorMessage?: string,
     summary?: string,
   ): Promise<void>;
+}
+
+// ─── 定时任务端口 ───
+
+export type ScheduleOutputKind = 'report' | 'notification' | 'webhook' | 'none';
+export type ScheduleOverlapPolicy = 'skip' | 'queue' | 'allow';
+export type ScheduleCatchUpPolicy = 'skip' | 'run_once' | 'grace';
+
+export interface ScheduledTask {
+  id: string;
+  name: string;
+  prompt: string;
+  cron: string;
+  /** IANA 时区，如 Asia/Shanghai */
+  timezone: string;
+  enabled: boolean;
+  workspaceId: string | null;
+  cwd: string | null;
+  /** 形如 "providerId/modelId"；null = 全局默认 */
+  model: string | null;
+  /** 无头运行固定 full，避免无人审批时阻塞 */
+  permissionMode: 'full';
+  allowedTools: string[] | null;
+  maxSteps: number | null;
+  maxTokens: number | null;
+  maxDurationMs: number | null;
+  outputKind: ScheduleOutputKind;
+  outputTarget: string | null;
+  overlapPolicy: ScheduleOverlapPolicy;
+  catchUpPolicy: ScheduleCatchUpPolicy;
+  nextRunAt: string;
+  lastRunAt: string | null;
+  lastRunId: string | null;
+  lastStatus: string | null;
+  consecutiveFailures: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScheduledTaskCreateInput {
+  name: string;
+  prompt: string;
+  cron: string;
+  timezone?: string;
+  enabled?: boolean;
+  workspaceId?: string | null;
+  cwd?: string | null;
+  model?: string | null;
+  allowedTools?: string[] | null;
+  maxSteps?: number | null;
+  maxTokens?: number | null;
+  maxDurationMs?: number | null;
+  outputKind?: ScheduleOutputKind;
+  outputTarget?: string | null;
+  overlapPolicy?: ScheduleOverlapPolicy;
+  catchUpPolicy?: ScheduleCatchUpPolicy;
+  nextRunAt: string;
+}
+
+export interface ScheduledTaskStore {
+  create(input: ScheduledTaskCreateInput): Promise<ScheduledTask>;
+  get(id: string): Promise<ScheduledTask | undefined>;
+  list(): Promise<ScheduledTask[]>;
+  update(
+    id: string,
+    patch: Partial<Omit<ScheduledTask, 'id' | 'createdAt' | 'permissionMode'>>,
+  ): Promise<ScheduledTask | undefined>;
+  delete(id: string): Promise<void>;
+  /** enabled=true 且 next_run_at <= at 的任务，按 next_run_at 升序 */
+  listDue(at: string): Promise<ScheduledTask[]>;
+}
+
+export interface Notification {
+  id: string;
+  sessionId: string | null;
+  kind: string;
+  title: string;
+  body: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationStore {
+  create(input: Omit<Notification, 'id' | 'createdAt' | 'readAt'>): Promise<Notification>;
+  list(limit?: number): Promise<Notification[]>;
+  markRead(id: string): Promise<void>;
+  markAllRead(): Promise<void>;
+  countUnread(): Promise<number>;
 }
 
 // ─── Phase 6 模型配置端口 ───

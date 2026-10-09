@@ -26,6 +26,8 @@ interface TaskRow {
   end_reason: string | null;
   summary: string | null;
   error_message: string | null;
+  schedule_id: string | null;
+  trigger: string | null;
 }
 
 function mapTask(row: TaskRow): BackgroundTask {
@@ -42,6 +44,8 @@ function mapTask(row: TaskRow): BackgroundTask {
     createdAt: row.created_at,
     cwd: row.cwd,
     model: row.model,
+    scheduleId: row.schedule_id ?? null,
+    trigger: (row.trigger as BackgroundTask['trigger'] | null) ?? 'manual',
   };
 }
 
@@ -50,23 +54,28 @@ export class SqliteTaskStore implements TaskStore {
 
   async create(input: CreateTaskInput): Promise<BackgroundTask> {
     const taskId = randomUUID();
-    const sessionId = randomUUID();
+    const sessionId = input.sessionId ?? randomUUID();
     const now = new Date().toISOString();
+    const trigger = input.trigger ?? 'manual';
+    const scheduleId = input.scheduleId ?? null;
 
     const insert = this.db.transaction(() => {
-      this.db
-        .prepare(
-          `INSERT INTO sessions (id, title, model, cwd, status, type, created_at, updated_at)
-           VALUES (?, ?, ?, ?, 'active', 'background', ?, ?)`,
-        )
-        .run(sessionId, input.description.slice(0, 60), input.model, input.cwd, now, now);
+      // 调用方已建会话（定时任务需要自定义权限/标题）时不再自动建
+      if (input.sessionId === undefined) {
+        this.db
+          .prepare(
+            `INSERT INTO sessions (id, title, model, cwd, status, type, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 'active', 'background', ?, ?)`,
+          )
+          .run(sessionId, input.description.slice(0, 60), input.model, input.cwd, now, now);
+      }
 
       this.db
         .prepare(
-          `INSERT INTO tasks (id, description, session_id, status, cwd, model, created_at)
-           VALUES (?, ?, ?, 'pending', ?, ?, ?)`,
+          `INSERT INTO tasks (id, description, session_id, status, cwd, model, created_at, schedule_id, trigger)
+           VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
         )
-        .run(taskId, input.description, sessionId, input.cwd, input.model, now);
+        .run(taskId, input.description, sessionId, input.cwd, input.model, now, scheduleId, trigger);
     });
     insert();
 
@@ -83,6 +92,8 @@ export class SqliteTaskStore implements TaskStore {
       createdAt: now,
       cwd: input.cwd,
       model: input.model,
+      scheduleId,
+      trigger,
     };
   }
 
@@ -91,10 +102,14 @@ export class SqliteTaskStore implements TaskStore {
     return row === undefined ? undefined : mapTask(row);
   }
 
-  async list(limit = 50): Promise<BackgroundTask[]> {
-    const rows = this.db
-      .prepare('SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?')
-      .all(limit) as TaskRow[];
+  async list(limit = 50, scheduleId?: string): Promise<BackgroundTask[]> {
+    const rows = (scheduleId === undefined
+      ? this.db
+          .prepare('SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?')
+          .all(limit)
+      : this.db
+          .prepare('SELECT * FROM tasks WHERE schedule_id = ? ORDER BY created_at DESC LIMIT ?')
+          .all(scheduleId, limit)) as TaskRow[];
     return rows.map(mapTask);
   }
 
