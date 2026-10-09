@@ -48,6 +48,9 @@ import { openDatabase, type SqliteDatabase } from '@yo-harness/core/storage/db.j
 import { SqliteEventStore } from '@yo-harness/core/storage/event-store.js';
 import { SqliteSessionStore } from '@yo-harness/core/storage/session-store.js';
 import { SqliteCheckpointStore } from '@yo-harness/core/storage/checkpoint-store.js';
+import { SqliteMemoryStore } from '@yo-harness/core/storage/memory-store.js';
+import { MemoryExtractor } from '@yo-harness/core/memory/extractor.js';
+import { MemoryInjector } from '@yo-harness/core/memory/injector.js';
 import { createBuiltinRegistry } from '@yo-harness/core/tools/registry.js';
 import { createLogger, parseLogLevel } from '@yo-harness/core/utils/logger.js';
 import { yoHome } from '@yo-harness/core/utils/paths.js';
@@ -226,6 +229,7 @@ async function launch(
   priorEvents: AgentEvent[],
 ): Promise<void> {
   const { config, providerName, providerConf, llm, logger, db, sessionStore, eventStore } = boot;
+  const memoryStore = new SqliteMemoryStore(db);
   let mcpManager: McpManager | undefined;
   try {
     // 1) 网关
@@ -305,6 +309,10 @@ async function launch(
         ? createNonInteractivePermission(config.permission)
         : createInteractivePermission(withApprovalEvents(bridge.ask, appendAndEmit), config.permission);
 
+    // 5b) 记忆注入：跨会话偏好/事实拼进 system prompt
+    const memoryFragment = await new MemoryInjector(memoryStore).inject();
+    const systemPrompt = memoryFragment !== '' ? `${SYSTEM_PROMPT}\n\n${memoryFragment}` : SYSTEM_PROMPT;
+
     // 6) 检查点存储（提前创建，供主循环写前快照注入）
     const checkpointStore = config.checkpointing.enabled
       ? new SqliteCheckpointStore(db)
@@ -326,7 +334,7 @@ async function launch(
       context,
       bus,
       sandbox: createLocalSandbox(session.cwd),
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt,
       maxTokens: DEFAULT_MAX_TOKENS,
       ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
       logger,
@@ -411,6 +419,22 @@ async function launch(
       { exitOnCtrlC: false },
     );
     await instance.waitUntilExit();
+
+    // 会话结束：提取语义记忆（失败静默，不阻断退出）
+    try {
+      const events = await eventStore.replay(session.id);
+      const existing = await memoryStore.listActive();
+      const extractor = new MemoryExtractor(
+        router.getClient('extractor'),
+        memoryStore,
+        logger,
+        config.roleTemperature?.extractor ?? 0,
+      );
+      const count = await extractor.extract(events, existing.map((m) => m.title));
+      if (count > 0) logger.info('extracted memories', { sessionId: session.id, count });
+    } catch (err) {
+      logger.warn('memory extraction failed', { error: String(err) });
+    }
   } finally {
     await mcpManager?.stopAll().catch((err: unknown) => {
       logger.warn('mcp stopAll failed', { error: String(err) });
