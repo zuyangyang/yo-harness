@@ -40,7 +40,7 @@ export async function runSchedule(
   schedule: ScheduledTask,
 ): Promise<RunOutcome> {
   const cwd = schedule.cwd ?? deps.defaultCwd;
-  const model = schedule.model ?? deps.defaultModelLabel();
+  const model = schedule.model ?? (await deps.resolveDefaultModel());
   const dateLabel = new Date().toISOString().slice(0, 10);
 
   // 1) 先建会话：background + full 权限，无人审批也不会阻塞

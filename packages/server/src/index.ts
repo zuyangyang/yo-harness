@@ -25,6 +25,7 @@ import { createJwtConfig } from './auth/jwt.js';
 import { createDefaultServerConfig, type ServerConfig } from './config.js';
 import { ModelConfigService } from './model-config-service.js';
 import { WebSocketHub } from './ws/hub.js';
+import { ScheduledTaskScheduler } from './scheduler/scheduler.js';
 import { createSqliteBackend, createPostgresBackend } from './storage/index.js';
 import type { StorageBackend } from './storage/index.js';
 
@@ -111,6 +112,18 @@ export async function createServer(options: CreateServerOptions) {
   refs.wsHub = wsHub;
   sessionManager.setWebSocketHub(wsHub);
 
+  const scheduler = new ScheduledTaskScheduler({
+    storage,
+    sessionManager,
+    wsHub,
+    logger,
+    defaultCwd: process.cwd(),
+    resolveDefaultModel: async () => {
+      const runtime = await modelConfig.getRuntime();
+      return runtime.providerId + '/' + runtime.model;
+    },
+  });
+
   const { app, injectWebSocket } = createApp({
     storage,
     sessionManager,
@@ -118,9 +131,10 @@ export async function createServer(options: CreateServerOptions) {
     serverConfig,
     modelConfig,
     wsHub,
+    scheduler,
   });
 
-  return { app, wsHub, injectWebSocket, sessionManager, storage, modelConfig };
+  return { app, wsHub, injectWebSocket, sessionManager, storage, modelConfig, scheduler };
 }
 
 export interface StartServerOptions extends CreateServerOptions {
@@ -142,16 +156,21 @@ function loadDotEnv(): void {
 export async function startServer(options: StartServerOptions): Promise<void> {
   const port = options.port ?? Number(process.env.YO_PORT ?? 3456);
   const result = await createServer(options);
-  const { app, injectWebSocket, sessionManager, storage } = result;
+  const { app, injectWebSocket, sessionManager, storage, scheduler } = result;
 
   const server = serve({ fetch: app.fetch, port });
   injectWebSocket(server as unknown as Server);
+
+  if (process.env.YO_SCHEDULER !== 'off') {
+    await scheduler.start();
+  }
 
   console.log(`[yo-server] listening on http://localhost:${port}`);
   console.log(`[yo-server] mode: ${options.serverConfig?.mode ?? 'single'}`);
 
   const shutdown = async (): Promise<void> => {
     console.log('[yo-server] shutting down...');
+    await scheduler.stop();
     await sessionManager.destroyAll();
     await storage.close();
     server.close();

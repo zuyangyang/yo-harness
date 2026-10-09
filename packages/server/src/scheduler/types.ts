@@ -16,8 +16,8 @@ export interface SchedulerDeps {
   logger: Logger;
   /** schedule 未指定 cwd 时使用的默认工作目录 */
   defaultCwd: string;
-  /** 全局默认模型标签，形如 provider/model */
-  defaultModelLabel: () => string;
+  /** 解析全局默认模型标签，形如 provider/model */
+  resolveDefaultModel: () => Promise<string>;
   /** 扫描间隔，缺省 30s */
   tickMs?: number;
   /** 全局并发运行上限，缺省 3 */
