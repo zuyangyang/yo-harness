@@ -238,17 +238,17 @@ describe('AgentLoop', () => {
       'user_input',
       'assistant_text',
       'tool_call',
-      'tool_result',
       'tool_call',
+      'tool_result',
       'tool_result',
       'assistant_text',
       'turn_completed',
     ]);
-    // callId 关联：tool_call 与 tool_result 成对
+    // callId 关联：tool_call 与 tool_result 成对（批量先声明、再按序回报）
     const tc = store.events[3]?.payload;
     if (tc?.type !== 'tool_call') throw new Error('expected tool_call');
     expect(tc).toMatchObject({ callId: 'c1', toolName: 'echo', args: { text: 'one' } });
-    const tr = store.events[4]?.payload;
+    const tr = store.events[5]?.payload;
     if (tr?.type !== 'tool_result') throw new Error('expected tool_result');
     expect(tr).toMatchObject({ callId: 'c1', ok: true, content: '{"text":"one"}' });
     // 第二次请求：user → assistant(toolCalls) → 工具结果成组
@@ -572,6 +572,53 @@ describe('AgentLoop', () => {
     expect(lastMessage).toEqual({ role: 'user', text: '⚠ drift reminder' });
     const userInputs = store.events.filter((e) => e.payload.type === 'user_input');
     expect(userInputs.map((e) => (e.payload as { content: string }).content)).toEqual(['go']);
+  });
+
+  it('多 read 工具并发执行：结果按 callId 顺序落库', async () => {
+    let concurrent = 0;
+    let maxConcurrent = 0;
+    const tracked = makeTool('tracked', 'read', async () => {
+      concurrent += 1;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      concurrent -= 1;
+      return { ok: true, content: 'done' };
+    });
+    const { loop, store } = makeLoop({
+      script: [resp('', [call('c1', 'tracked'), call('c2', 'tracked')]), resp('all done')],
+      tools: [tracked],
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    // 两个 read 工具并发执行
+    expect(maxConcurrent).toBe(2);
+    // 结果按 callId 顺序落库（重放确定）
+    const results = store.events.filter((e) => e.payload.type === 'tool_result');
+    expect(results.map((e) => (e.payload as { callId: string }).callId)).toEqual(['c1', 'c2']);
+  });
+
+  it('含 write 工具时串行执行', async () => {
+    let concurrent = 0;
+    let maxConcurrent = 0;
+    const writer = makeTool('writer', 'write', async () => {
+      concurrent += 1;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      concurrent -= 1;
+      return { ok: true, content: 'wrote' };
+    });
+    const { loop, store } = makeLoop({
+      script: [resp('', [call('c1', 'writer'), call('c2', 'writer')]), resp('done')],
+      tools: [writer],
+      permission: createNonInteractivePermission({ mode: 'full', shellMode: 'ask', shellAllowlist: [] }),
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    expect(maxConcurrent).toBe(1);
   });
 
   it('未知工具：ok=false 结果回传，回合继续', async () => {

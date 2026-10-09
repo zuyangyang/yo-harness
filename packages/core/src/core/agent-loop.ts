@@ -80,6 +80,9 @@ export interface AgentLoopDeps {
 /** 连续 max_tokens 截断的续写上限，超过则按当前输出收尾，防止死循环 */
 const MAX_CONTINUATIONS = 3;
 
+/** tool_result 事件（并行执行时作为返回值收集，再按序落库） */
+type ToolResultEvent = Extract<AgentEvent, { type: 'tool_result' }>;
+
 /** LLM 阶段失败的标记：error 事件 stage='llm'，原始错误保存在 original */
 class LlmStageError extends Error {
   constructor(public readonly original: unknown) {
@@ -187,16 +190,7 @@ export class AgentLoop {
         toolCalls: resp.toolCalls,
       });
       if (resp.toolCalls.length === 0) return 'done';
-      for (const toolCall of resp.toolCalls) {
-        this.recentToolCalls.push(toolCall);
-        const toolCallEnvelope = await this.appendAndPush({
-          type: 'tool_call',
-          callId: toolCall.callId,
-          toolName: toolCall.toolName,
-          args: toolCall.args,
-        });
-        await this.executeTool(toolCall, toolCallEnvelope.seq);
-      }
+      await this.executeTools(resp.toolCalls);
     }
   }
 
@@ -221,17 +215,62 @@ export class AgentLoop {
     }
   }
 
-  private async executeTool(toolCall: ToolCall, seq: number): Promise<void> {
+  /**
+   * 批量执行工具调用。
+   * 全 read/net 时并发执行（结果按 callId 原顺序落库，保证重放确定）；
+   * 含 write/danger 时串行（写操作可能有依赖/冲突，保守）。
+   */
+  private async executeTools(toolCalls: ToolCall[]): Promise<void> {
+    // 1) 逐个落库 tool_call，拿到事件序号
+    const entries: { toolCall: ToolCall; seq: number }[] = [];
+    for (const toolCall of toolCalls) {
+      this.recentToolCalls.push(toolCall);
+      const envelope = await this.appendAndPush({
+        type: 'tool_call',
+        callId: toolCall.callId,
+        toolName: toolCall.toolName,
+        args: toolCall.args,
+      });
+      entries.push({ toolCall, seq: envelope.seq });
+    }
+
+    // 2) 判断是否可并发：全部 read/net
+    const canParallel = entries.every(({ toolCall }) => {
+      const tool = this.deps.tools.get(toolCall.toolName);
+      return tool !== undefined && (tool.risk === 'read' || tool.risk === 'net');
+    });
+
+    // 3) 执行
+    if (canParallel) {
+      // 并发执行：结果存 Map，按 callId 原顺序落库
+      const results = new Map<string, ToolResultEvent>();
+      await Promise.all(
+        entries.map(async ({ toolCall, seq }) => {
+          results.set(toolCall.callId, await this.executeToolCore(toolCall, seq));
+        }),
+      );
+      for (const { toolCall } of entries) {
+        await this.appendAndPush(results.get(toolCall.callId)!);
+      }
+      return;
+    }
+
+    for (const { toolCall, seq } of entries) {
+      await this.appendAndPush(await this.executeToolCore(toolCall, seq));
+    }
+  }
+
+  /** 执行单个工具并返回 tool_result 事件（不落库）。权限/重试/快照逻辑与串行版一致。 */
+  private async executeToolCore(toolCall: ToolCall, seq: number): Promise<ToolResultEvent> {
     const tool = this.deps.tools.get(toolCall.toolName);
     if (tool === undefined) {
-      await this.appendAndPush({
+      return {
         type: 'tool_result',
         callId: toolCall.callId,
         ok: false,
         content: `unknown tool: ${toolCall.toolName}`,
         durationMs: 0,
-      });
-      return;
+      };
     }
     const decision = await this.deps.permission.request(
       tool,
@@ -240,14 +279,13 @@ export class AgentLoop {
       this.deps.cwd,
     );
     if (!decision.approved) {
-      await this.appendAndPush({
+      return {
         type: 'tool_result',
         callId: toolCall.callId,
         ok: false,
         content: 'User denied this action.',
         durationMs: 0,
-      });
-      return;
+      };
     }
 
     const maxRetries = 3;
@@ -277,14 +315,13 @@ export class AgentLoop {
 
       // 成功或非瞬态错误 → 直接返回
       if (result.ok || !isTransientError(result.content)) {
-        await this.appendAndPush({
+        return {
           type: 'tool_result',
           callId: toolCall.callId,
           ok: result.ok,
           content: result.content,
           durationMs: Date.now() - startedAt,
-        });
-        return;
+        };
       }
 
       // 瞬态错误且还有重试机会 → 退避后重试
@@ -296,15 +333,23 @@ export class AgentLoop {
 
       // 重试用尽 → 附加重试次数信息
       const exhaustedContent = `${result.content}\nRetries: ${maxRetries}/${maxRetries}`;
-      await this.appendAndPush({
+      return {
         type: 'tool_result',
         callId: toolCall.callId,
         ok: false,
         content: exhaustedContent,
         durationMs: Date.now() - startedAt,
-      });
-      return;
+      };
     }
+
+    // 不可达（TS 需要显式返回值）
+    return {
+      type: 'tool_result',
+      callId: toolCall.callId,
+      ok: false,
+      content: 'unreachable',
+      durationMs: 0,
+    };
   }
 
   private sleep(ms: number): Promise<void> {
