@@ -133,7 +133,19 @@ export interface ModelConfigChangedMessage {
   source: string;
 }
 
+/** 定时任务一次运行结束（成功/失败/取消） */
+export interface TaskCompletedMessage {
+  type: 'task.completed';
+  scheduleId: string;
+  runId: string;
+  sessionId: string;
+  name: string;
+  status: 'completed' | 'failed' | 'cancelled';
+  summary: string | null;
+}
+
 export type ServerMessage =
+  | TaskCompletedMessage
   | EventMessage
   | LlmDeltaMessage
   | EventsTruncatedMessage
