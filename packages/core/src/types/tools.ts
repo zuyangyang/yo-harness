@@ -17,6 +17,8 @@ export interface ToolResult {
   content: string;
   /** 结构化数据（渲染层 / 后续版本预留） */
   data?: unknown;
+  /** Phase 4: 结构化错误分类（loop 优先据此决定重试，取代子串嗅探） */
+  errorKind?: 'transient' | 'permanent' | 'usage';
 }
 
 export interface ExecutionContext {

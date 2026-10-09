@@ -342,7 +342,7 @@ export class AgentLoop {
       }
 
       // 成功或非瞬态错误 → 直接返回
-      if (result.ok || !isTransientError(result.content)) {
+      if (result.ok || !this.shouldRetryTool(result)) {
         return {
           type: 'tool_result',
           callId: toolCall.callId,
@@ -382,6 +382,12 @@ export class AgentLoop {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /** 是否重试工具：优先结构化 errorKind，回退 content 子串（§10.3） */
+  private shouldRetryTool(result: ToolResult): boolean {
+    if (result.errorKind !== undefined) return result.errorKind === 'transient';
+    return isTransientError(result.content);
   }
 
   /** 用真实 inputTokens 校准该模型估算比值，并 debug 记录（§10.1） */

@@ -749,6 +749,51 @@ describe('AgentLoop', () => {
     expect(tr.content).toContain('Retries: 3/3');
   });
 
+  it('errorKind=transient 优先于 content 子串：无 [TRANSIENT] 前缀仍重试', async () => {
+    let attempts = 0;
+    const flaky = makeTool('flaky', 'read', () => {
+      attempts++;
+      if (attempts <= 2) {
+        return Promise.resolve({
+          ok: false,
+          errorKind: 'transient',
+          content: 'plain failure without marker',
+        });
+      }
+      return Promise.resolve({ ok: true, content: 'success' });
+    });
+    const { loop } = makeLoop({
+      script: [resp('', [call('c1', 'flaky')]), resp('done')],
+      tools: [flaky],
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    expect(attempts).toBe(3);
+  });
+
+  it('errorKind=usage 覆盖 content 子串：即使含 [TRANSIENT] 也不重试', async () => {
+    let attempts = 0;
+    const usageErr = makeTool('usage_err', 'read', () => {
+      attempts++;
+      return Promise.resolve({
+        ok: false,
+        errorKind: 'usage',
+        content: '[TRANSIENT] misleading marker',
+      });
+    });
+    const { loop } = makeLoop({
+      script: [resp('', [call('c1', 'usage_err')]), resp('done')],
+      tools: [usageErr],
+    });
+
+    const reason = await loop.runTurn('go');
+
+    expect(reason).toBe('done');
+    expect(attempts).toBe(1); // 不重试
+  });
+
   it('参数错误不重试：直接返回 [PARAMETER]', async () => {
     let attempts = 0;
     const paramError = makeTool('param_err', 'read', () => {

@@ -321,6 +321,7 @@ export function createWebFetchTool(deps: WebFetchDeps = {}): Tool {
         if (isNetworkError) {
           return {
             ok: false,
+            errorKind: 'transient',
             content: formatToolError({
               kind: 'transient',
               message: `web_fetch network error: ${msg}`,
@@ -543,6 +544,7 @@ export function createWebSearchTool(
         if (isNetworkError) {
           return {
             ok: false,
+            errorKind: 'transient',
             content: formatToolError({
               kind: 'transient',
               message: `web_search network error: ${msg}`,
