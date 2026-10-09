@@ -37,10 +37,11 @@ export class ScheduledTaskScheduler {
     this.deps.logger.info('scheduler started', { tickMs });
   }
 
-  async stop(): Promise<void> {
+  stop(): Promise<void> {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
     this.started = false;
+    return Promise.resolve();
   }
 
   get inFlightCount(): number {

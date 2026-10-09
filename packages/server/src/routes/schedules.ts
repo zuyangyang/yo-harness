@@ -32,10 +32,12 @@ function num(value: unknown): number | null | undefined {
 function bool(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
 }
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === 'string');
+}
 function strArray(value: unknown): string[] | null | undefined {
   if (value === null) return null;
-  if (Array.isArray(value) && value.every((v) => typeof v === 'string')) return value as string[];
-  return undefined;
+  return isStringArray(value) ? value : undefined;
 }
 
 interface ParsedFields {
@@ -109,7 +111,7 @@ function parseFields(body: Record<string, unknown>, partial: boolean): ParseResu
   }
   if ('outputTarget' in body) {
     const target = str(body.outputTarget) ?? null;
-    if (target !== null && target.includes('..')) {
+    if (target?.includes('..')) {
       return { ok: false, error: 'outputTarget must not contain ..' };
     }
     fields.outputTarget = target;

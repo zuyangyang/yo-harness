@@ -187,7 +187,7 @@ describe('Schema v2 → 最新版 迁移', () => {
 
     // schema_version 已升级到最新版
     const version = (v3.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }).value;
-    expect(version).toBe('7');
+    expect(version).toBe('8');
 
     // 旧数据完整
     const session = v3.prepare('SELECT * FROM sessions WHERE id = ?').get('s1') as Record<string, unknown>;
@@ -207,6 +207,8 @@ describe('Schema v2 → 最新版 迁移', () => {
     expect(tableNames).toContain('users');
     expect(tableNames).toContain('api_keys');
     expect(tableNames).toContain('workspaces');
+    expect(tableNames).toContain('scheduled_tasks');
+    expect(tableNames).toContain('notifications');
 
     // FTS5 虚拟表存在
     const fts = v3.prepare("SELECT name FROM sqlite_master WHERE name='memories_fts'").all();
@@ -218,6 +220,11 @@ describe('Schema v2 → 最新版 迁移', () => {
     expect(columns.some((c) => c.name === 'workspace_id')).toBe(true);
     expect(columns.some((c) => c.name === 'pinned')).toBe(true);
     expect(columns.some((c) => c.name === 'title_is_custom')).toBe(true);
+
+    // tasks 的定时任务关联列
+    const taskColumns = v3.prepare('PRAGMA table_info(tasks)').all() as { name: string }[];
+    expect(taskColumns.some((c) => c.name === 'schedule_id')).toBe(true);
+    expect(taskColumns.some((c) => c.name === 'trigger')).toBe(true);
 
     v3.close();
     rmSync(dbDir, { recursive: true, force: true });
