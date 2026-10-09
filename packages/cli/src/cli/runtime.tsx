@@ -347,7 +347,7 @@ async function launch(
     // 9) 规划器回调
     const runPlannerFn = async (description: string): Promise<Plan | null> => {
       const planner = new Planner({
-        llm,
+        llm: router.getClient('planner'),
         tools: readOnlyResolver(registry),
         permission,
         sandbox: createLocalSandbox(session.cwd),
@@ -364,7 +364,7 @@ async function launch(
     // ─── --plan 模式：启动时立即运行规划器 ───
     if (flags.plan !== undefined) {
       const planner = new Planner({
-        llm,
+        llm: router.getClient('planner'),
         tools: readOnlyResolver(registry),
         permission,
         sandbox: createLocalSandbox(session.cwd),
