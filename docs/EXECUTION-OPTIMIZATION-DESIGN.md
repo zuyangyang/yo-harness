@@ -369,12 +369,12 @@ Planner 自身依赖不变（仍为 LLMClient 端口），只改装配层。
 
 1. 分桶：同一 assistant 消息的 toolCalls 按 risk 分组——全部 read/net 时并发执行；含任一 write/danger 时串行（写操作可能有依赖/冲突，保守）。
 2. 审批先行：审批阶段仍逐个收集（审批本身需要用户逐个确认），审批通过后的执行阶段并发 Promise.all。
-3. 顺序落库：tool_result 事件仍按 callId 原始顺序 append（保证事件重放确定、Anthropic 连续 tool 消息合并合法）。执行结果先存 Map，再按序 appendAndPush。
+3. 顺序落库：tool_call 先逐个 appendAndPush（拿到 seq 供写前快照），执行后 tool_result 仍按 callId 原始顺序 append（保证事件重放确定、Anthropic 连续 tool 消息合并合法）。执行结果先存 Map，再按序 appendAndPush。
 4. 中断语义：interrupt() 在「当前批次结束后、下一次 LLM 调用前」生效（与现有语义一致，从单工具扩大到单批次）。
 
 涉及文件：core/src/core/agent-loop.ts（executeTools 重写为批量）、core/tests/core/agent-loop.test.ts。
 
-验收标准：多读工具并发执行，墙钟时间下降；事件重放顺序与串行一致；写/危险工具仍串行；现有测试不破。
+验收标准：多读工具并发执行，墙钟时间下降；tool_call 批量落库 + tool_result 按 callId 顺序落库，重放确定；写/危险工具仍串行；契约测试按新序列更新后不破。
 
 ### 8.4 LLM 请求超时 + 中断中止
 
