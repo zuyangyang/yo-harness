@@ -166,6 +166,69 @@ export interface BackgroundTask {
   createdAt: string;
   cwd: string;
   model: string;
+  scheduleId?: string | null;
+  trigger?: string;
+}
+
+export type ScheduleOutputKind = 'report' | 'notification' | 'webhook' | 'none';
+export type ScheduleOverlapPolicy = 'skip' | 'queue' | 'allow';
+export type ScheduleCatchUpPolicy = 'skip' | 'run_once' | 'grace';
+
+export interface ScheduledTask {
+  id: string;
+  name: string;
+  prompt: string;
+  cron: string;
+  timezone: string;
+  enabled: boolean;
+  workspaceId: string | null;
+  cwd: string | null;
+  model: string | null;
+  permissionMode: 'full';
+  allowedTools: string[] | null;
+  maxSteps: number | null;
+  maxTokens: number | null;
+  maxDurationMs: number | null;
+  outputKind: ScheduleOutputKind;
+  outputTarget: string | null;
+  overlapPolicy: ScheduleOverlapPolicy;
+  catchUpPolicy: ScheduleCatchUpPolicy;
+  nextRunAt: string;
+  lastRunAt: string | null;
+  lastRunId: string | null;
+  lastStatus: string | null;
+  consecutiveFailures: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScheduleInput {
+  name: string;
+  prompt: string;
+  cron: string;
+  timezone?: string;
+  enabled?: boolean;
+  workspaceId?: string | null;
+  cwd?: string | null;
+  model?: string | null;
+  allowedTools?: string[] | null;
+  maxSteps?: number | null;
+  maxTokens?: number | null;
+  maxDurationMs?: number | null;
+  outputKind?: ScheduleOutputKind;
+  outputTarget?: string | null;
+  overlapPolicy?: ScheduleOverlapPolicy;
+  catchUpPolicy?: ScheduleCatchUpPolicy;
+}
+
+export interface Notification {
+  id: string;
+  sessionId: string | null;
+  kind: string;
+  title: string;
+  body: string | null;
+  readAt: string | null;
+  createdAt: string;
 }
 
 export interface ModelInfo {
@@ -322,9 +385,30 @@ export const api = {
     delete: (id: string) => fetchJson<{ ok: boolean }>('DELETE', `/api/v1/memories/${id}`),
   },
   tasks: {
-    list: (limit = 20) => fetchJson<{ tasks: BackgroundTask[] }>('GET', `/api/v1/tasks?limit=${limit}`),
+    list: (limit = 20, scheduleId?: string) =>
+      fetchJson<{ tasks: BackgroundTask[] }>(
+        'GET',
+        `/api/v1/tasks?limit=${limit}${scheduleId ? `&scheduleId=${encodeURIComponent(scheduleId)}` : ''}`,
+      ),
     get: (id: string) => fetchJson<{ task: BackgroundTask }>('GET', `/api/v1/tasks/${id}`),
     cancel: (id: string) => fetchJson<{ ok: boolean }>('POST', `/api/v1/tasks/${id}/cancel`),
+  },
+  schedules: {
+    list: () => fetchJson<{ schedules: ScheduledTask[] }>('GET', '/api/v1/schedules'),
+    create: (input: ScheduleInput) =>
+      fetchJson<{ schedule: ScheduledTask }>('POST', '/api/v1/schedules', input),
+    update: (id: string, patch: Partial<ScheduleInput>) =>
+      fetchJson<{ schedule: ScheduledTask }>('PUT', `/api/v1/schedules/${id}`, patch),
+    delete: (id: string) => fetchJson<{ ok: boolean }>('DELETE', `/api/v1/schedules/${id}`),
+    runNow: (id: string) => fetchJson<{ accepted: boolean }>('POST', `/api/v1/schedules/${id}/run`),
+    runs: (id: string, limit = 20) =>
+      fetchJson<{ runs: BackgroundTask[] }>('GET', `/api/v1/schedules/${id}/runs?limit=${limit}`),
+  },
+  notifications: {
+    list: (limit = 50) =>
+      fetchJson<{ notifications: Notification[]; unread: number }>('GET', `/api/v1/notifications?limit=${limit}`),
+    markRead: (id: string) => fetchJson<{ ok: boolean }>('POST', `/api/v1/notifications/${id}/read`),
+    markAllRead: () => fetchJson<{ ok: boolean }>('POST', '/api/v1/notifications/read-all'),
   },
   models: {
     list: () => fetchJson<ModelConfigView>('GET', '/api/v1/models'),

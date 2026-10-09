@@ -3,6 +3,7 @@
  */
 import {
   ChatBubbleIcon,
+  ClockIcon,
   SparklesIcon,
   DocumentDuplicateIcon,
   CogIcon,
@@ -20,6 +21,7 @@ export interface NavItem {
 /** 业务模块（中段） */
 export const NAV_MODULES: NavItem[] = [
   { id: 'chat', label: 'Chat', path: '/chat', icon: ChatBubbleIcon },
+  { id: 'schedules', label: 'Schedules', path: '/schedules', icon: ClockIcon },
   { id: 'memory', label: 'Memory', path: '/memory', icon: SparklesIcon },
   { id: 'artifacts', label: 'Artifacts', path: '/artifacts', icon: DocumentDuplicateIcon },
 ];
