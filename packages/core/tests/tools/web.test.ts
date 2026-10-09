@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { WebSearchSettings } from '../../src/tools/web.js';
 import {
+  clearWebCache,
   createWebFetchTool,
   createWebSearchTool,
   htmlToText,
@@ -270,6 +271,26 @@ describe('web_fetch', () => {
     expect(res2.ok).toBe(false);
     expect(res2.content).toMatch(/network down/);
   });
+
+  it('同 URL 重复 fetch 命中缓存：只请求一次且标记 cached', async () => {
+    clearWebCache();
+    try {
+      const { fetch, calls } = recordingFetch([textRes('hello world'), textRes('second')]);
+      const tool = createWebFetchTool({ lookup: okLookup, fetchImpl: fetch });
+
+      const res1 = await tool.run({ url: 'https://example.com/page' }, makeCtx('/tmp'));
+      const res2 = await tool.run({ url: 'https://example.com/page' }, makeCtx('/tmp'));
+
+      expect(res1.ok).toBe(true);
+      expect(res1.content).toBe('hello world');
+      expect(res2.ok).toBe(true);
+      expect(res2.content).toBe('hello world');
+      expect(res2.data).toMatchObject({ cached: true });
+      expect(calls).toHaveLength(1);
+    } finally {
+      clearWebCache();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -327,6 +348,33 @@ describe('web_search', () => {
       query: 'node 24 release notes',
       max_results: 5,
     });
+  });
+
+  it('同 query+provider+maxResults 重复搜索命中缓存', async () => {
+    clearWebCache();
+    try {
+      const { fetch, calls } = recordingFetch([
+        new Response(
+          JSON.stringify({ results: [{ title: 'T', url: 'https://x', content: 'snippet' }] }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ]);
+      const tool = createWebSearchTool(
+        { provider: 'tavily' },
+        { env: { TAVILY_API_KEY: 'k' }, fetchImpl: fetch },
+      );
+
+      const res1 = await tool.run({ query: 'q' }, makeCtx('/tmp'));
+      const res2 = await tool.run({ query: 'q' }, makeCtx('/tmp'));
+
+      expect(res1.ok).toBe(true);
+      expect(res2.ok).toBe(true);
+      expect(res2.content).toBe(res1.content);
+      expect(res2.data).toMatchObject({ cached: true });
+      expect(calls).toHaveLength(1);
+    } finally {
+      clearWebCache();
+    }
   });
 
   it('bocha：嵌套 data.webPages.value 归一化', async () => {

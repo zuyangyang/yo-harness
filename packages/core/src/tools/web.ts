@@ -26,6 +26,39 @@ const MAX_REDIRECTS = 3;
 const SEARCH_TIMEOUT_MS = 15_000;
 const SEARCH_DEFAULT_MAX_RESULTS = 5;
 
+// ─── §10.2 结果缓存：进程级，带 TTL（同 turn / 短会话内重复请求只打一次） ───
+const WEB_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface WebCacheEntry {
+  content: string;
+  data: Record<string, unknown> | undefined;
+  ts: number;
+}
+
+const webCache = new Map<string, WebCacheEntry>();
+
+function cacheGet(key: string): WebCacheEntry | undefined {
+  const entry = webCache.get(key);
+  if (entry === undefined) return undefined;
+  if (Date.now() - entry.ts > WEB_CACHE_TTL_MS) {
+    webCache.delete(key);
+    return undefined;
+  }
+  return entry;
+}
+
+function cacheSet(key: string, content: string, data?: unknown): void {
+  const record = typeof data === 'object' && data !== null && !Array.isArray(data)
+    ? (data as Record<string, unknown>)
+    : undefined;
+  webCache.set(key, { content, data: record, ts: Date.now() });
+}
+
+/** 仅供测试：清空缓存 */
+export function clearWebCache(): void {
+  webCache.clear();
+}
+
 export const WebFetchArgsSchema = z.object({
   url: z.string().url(),
 });
@@ -226,6 +259,11 @@ export function createWebFetchTool(deps: WebFetchDeps = {}): Tool {
           content: `invalid arguments for web_fetch: ${z.prettifyError(parsed.error)}`,
         };
       }
+      const cacheKey = `web_fetch:${parsed.data.url}`;
+      const cached = cacheGet(cacheKey);
+      if (cached !== undefined) {
+        return { ok: true, content: cached.content, data: { ...(cached.data ?? {}), cached: true } };
+      }
       try {
         let current = parseHttpUrl(parsed.data.url);
         for (let hop = 0; ; hop++) {
@@ -259,10 +297,12 @@ export function createWebFetchTool(deps: WebFetchDeps = {}): Tool {
             .includes('text/html');
           let content = isHtml ? htmlToText(text) : text;
           if (truncated) content += '\n[content truncated at 50KB]';
+          const resultData = { url: current.toString(), status: res.status };
+          cacheSet(cacheKey, content, resultData);
           return {
             ok: true,
             content,
-            data: { url: current.toString(), status: res.status },
+            data: resultData,
           };
         }
       } catch (err) {
@@ -461,6 +501,12 @@ export function createWebSearchTool(
         };
       }
 
+      const cacheKey = `web_search:${settings.provider}:${parsed.data.query}:${maxResults}`;
+      const cached = cacheGet(cacheKey);
+      if (cached !== undefined) {
+        return { ok: true, content: cached.content, data: { ...(cached.data ?? {}), cached: true } };
+      }
+
       try {
         let results: NormalizedResult[];
         switch (settings.provider) {
@@ -480,7 +526,9 @@ export function createWebSearchTool(
         const content = results
           .map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`)
           .join('\n\n');
-        return { ok: true, content, data: { count: results.length } };
+        const resultData = { count: results.length };
+        cacheSet(cacheKey, content, resultData);
+        return { ok: true, content, data: resultData };
       } catch (err) {
         const msg = errorMessage(err);
         // 网络错误视为瞬态错误，可重试
