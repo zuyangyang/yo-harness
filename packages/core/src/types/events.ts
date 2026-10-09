@@ -27,6 +27,8 @@ export type TurnEndReason = z.infer<typeof TurnEndReasonSchema>;
 export const UsageSchema = z.object({
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
+  /** 缓存命中输入 token（Anthropic cache_read_input_tokens；DeepSeek 自动缓存暂无回报） */
+  cachedInputTokens: z.number().int().nonnegative().optional(),
 });
 export type Usage = z.infer<typeof UsageSchema>;
 

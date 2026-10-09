@@ -75,7 +75,8 @@ export class AnthropicLLMClient implements LLMClient {
       const base = {
         model: this.model,
         max_tokens: req.maxTokens,
-        system: req.system,
+        // system 用 block 数组以附加 cache_control（5 分钟 TTL，稳定前缀天然可缓存）
+        system: [{ type: 'text' as const, text: req.system, cache_control: { type: 'ephemeral' as const } }],
         messages: toAnthropicMessages(req.messages),
         ...(req.tools.length > 0 ? { tools: toAnthropicTools(req.tools) } : {}),
         ...(req.temperature !== undefined ? { temperature: req.temperature } : {}),
@@ -134,10 +135,12 @@ export function toAnthropicMessages(messages: readonly ChatMessage[]): Anthropic
 }
 
 function toAnthropicTools(specs: readonly ToolSpec[]): Anthropic.Tool[] {
-  return specs.map((spec) => ({
+  return specs.map((spec, index) => ({
     name: spec.name,
     description: spec.description,
     input_schema: asObjectSchema(spec.name, spec.inputSchema),
+    // 最后一个 tool 附加 cache_control（稳定前缀的边界标记）
+    ...(index === specs.length - 1 ? { cache_control: { type: 'ephemeral' as const } } : {}),
   }));
 }
 
@@ -170,11 +173,16 @@ function fromAnthropicMessage(msg: Anthropic.Message): ChatResponse {
     }
     // thinking / redacted_thinking / server tool blocks：Phase 1 不消费，忽略
   }
+  const cached = msg.usage.cache_read_input_tokens;
   return {
     text,
     toolCalls,
     stopReason: mapStopReason(msg.stop_reason),
-    usage: { inputTokens: msg.usage.input_tokens, outputTokens: msg.usage.output_tokens },
+    usage: {
+      inputTokens: msg.usage.input_tokens,
+      outputTokens: msg.usage.output_tokens,
+      ...(cached !== null && cached !== undefined && cached > 0 ? { cachedInputTokens: cached } : {}),
+    },
   };
 }
 
@@ -202,6 +210,7 @@ async function foldStream(
   let stopReason: StopReason = 'end_turn';
   let inputTokens = 0;
   let outputTokens = 0;
+  let cachedInputTokens: number | undefined;
   /** 按 index 暂存组装中的 tool_use（input_json_delta 分片累积） */
   const openTools = new Map<number, { callId: string; toolName: string; json: string }>();
 
@@ -213,6 +222,7 @@ async function foldStream(
     switch (ev.type) {
       case 'message_start':
         inputTokens = ev.message.usage.input_tokens;
+        cachedInputTokens = ev.message.usage.cache_read_input_tokens ?? undefined;
         break;
       case 'content_block_start':
         if (ev.content_block.type === 'tool_use') {
@@ -249,5 +259,14 @@ async function foldStream(
   // 流被提前中断时仍有未闭合的 tool_use：尽力收尾而非丢弃
   for (const open of openTools.values()) closeTool(open);
 
-  return { text, toolCalls, stopReason, usage: { inputTokens, outputTokens } };
+  return {
+    text,
+    toolCalls,
+    stopReason,
+    usage: {
+      inputTokens,
+      outputTokens,
+      ...(cachedInputTokens !== undefined && cachedInputTokens > 0 ? { cachedInputTokens } : {}),
+    },
+  };
 }

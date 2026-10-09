@@ -24,7 +24,7 @@ export type PricingTable = Record<string, ModelPrice>;
  */
 export function estimateCost(usage: Usage, price: ModelPrice | undefined): number | undefined {
   if (price === undefined) return undefined;
-  const cachedTokens = (usage as { cachedInputTokens?: number }).cachedInputTokens ?? 0;
+  const cachedTokens = usage.cachedInputTokens ?? 0;
   const cachedPrice = price.cachedInputPerMillion ?? price.inputPerMillion;
   const inputCost = (usage.inputTokens / 1_000_000) * price.inputPerMillion;
   const outputCost = (usage.outputTokens / 1_000_000) * price.outputPerMillion;

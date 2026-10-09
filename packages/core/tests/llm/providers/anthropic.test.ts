@@ -252,7 +252,9 @@ describe('AnthropicLLMClient', () => {
       maxTokens: 32,
     });
 
-    expect(transport.created[0]?.system).toBe('S');
+    expect(transport.created[0]?.system).toEqual([
+      { type: 'text', text: 'S', cache_control: { type: 'ephemeral' } },
+    ]);
     expect(transport.created[0]?.messages).toEqual([
       { role: 'user', content: 'weather?' },
       {
@@ -276,6 +278,7 @@ describe('AnthropicLLMClient', () => {
           properties: { city: { type: 'string' } },
           required: ['city'],
         },
+        cache_control: { type: 'ephemeral' },
       },
     ]);
   });
