@@ -9,7 +9,6 @@ import { LoginPage } from './pages/LoginPage.js';
 import { RegisterPage } from './pages/RegisterPage.js';
 import { AppShell } from './layout/AppShell.js';
 import { ChatView } from './features/chat/ChatView.js';
-import { TasksView } from './features/tasks/TasksView.js';
 import { MemoryView } from './features/memory/MemoryView.js';
 import { ArtifactsView } from './features/artifacts/ArtifactsView.js';
 import { SettingsView } from './features/settings/SettingsView.js';
@@ -48,7 +47,6 @@ export function App(): JSX.Element {
         >
           <Route index element={<Navigate to="/chat" replace />} />
           <Route path="chat" element={<ChatView />} />
-          <Route path="tasks" element={<TasksView />} />
           <Route path="memory" element={<MemoryView />} />
           <Route path="artifacts" element={<ArtifactsView />} />
           <Route path="settings" element={<SettingsView />} />
