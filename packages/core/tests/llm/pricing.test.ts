@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_PRICING_TABLE, lookupPrice } from '../../src/llm/pricing.js';
+import { DEFAULT_PRICING_TABLE, lookupPrice, mergePricingTable } from '../../src/llm/pricing.js';
 import { estimateCost } from '../../src/types/pricing.js';
 import type { PricingTable } from '../../src/types/pricing.js';
 
@@ -18,6 +18,11 @@ describe('lookupPrice', () => {
     const price = lookupPrice(DEFAULT_PRICING_TABLE, 'wlyd', 'deepseek-chat');
     expect(price?.inputPerMillion).toBe(0.28);
     expect(price?.outputPerMillion).toBe(1.11);
+  });
+
+  it('仅模型名的 key 也能命中（用户按模型配置价格）', () => {
+    const table: PricingTable = { 'deepseek-v4-pro': { inputPerMillion: 1, outputPerMillion: 2 } };
+    expect(lookupPrice(table, 'wlyd', 'deepseek-v4-pro')?.inputPerMillion).toBe(1);
   });
 
   it('未登记模型返回 undefined（上层只展示 token）', () => {
@@ -62,5 +67,22 @@ describe('estimateCost', () => {
 
   it('无价格返回 undefined', () => {
     expect(estimateCost({ inputTokens: 10, outputTokens: 5 }, undefined)).toBeUndefined();
+  });
+});
+
+describe('mergePricingTable', () => {
+  it('无覆盖时返回内置表', () => {
+    expect(mergePricingTable(undefined)).toBe(DEFAULT_PRICING_TABLE);
+  });
+
+  it('覆盖项并入内置表，同名 key 覆盖默认值', () => {
+    const merged = mergePricingTable({
+      'deepseek-chat': { inputPerMillion: 9, outputPerMillion: 9 },
+      'wlyd/deepseek-v4-pro': { inputPerMillion: 0.5, outputPerMillion: 2 },
+    });
+
+    expect(merged['deepseek-chat']?.inputPerMillion).toBe(9);
+    expect(merged['wlyd/deepseek-v4-pro']?.inputPerMillion).toBe(0.5);
+    expect(merged['anthropic/claude-sonnet-4-5']?.inputPerMillion).toBe(3);
   });
 });

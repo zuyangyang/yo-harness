@@ -15,6 +15,9 @@ import { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
 import { createBuiltinRegistry } from '@yo-harness/core/tools/registry.js';
 import { createLogger } from '@yo-harness/core/utils/logger.js';
 import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
+import { loadPricingOverrides } from '@yo-harness/core/config/config.js';
+import { mergePricingTable } from '@yo-harness/core/llm/pricing.js';
+import type { PricingTable } from '@yo-harness/core/types/pricing.js';
 
 import { createApp } from './app.js';
 import { SessionManager } from './session-manager.js';
@@ -94,6 +97,7 @@ export async function createServer(options: CreateServerOptions) {
       };
     },
     costTracker,
+    pricing: serverConfig.pricing,
     sandbox: createLocalSandbox(process.cwd()),
     logger,
     systemPrompt: serverConfig.systemPrompt,
@@ -178,6 +182,14 @@ async function main() {
     storage = createSqliteBackend(dbPath);
   }
 
+  // 价格覆盖：~/.yo-harness/config.json 的 pricing 段（缺失/非法不阻塞启动，仅告警）
+  let pricingOverrides: PricingTable | undefined;
+  try {
+    pricingOverrides = loadPricingOverrides();
+  } catch (err) {
+    console.warn('[yo-server] ignoring invalid pricing config:', String(err));
+  }
+
   const serverConfig = createDefaultServerConfig({
     mode: (process.env.YO_MODE as 'single' | 'multi') ?? 'single',
     providers: process.env.YO_PROVIDER
@@ -188,6 +200,7 @@ async function main() {
           ...(process.env.YO_BASE_URL ? { baseURL: process.env.YO_BASE_URL } : {}),
         }]
       : [],
+    pricing: mergePricingTable(pricingOverrides),
   });
 
   await startServer({

@@ -41,7 +41,7 @@ import { LLMGateway } from '@yo-harness/core/llm/gateway.js';
 import { AnthropicLLMClient } from '@yo-harness/core/llm/providers/anthropic.js';
 import { FakeLLMClient } from '@yo-harness/core/llm/providers/fake.js';
 import { OpenAICompatLLMClient } from '@yo-harness/core/llm/providers/openai-compat.js';
-import { DEFAULT_PRICING_TABLE } from '@yo-harness/core/llm/pricing.js';
+import { mergePricingTable } from '@yo-harness/core/llm/pricing.js';
 import { ModelRouter } from '@yo-harness/core/router/model-router.js';
 import { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
 import { McpManager } from '@yo-harness/core/mcp/manager.js';
@@ -360,7 +360,7 @@ async function launch(
           }
         : {}),
       goalTracker,
-      pricing: DEFAULT_PRICING_TABLE,
+      pricing: mergePricingTable(config.pricing),
       ...(config.toolsSchemaMode !== undefined ? { toolsSchemaMode: config.toolsSchemaMode } : {}),
       tokenCalibrator,
     });

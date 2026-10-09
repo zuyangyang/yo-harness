@@ -48,11 +48,18 @@ export function lookupPrice(
   provider: string,
   model: string,
 ): ModelPrice | undefined {
-  const exact = table[`${provider}/${model}`];
+  // 1) 精确 `${provider}/${model}`；2) 仅模型名（与 provider 无关，便于自定义网关）
+  const exact = table[`${provider}/${model}`] ?? table[model];
   if (exact !== undefined) return exact;
+  // 3) 退化为后缀匹配：任意 provider 前缀下的同名模型
   const suffix = `/${model}`;
   for (const [key, price] of Object.entries(table)) {
     if (key.endsWith(suffix)) return price;
   }
   return undefined;
+}
+
+/** 把用户覆盖项叠加到内置默认表（同名 key 覆盖默认值） */
+export function mergePricingTable(overrides: PricingTable | undefined): PricingTable {
+  return overrides === undefined ? DEFAULT_PRICING_TABLE : { ...DEFAULT_PRICING_TABLE, ...overrides };
 }

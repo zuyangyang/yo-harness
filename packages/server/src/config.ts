@@ -8,6 +8,8 @@ import type { BudgetLimits } from '@yo-harness/core/core/budget.js';
 import { DEFAULT_BUDGET_LIMITS } from '@yo-harness/core/core/budget.js';
 import type { PermissionSettings } from '@yo-harness/core/core/permission.js';
 import { DEFAULT_PERMISSION_SETTINGS } from '@yo-harness/core/core/permission.js';
+import { DEFAULT_PRICING_TABLE } from '@yo-harness/core/llm/pricing.js';
+import type { PricingTable } from '@yo-harness/core/types/pricing.js';
 import type { ModelRoleMap } from '@yo-harness/core/types/router.js';
 
 export type { ProviderName } from '@yo-harness/core/config/config.js';
@@ -29,6 +31,8 @@ export interface ServerConfig {
   systemPrompt: string;
   maxTokens: number;
   contextWindow: number;
+  /** §9.1 成本：价格表（决定会话事件是否带 cost） */
+  pricing: PricingTable;
 }
 
 export const DEFAULT_SYSTEM_PROMPT = [
@@ -53,6 +57,7 @@ export function createDefaultServerConfig(overrides?: Partial<ServerConfig>): Se
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     maxTokens: DEFAULT_MAX_TOKENS,
     contextWindow: DEFAULT_CONTEXT_WINDOW,
+    pricing: DEFAULT_PRICING_TABLE,
     ...overrides,
   };
 }

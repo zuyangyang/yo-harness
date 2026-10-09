@@ -18,6 +18,7 @@ import type { BudgetLimits } from '../core/budget.js';
 import { DEFAULT_BUDGET_LIMITS } from '../core/budget.js';
 import type { PermissionSettings } from '../core/permission.js';
 import type { ModelRole, ModelRoleMap } from '../types/router.js';
+import type { ModelPrice, PricingTable } from '../types/pricing.js';
 import type { WebSearchSettings } from '../tools/web.js';
 import { FatalError } from '../types/errors.js';
 import { yoHome } from '../utils/paths.js';
@@ -93,6 +94,8 @@ export interface AppConfig {
   roleTemperature: Partial<Record<ModelRole, number>> | undefined;
   /** Phase 3: 工具 schema 下发模式（默认 full；compact 裁到顶层属性名） */
   toolsSchemaMode: 'full' | 'compact' | undefined;
+  /** §9.1 成本：用户自定义价格覆盖（key 为 `provider/model` 或仅 `model`；缺省用内置表） */
+  pricing: PricingTable | undefined;
   /** Phase 3: MCP server 配置（可选，未配置则不启动任何 MCP client） */
   mcp: Record<string, McpServerConfig>;
   /** Phase 3: daemon 配置（可选） */
@@ -189,6 +192,16 @@ const configFileSchema = z.strictObject({
     })
     .optional(),
   toolsSchemaMode: z.enum(['full', 'compact']).optional(),
+  pricing: z
+    .record(
+      z.string().min(1),
+      z.strictObject({
+        inputPerMillion: z.number().nonnegative(),
+        outputPerMillion: z.number().nonnegative(),
+        cachedInputPerMillion: z.number().nonnegative().optional(),
+      }),
+    )
+    .optional(),
   mcp: z
     .record(
       z.string().min(1),
@@ -403,6 +416,24 @@ function buildDaemon(file: ConfigFile | undefined): DaemonSettings | undefined {
   };
 }
 
+/** §9.1 构建价格覆盖表；exactOptionalPropertyTypes 下显式重建每项，避免透传 undefined */
+function buildPricing(file: ConfigFile | undefined): PricingTable | undefined {
+  const fromFile = file?.pricing;
+  if (fromFile === undefined) return undefined;
+  const table: PricingTable = {};
+  for (const [key, price] of Object.entries(fromFile)) {
+    const entry: ModelPrice = {
+      inputPerMillion: price.inputPerMillion,
+      outputPerMillion: price.outputPerMillion,
+    };
+    if (price.cachedInputPerMillion !== undefined) {
+      entry.cachedInputPerMillion = price.cachedInputPerMillion;
+    }
+    table[key] = entry;
+  }
+  return table;
+}
+
 /** 读取并合并全部配置来源；任何失败都是 FatalError（进程应立即退出） */
 export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
   const env = overrides.env ?? process.env;
@@ -453,9 +484,19 @@ export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
     temperature: file?.temperature,
     roleTemperature: buildRoleTemperature(file),
     toolsSchemaMode: file?.toolsSchemaMode,
+    pricing: buildPricing(file),
     mcp: buildMcp(file),
     daemon: buildDaemon(file),
   };
+}
+
+/**
+ * 只取「价格覆盖项」（供 server / daemon 等不需要完整 AppConfig 的场景）。
+ * 文件缺失返回 undefined；文件存在但校验失败照常抛 FatalError（配置问题早暴露）。
+ */
+export function loadPricingOverrides(configPath?: string): PricingTable | undefined {
+  const file = readConfigFile(configPath ?? join(yoHome(), 'config.json'));
+  return buildPricing(file);
 }
 
 /** 取生效 provider 的 API key：只从环境变量读，取不到返回 undefined（由调用方决定报错或 fake 模式） */

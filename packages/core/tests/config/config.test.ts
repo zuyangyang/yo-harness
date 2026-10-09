@@ -99,6 +99,30 @@ describe('loadConfig', () => {
     });
   });
 
+  it('pricing 段解析为用户价格覆盖表', () => {
+    const configPath = writeConfig({
+      pricing: {
+        'wlyd/deepseek-v4-pro': { inputPerMillion: 0.5, outputPerMillion: 2 },
+        'deepseek-flash': {
+          inputPerMillion: 0.1,
+          outputPerMillion: 0.4,
+          cachedInputPerMillion: 0.02,
+        },
+      },
+    });
+    const config = loadConfig({ configPath, env: NO_ENV });
+
+    expect(config.pricing).toEqual({
+      'wlyd/deepseek-v4-pro': { inputPerMillion: 0.5, outputPerMillion: 2 },
+      'deepseek-flash': { inputPerMillion: 0.1, outputPerMillion: 0.4, cachedInputPerMillion: 0.02 },
+    });
+  });
+
+  it('无 pricing 段时 pricing 为 undefined（调用方回落内置表）', () => {
+    const configPath = writeConfig({ budget: { maxStepsPerTurn: 5 } });
+    expect(loadConfig({ configPath, env: NO_ENV }).pricing).toBeUndefined();
+  });
+
   it('provider 优先级：flag > env > 文件', () => {
     const configPath = writeConfig({
       defaultProvider: 'anthropic',
