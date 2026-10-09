@@ -89,6 +89,14 @@ export interface SessionManagerDeps {
   wsHub?: WebSocketHub;
 }
 
+export interface SendMessageOptions {
+  /**
+   * 一轮结束时回调（done / error / interrupted 均会触发）。
+   * 供定时任务等无 UI 调用方等待运行完成。
+   */
+  onSettled?: (reason: TurnEndReason) => void;
+}
+
 export class SessionManager {
   private readonly active = new Map<string, ActiveSession>();
   private readonly pendingApprovals = new Map<string, DeferredApproval>();
@@ -99,9 +107,23 @@ export class SessionManager {
     (this.deps as { wsHub: WebSocketHub }).wsHub = hub;
   }
 
-  async sendMessage(sessionId: string, message: string): Promise<{ accepted: true }> {
-    await this.startTurn(sessionId, message);
+  async sendMessage(
+    sessionId: string,
+    message: string,
+    options?: SendMessageOptions,
+  ): Promise<{ accepted: true }> {
+    await this.startTurn(sessionId, message, options);
     return { accepted: true };
+  }
+
+  /**
+   * 发送一条消息并等待该轮结束，返回结束原因。
+   * 定时任务等无 UI 调用方用它把 fire-and-forget 的 turn 变成可等待的 Promise。
+   */
+  async sendMessageAndWait(sessionId: string, message: string): Promise<TurnEndReason> {
+    return new Promise<TurnEndReason>((resolve, reject) => {
+      this.sendMessage(sessionId, message, { onSettled: resolve }).catch(reject);
+    });
   }
 
   /**
@@ -150,15 +172,21 @@ export class SessionManager {
   }
 
   /** 创建并启动一轮：复用 sendMessage 的 running 守卫与后台执行语义。 */
-  private async startTurn(sessionId: string, message: string): Promise<void> {
+  private async startTurn(
+    sessionId: string,
+    message: string,
+    options?: SendMessageOptions,
+  ): Promise<void> {
     const active = await this.getOrCreate(sessionId);
     if (active.running) {
       throw new Error('session already running a turn');
     }
     active.running = true;
-    void this.runTurn(active, message).finally(() => {
-      active.running = false;
-    });
+    void this.runTurn(active, message)
+      .then((reason) => options?.onSettled?.(reason))
+      .finally(() => {
+        active.running = false;
+      });
   }
 
   /** 仅当会话没有在途 turn 时允许回退，避免与正在执行的 loop 抢事件流。 */
