@@ -157,7 +157,7 @@ describe('GoalTracker', () => {
     expect(injection).toContain('</current-goal>');
   });
 
-  it('toSystemPromptInjection 包含进度检查项', () => {
+  it('toSystemPromptInjection 注入完整计划（§9.4）', () => {
     const tracker = new GoalTracker({ driftThreshold: 8 });
     tracker.initialize('Test');
 
@@ -168,9 +168,11 @@ describe('GoalTracker', () => {
     tracker.syncWithPlan(plan);
 
     const injection = tracker.toSystemPromptInjection();
-    expect(injection).toContain('Progress:');
-    expect(injection).toContain('[completed] Task A');
-    expect(injection).toContain('[pending] Task B');
+    expect(injection).toContain('<execution-plan>');
+    expect(injection).toContain('Objective: Test objective');
+    expect(injection).toContain('1. [✓] Task A');
+    expect(injection).toContain('2. [○] Task B');
+    expect(injection).toContain('</execution-plan>');
   });
 
   it('reset 清除状态', () => {

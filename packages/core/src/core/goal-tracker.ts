@@ -12,6 +12,7 @@
  * - 与 Plan 集成：syncWithPlan() 同步任务列表作为进度检查项。
  */
 import type { ToolCall } from '../types/events.js';
+import { formatPlanForPrompt } from '../types/plan.js';
 import type { Plan } from '../types/plan.js';
 
 /** 目标状态 */
@@ -35,6 +36,8 @@ export const DEFAULT_DRIFT_THRESHOLD = 8;
 
 export class GoalTracker {
   private state: GoalState | undefined;
+  /** 已批准的执行计划（syncWithPlan 注入，供 system prompt 附带） */
+  private plan: Plan | undefined;
 
   constructor(private readonly deps: GoalTrackerDeps) {}
 
@@ -63,11 +66,12 @@ export class GoalTracker {
     return this.state !== undefined;
   }
 
-  /** 注入计划时同步检查项 */
+  /** 注入计划时同步检查项，并保存完整计划用于 system prompt 注入 */
   syncWithPlan(plan: Plan): void {
     if (this.state === undefined) return;
     this.state.checkpoints = plan.tasks.map((t) => `[${t.status}] ${t.title}`);
     this.state.lastProgressStep = 0;
+    this.plan = plan;
   }
 
   /** 任务状态更新时推进进度 */
@@ -105,11 +109,14 @@ export class GoalTracker {
     ].join('\n');
   }
 
-  /** 生成注入 system prompt 的目标摘要 */
+  /** 生成注入 system prompt 的目标摘要（含已批准的计划，§9.4） */
   toSystemPromptInjection(): string | undefined {
     if (this.state === undefined) return undefined;
     let text = `<current-goal>\n${this.state.statement}\n`;
-    if (this.state.checkpoints.length > 0) {
+    if (this.plan !== undefined) {
+      // 已批准计划：注入完整结构化计划（objective / 任务树 / 验收标准）
+      text += `\n${formatPlanForPrompt(this.plan)}\n`;
+    } else if (this.state.checkpoints.length > 0) {
       text += `\nProgress:\n${this.state.checkpoints.join('\n')}\n`;
     }
     text += `</current-goal>`;

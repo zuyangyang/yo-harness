@@ -50,3 +50,59 @@ export const PlanOutputSchema = z.object({
 });
 
 export type PlanOutput = z.infer<typeof PlanOutputSchema>;
+
+/** 任务状态图标（prompt 内展示用） */
+function taskStatusIcon(status: TaskStatus): string {
+  switch (status) {
+    case 'completed':
+      return '✓';
+    case 'in_progress':
+      return '◐';
+    case 'skipped':
+      return '⊘';
+    case 'pending':
+    default:
+      return '○';
+  }
+}
+
+function formatTaskForPrompt(task: PlanTask, indent: number): string {
+  const prefix = '  '.repeat(indent);
+  let line = `${prefix}${task.id}. [${taskStatusIcon(task.status)}] ${task.title}`;
+  if (task.acceptance.length > 0) {
+    line += ` (acceptance: ${task.acceptance.join(', ')})`;
+  }
+  const lines = [line];
+  for (const child of task.children) {
+    lines.push(formatTaskForPrompt(child, indent + 1));
+  }
+  return lines.join('\n');
+}
+
+/** 把结构化计划格式化为注入 system prompt 的文本（§9.4） */
+export function formatPlanForPrompt(plan: Plan): string {
+  const lines: string[] = [
+    '<execution-plan>',
+    `Objective: ${plan.objective}`,
+    '',
+    'Tasks:',
+  ];
+
+  for (const task of plan.tasks) {
+    lines.push(formatTaskForPrompt(task, 0));
+  }
+
+  if (plan.verificationCriteria.length > 0) {
+    lines.push('');
+    lines.push('Verification:');
+    for (const criteria of plan.verificationCriteria) {
+      lines.push(`- ${criteria}`);
+    }
+  }
+
+  lines.push('');
+  lines.push('Update task status by calling update_plan_task tool when you complete each task.');
+  lines.push('</execution-plan>');
+
+  return lines.join('\n');
+}

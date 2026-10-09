@@ -124,47 +124,5 @@ export function PlanApprovalPrompt({ plan, onApprove, onReject }: PlanApprovalPr
   );
 }
 
-/** 将计划格式化为文本（用于注入 system prompt） */
-export function formatPlanForPrompt(plan: Plan): string {
-  const lines: string[] = [
-    '<execution-plan>',
-    `Objective: ${plan.objective}`,
-    '',
-    'Tasks:',
-  ];
-
-  for (const task of plan.tasks) {
-    lines.push(formatTaskForPrompt(task, 0));
-  }
-
-  if (plan.verificationCriteria.length > 0) {
-    lines.push('');
-    lines.push('Verification:');
-    for (const criteria of plan.verificationCriteria) {
-      lines.push(`- ${criteria}`);
-    }
-  }
-
-  lines.push('');
-  lines.push('Update task status by calling update_plan_task tool when you complete each task.');
-  lines.push('</execution-plan>');
-
-  return lines.join('\n');
-}
-
-function formatTaskForPrompt(task: PlanTask, indent: number): string {
-  const prefix = '  '.repeat(indent);
-  const statusIcon = taskStatusIcon(task.status);
-  let line = `${prefix}${task.id}. [${statusIcon}] ${task.title}`;
-
-  if (task.acceptance.length > 0) {
-    line += ` (acceptance: ${task.acceptance.join(', ')})`;
-  }
-
-  const lines = [line];
-  for (const child of task.children) {
-    lines.push(formatTaskForPrompt(child, indent + 1));
-  }
-
-  return lines.join('\n');
-}
+/** 将计划格式化为文本（用于注入 system prompt）—— 复用 core 实现 */
+export { formatPlanForPrompt } from '@yo-harness/core/types/plan.js';
