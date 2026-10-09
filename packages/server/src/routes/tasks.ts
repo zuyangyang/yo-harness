@@ -19,7 +19,8 @@ export function createTaskRoutes(_deps: TasksRouteDeps): Hono<ServerEnv> {
   app.get('/', async (c) => {
     const store = c.get('storage');
     const limit = Number(c.req.query('limit') ?? '20');
-    const tasks = await store.tasks.list(Math.min(limit, 100));
+    const scheduleId = c.req.query('scheduleId');
+    const tasks = await store.tasks.list(Math.min(limit, 100), scheduleId);
     return c.json({ tasks });
   });
 

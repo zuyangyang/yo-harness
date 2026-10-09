@@ -19,6 +19,10 @@ export type Permission =
   | 'memories:write'
   | 'tasks:read'
   | 'tasks:write'
+  | 'schedules:read'
+  | 'schedules:write'
+  | 'notifications:read'
+  | 'notifications:write'
   | 'models:read'
   | 'models:write'
   | 'users:manage'
@@ -26,12 +30,14 @@ export type Permission =
   | 'admin';
 
 const ROLE_PERMISSIONS: Record<string, Permission[]> = {
-  viewer: ['sessions:read', 'workspaces:read', 'memories:read', 'tasks:read', 'models:read'],
+  viewer: ['sessions:read', 'workspaces:read', 'memories:read', 'tasks:read', 'schedules:read', 'notifications:read', 'models:read'],
   member: [
     'sessions:read', 'sessions:write',
     'workspaces:read', 'workspaces:write',
     'memories:read', 'memories:write',
     'tasks:read', 'tasks:write',
+    'schedules:read', 'schedules:write',
+    'notifications:read', 'notifications:write',
     'models:read', 'models:write',
   ],
   admin: [
@@ -39,6 +45,8 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     'workspaces:read', 'workspaces:write',
     'memories:read', 'memories:write',
     'tasks:read', 'tasks:write',
+    'schedules:read', 'schedules:write',
+    'notifications:read', 'notifications:write',
     'models:read', 'models:write',
     'users:manage', 'api_keys:manage',
     'admin',

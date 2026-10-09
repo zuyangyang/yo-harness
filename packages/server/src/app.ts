@@ -30,7 +30,10 @@ import { createWorkspaceRoutes } from './routes/workspaces.js';
 import { createConversationRoutes } from './routes/conversations.js';
 import { createApprovalRoutes } from './routes/approvals.js';
 import { createTaskRoutes } from './routes/tasks.js';
+import { createScheduleRoutes } from './routes/schedules.js';
+import { createNotificationRoutes } from './routes/notifications.js';
 import { createMemoryRoutes } from './routes/memories.js';
+import type { ScheduledTaskScheduler } from './scheduler/scheduler.js';
 import { createModelRoutes } from './routes/models.js';
 
 export interface AppDeps {
@@ -40,6 +43,7 @@ export interface AppDeps {
   serverConfig: ServerConfig;
   modelConfig: ModelConfigService;
   wsHub: WebSocketHub;
+  scheduler?: ScheduledTaskScheduler;
   tenantManager?: TenantManager;
 }
 
@@ -50,7 +54,7 @@ export interface AppResult {
 }
 
 export function createApp(deps: AppDeps): AppResult {
-  const { storage, sessionManager, jwtConfig, serverConfig, modelConfig, wsHub, tenantManager } = deps;
+  const { storage, sessionManager, jwtConfig, serverConfig, modelConfig, wsHub, scheduler, tenantManager } = deps;
   const app = new Hono<ServerEnv>();
 
   const nodeWs = createNodeWebSocket({ app });
@@ -121,6 +125,10 @@ export function createApp(deps: AppDeps): AppResult {
   app.route('/api/v1/workspaces', createWorkspaceRoutes({ sessionManager }));
   app.route('/api/v1', createApprovalRoutes({ sessionManager }));
   app.route('/api/v1/tasks', createTaskRoutes({ storage }));
+  if (scheduler) {
+    app.route('/api/v1/schedules', createScheduleRoutes({ scheduler }));
+  }
+  app.route('/api/v1/notifications', createNotificationRoutes());
   app.route('/api/v1/memories', createMemoryRoutes({ storage }));
   app.route('/api/v1/models', createModelRoutes({ serverConfig, modelConfig }));
 
