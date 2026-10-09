@@ -28,7 +28,7 @@ import type {
   Usage,
 } from '../types/events.js';
 import { BudgetStop, isTransientError, TransientError } from '../types/errors.js';
-import type { ChatMessage, ChatRequest, ChatResponse } from '../types/llm.js';
+import type { ChatMessage, ChatRequest, ChatResponse, LLMClient } from '../types/llm.js';
 import type { ToolResult } from '../types/tools.js';
 import type { SandboxProvider } from '../types/sandbox.js';
 import { logTokenCalibration } from '../utils/tokens.js';
@@ -39,6 +39,8 @@ import type { EventStore, ToolResolver } from './ports.js';
 import type { PermissionManager } from './permission.js';
 import type { ModelRouter } from '../router/model-router.js';
 import type { CostTracker } from '../router/cost-tracker.js';
+import { lookupPrice } from '../llm/pricing.js';
+import type { ModelPrice, PricingTable } from '../types/pricing.js';
 
 export interface AgentLoopDeps {
   sessionId: string;
@@ -75,6 +77,8 @@ export interface AgentLoopDeps {
     checkDrift(currentStep: number, recentToolCalls: ToolCall[]): string | undefined;
     toSystemPromptInjection(): string | undefined;
   };
+  /** 模型价格表（成本核算）；undefined = 不核算成本，仅累计 token */
+  pricing?: PricingTable;
 }
 
 /** 连续 max_tokens 截断的续写上限，超过则按当前输出收尾，防止死循环 */
@@ -213,13 +217,16 @@ export class AgentLoop {
         onTextDelta: (delta) => this.deps.bus.emit('llm_delta', delta),
         ...(this.turnAbort !== undefined ? { signal: this.turnAbort.signal } : {}),
       });
-      this.deps.costTracker.record({
-        role: 'main',
-        provider: this.deps.router.getProvider('main'),
-        model: client.name,
-        inputTokens: resp.usage.inputTokens,
-        outputTokens: resp.usage.outputTokens,
-      });
+      this.deps.costTracker.record(
+        {
+          role: 'main',
+          provider: this.deps.router.getProvider('main'),
+          model: client.model,
+          inputTokens: resp.usage.inputTokens,
+          outputTokens: resp.usage.outputTokens,
+        },
+        this.priceFor(client),
+      );
       return resp;
     } catch (err) {
       // 防御：熔断异常不该在这儿抛，别包丢 reason
@@ -371,6 +378,12 @@ export class AgentLoop {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /** 查主角色当前模型的价格；未配置价格表返回 undefined */
+  private priceFor(client: LLMClient): ModelPrice | undefined {
+    if (this.deps.pricing === undefined) return undefined;
+    return lookupPrice(this.deps.pricing, this.deps.router.getProvider('main'), client.model);
   }
 
   private toRequest(messages: ChatMessage[]): ChatRequest {

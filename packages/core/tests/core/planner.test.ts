@@ -33,6 +33,7 @@ const mockSandbox: SandboxProvider = {
 /** 模拟 LLM 客户端：按顺序返回预设响应 */
 class FakeLLM implements LLMClient {
   readonly name = 'fake';
+  readonly model = 'fake-model';
   private responses: ChatResponse[] = [];
   private callCount = 0;
 

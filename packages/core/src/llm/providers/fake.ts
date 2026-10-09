@@ -27,6 +27,7 @@ const DELTA_CHUNK = 16;
 
 export class FakeLLMClient implements LLMClient {
   readonly name = 'fake';
+  readonly model = 'fake-model';
   /** 收到的每个请求（供测试断言转换正确性） */
   readonly requests: ChatRequest[] = [];
 

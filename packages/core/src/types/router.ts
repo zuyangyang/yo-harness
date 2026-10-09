@@ -23,4 +23,6 @@ export interface RoleUsage {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  /** 本次调用成本（USD）；由 CostTracker 按价格表填充，无价格时缺省 */
+  cost?: number;
 }

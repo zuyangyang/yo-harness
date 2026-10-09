@@ -48,7 +48,7 @@ export class AnthropicLLMClient implements LLMClient {
 
   constructor(
     private readonly transport: AnthropicTransport,
-    private readonly model: string,
+    readonly model: string,
   ) {}
 
   static create(opts: {

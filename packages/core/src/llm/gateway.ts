@@ -53,6 +53,11 @@ export class LLMGateway {
     return this.config.defaultProvider;
   }
 
+  /** 默认 client 的模型名（成本核算用） */
+  get model(): string {
+    return this.getDefaultClient().model;
+  }
+
   /** Phase 2: 按 provider 名获取特定的 LLMClient（压缩等场景用） */
   getClient(providerName: string): LLMClient | undefined {
     return this.clients.get(providerName);

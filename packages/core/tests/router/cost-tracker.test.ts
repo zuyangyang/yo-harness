@@ -36,4 +36,31 @@ describe('CostTracker', () => {
     expect(tracker.total()).toEqual({ inputTokens: 0, outputTokens: 0 });
     expect(tracker.summaryByRole().size).toBe(0);
   });
+
+  it('带价格时累计成本，无价格时仅 token', () => {
+    const tracker = new CostTracker();
+    const price = { inputPerMillion: 1, outputPerMillion: 2 };
+    tracker.record(
+      { role: 'main', provider: 'p', model: 'm', inputTokens: 1_000_000, outputTokens: 1_000_000 },
+      price,
+    );
+    tracker.record({ role: 'main', provider: 'p', model: 'm', inputTokens: 1_000_000, outputTokens: 1_000_000 });
+
+    const total = tracker.total();
+    // 第一次有价：1M/1M * 1 + 1M/1M * 2 = 3；第二次无价不计
+    expect(total.inputTokens).toBe(2_000_000);
+    expect(total.outputTokens).toBe(2_000_000);
+    expect(total.cost).toBe(3);
+  });
+
+  it('cachedInputPerMillion 缺省按 inputPerMillion 计', () => {
+    const tracker = new CostTracker();
+    const price = { inputPerMillion: 1, outputPerMillion: 2 };
+    tracker.record(
+      { role: 'main', provider: 'p', model: 'm', inputTokens: 1_000_000, outputTokens: 0 },
+      price,
+    );
+
+    expect(tracker.total().cost).toBe(1);
+  });
 });

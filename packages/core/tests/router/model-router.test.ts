@@ -7,6 +7,7 @@ import { ModelRouter } from '../../src/router/model-router.js';
 function fakeClient(name: string) {
   return {
     name,
+    model: 'test-model',
     chat: (): Promise<ChatResponse> =>
       Promise.resolve({
         text: 'ok',

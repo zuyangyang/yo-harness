@@ -135,6 +135,7 @@ describe('MemoryExtractor', () => {
   it('LLM 调用失败 → 返回 0（不崩）', async () => {
     const failingClient = {
       name: 'failing',
+      model: 'test-model',
       chat: () => Promise.reject(new Error('network error')),
     };
     const extractor = new MemoryExtractor(failingClient, store, SILENT_LOGGER);

@@ -44,7 +44,7 @@ export class OpenAICompatLLMClient implements LLMClient {
 
   constructor(
     private readonly transport: OpenAICompatTransport,
-    private readonly model: string,
+    readonly model: string,
     name = 'openai',
   ) {
     this.name = name;

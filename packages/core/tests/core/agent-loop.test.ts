@@ -395,6 +395,7 @@ describe('AgentLoop', () => {
   it('TransientError：error 事件标记 recoverable（网关层负责退避重试）', async () => {
     const flux: LLMClient = {
       name: 'flux',
+      model: 'test-model',
       chat: () => Promise.reject(new TransientError('flux')),
     };
     const { loop, store } = makeLoop({ script: [], llm: flux });
@@ -625,6 +626,7 @@ describe('AgentLoop', () => {
     let receivedSignal: AbortSignal | undefined;
     const blockingLlm: LLMClient = {
       name: 'blocking',
+      model: 'test-model',
       async chat(_req, opts) {
         receivedSignal = opts?.signal;
         await new Promise<void>((_resolve, reject) => {

@@ -38,6 +38,9 @@ export interface ChatOptions {
 
 /** Provider 端口：anthropic / openai-compat / fake 都实现它 */
 export interface LLMClient {
+  /** provider 名（网关注册键） */
   readonly name: string;
+  /** 具体模型名（成本核算 / 展示用） */
+  readonly model: string;
   chat(req: ChatRequest, opts?: ChatOptions): Promise<ChatResponse>;
 }

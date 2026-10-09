@@ -14,6 +14,7 @@ const OK: ChatResponse = {
 /** 可编程 client：前 failTimes 次抛 err，之后返回 OK */
 class FlakyClient implements LLMClient {
   readonly name: string;
+  readonly model = 'test-model';
   attempts = 0;
   constructor(
     name: string,
@@ -35,6 +36,7 @@ class FlakyClient implements LLMClient {
 /** 记录请求的普通 client */
 class RecordingClient implements LLMClient {
   readonly name: string;
+  readonly model = 'test-model';
   readonly requests: ChatRequest[] = [];
   constructor(name: string) {
     this.name = name;
@@ -185,6 +187,7 @@ describe('LLMGateway', () => {
     let abortCount = 0;
     const slowClient: LLMClient = {
       name: 'slow',
+      model: 'test-model',
       async chat(_req, opts) {
         await new Promise<void>((_resolve, reject) => {
           const signal = opts?.signal;
@@ -217,6 +220,7 @@ describe('LLMGateway', () => {
   it('用户中断：外部 signal 已 abort 时不重试直接上抛', async () => {
     const slowClient: LLMClient = {
       name: 'slow',
+      model: 'test-model',
       async chat(_req, opts) {
         await new Promise<void>((_resolve, reject) => {
           const signal = opts?.signal;
