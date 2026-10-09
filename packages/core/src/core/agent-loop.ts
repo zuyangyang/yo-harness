@@ -79,6 +79,8 @@ export interface AgentLoopDeps {
   };
   /** 模型价格表（成本核算）；undefined = 不核算成本，仅累计 token */
   pricing?: PricingTable;
+  /** 工具 schema 下发模式（§9.3）；默认 full，compact 裁到顶层属性名 */
+  toolsSchemaMode?: 'full' | 'compact';
 }
 
 /** 连续 max_tokens 截断的续写上限，超过则按当前输出收尾，防止死循环 */
@@ -390,9 +392,10 @@ export class AgentLoop {
     const { systemPrompt, maxTokens, temperature, tools } = this.deps;
     const goalInjection = this.deps.goalTracker?.toSystemPromptInjection();
     const system = goalInjection !== undefined ? `${systemPrompt}\n\n${goalInjection}` : systemPrompt;
+    const toolSpecs = tools.specs(this.deps.toolsSchemaMode ?? 'full');
     return temperature !== undefined
-      ? { system, messages, tools: tools.specs(), maxTokens, temperature }
-      : { system, messages, tools: tools.specs(), maxTokens };
+      ? { system, messages, tools: toolSpecs, maxTokens, temperature }
+      : { system, messages, tools: toolSpecs, maxTokens };
   }
 
   /** 落库 + 广播 + 投影。先 append 后 push：append 抛错时上下文保持一致 */

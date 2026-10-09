@@ -186,4 +186,31 @@ describe('ToolRegistry Phase 3 扩展', () => {
     // 不应有 zod 转换产生的 $schema
     expect(schema.$schema).toBeUndefined();
   });
+
+  it('specs("compact")：裁掉子结构只留 type 与顶层属性名', () => {
+    const registry = new ToolRegistry();
+    const richTool: Tool = {
+      name: 'rich',
+      description: 'A tool with nested schema',
+      risk: 'read',
+      inputSchema: z.object({
+        city: z.string().describe('city name'),
+        options: z.object({ unit: z.enum(['c', 'f']) }).optional(),
+      }),
+      run: () => Promise.resolve({ ok: true, content: 'done' }),
+    };
+    registry.register(richTool);
+
+    const full = registry.specs('full')[0]!;
+    const fullSchema = asRecord(full.inputSchema);
+    expect(asRecord(asRecord(fullSchema.properties).options).type).toBe('object');
+
+    const compact = registry.specs('compact')[0]!;
+    const compactSchema = asRecord(compact.inputSchema);
+    expect(compactSchema.type).toBe('object');
+    expect(compactSchema.properties).toEqual({ city: {}, options: {} });
+    // 子结构 / 枚举 / 字段描述都被裁掉
+    expect(JSON.stringify(compactSchema)).not.toContain('enum');
+    expect(JSON.stringify(compactSchema)).not.toContain('description');
+  });
 });

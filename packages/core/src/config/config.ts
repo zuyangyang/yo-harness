@@ -91,6 +91,8 @@ export interface AppConfig {
   temperature: number | undefined;
   /** 角色级 temperature 覆盖（缺省 undefined = 子任务固定 0） */
   roleTemperature: Partial<Record<ModelRole, number>> | undefined;
+  /** Phase 3: 工具 schema 下发模式（默认 full；compact 裁到顶层属性名） */
+  toolsSchemaMode: 'full' | 'compact' | undefined;
   /** Phase 3: MCP server 配置（可选，未配置则不启动任何 MCP client） */
   mcp: Record<string, McpServerConfig>;
   /** Phase 3: daemon 配置（可选） */
@@ -186,6 +188,7 @@ const configFileSchema = z.strictObject({
       extractor: z.number().min(0).max(2).optional(),
     })
     .optional(),
+  toolsSchemaMode: z.enum(['full', 'compact']).optional(),
   mcp: z
     .record(
       z.string().min(1),
@@ -449,6 +452,7 @@ export function loadConfig(overrides: ConfigOverrides = {}): AppConfig {
     modelRoles: buildModelRoles(file),
     temperature: file?.temperature,
     roleTemperature: buildRoleTemperature(file),
+    toolsSchemaMode: file?.toolsSchemaMode,
     mcp: buildMcp(file),
     daemon: buildDaemon(file),
   };

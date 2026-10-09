@@ -60,16 +60,34 @@ export class ToolRegistry {
    * 提供给 LLM 的工具规格。
    * 内置工具（zod schema）走 zod→JSON Schema 转换；
    * MCP 工具（已是 JSON Schema 对象）直传。
+   *
+   * mode=compact 时 inputSchema 只保留 type 与顶层属性名，
+   * 砍掉子结构 / 枚举 / 字段描述，显著降低 MCP 巨型 schema 的 token 开销。
    */
-  specs(): ToolSpec[] {
-    return this.list().map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      inputSchema: isZodSchema(tool.inputSchema)
+  specs(mode: 'full' | 'compact' = 'full'): ToolSpec[] {
+    return this.list().map((tool) => {
+      const full = isZodSchema(tool.inputSchema)
         ? zodToJsonSchema(tool.inputSchema)
-        : tool.inputSchema,
-    }));
+        : tool.inputSchema;
+      return {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: mode === 'compact' ? compactJsonSchema(full) : full,
+      };
+    });
   }
+}
+
+/** compact：仅保留 type 与顶层属性名（属性值留空对象） */
+function compactJsonSchema(json: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  if (json.type !== undefined) result.type = json.type;
+  const props = json.properties;
+  if (props !== null && typeof props === 'object' && !Array.isArray(props)) {
+    const names = Object.keys(props as Record<string, unknown>);
+    result.properties = Object.fromEntries(names.map((name) => [name, {}]));
+  }
+  return result;
 }
 
 function isZodSchema(

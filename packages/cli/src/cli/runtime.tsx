@@ -354,6 +354,7 @@ async function launch(
         : {}),
       goalTracker,
       pricing: DEFAULT_PRICING_TABLE,
+      ...(config.toolsSchemaMode !== undefined ? { toolsSchemaMode: config.toolsSchemaMode } : {}),
     });
 
     // ─── Phase 2 新增装配 ───

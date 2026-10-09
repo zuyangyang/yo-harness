@@ -126,7 +126,8 @@ export interface WorkspaceStore {
 /** 工具解析端口：AgentLoop 经此取工具与规格，不依赖具体注册表 */
 export interface ToolResolver {
   get(name: string): Tool | undefined;
-  specs(): ToolSpec[];
+  /** mode=compact 时 inputSchema 精简到顶层属性名 */
+  specs(mode?: 'full' | 'compact'): ToolSpec[];
 }
 
 // ─── Phase 2 新增端口 ───
