@@ -32,6 +32,7 @@ import {
 import type { EventStore, MemoryStore, SessionStore, Session, ToolResolver } from '@yo-harness/core/core/ports.js';
 import { deriveTitle } from '@yo-harness/core/utils/title.js';
 import { DEFAULT_PRICING_TABLE } from '@yo-harness/core/llm/pricing.js';
+import { MemoryExtractor } from '@yo-harness/core/memory/extractor.js';
 import { MemoryInjector } from '@yo-harness/core/memory/injector.js';
 import type { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
 import type { ModelRouter } from '@yo-harness/core/router/model-router.js';
@@ -51,6 +52,16 @@ export interface PendingApproval {
   createdAt: string;
 }
 
+/** 单会话的记忆运行时：注入器 + 可选提取器 + 提取游标与串行队列 */
+interface SessionMemoryRuntime {
+  injector: MemoryInjector;
+  extractor?: MemoryExtractor;
+  /** 已参与提取的最大事件 seq */
+  cursor: number;
+  /** 串行化提取，避免同会话并发调用 LLM */
+  queue: Promise<void>;
+}
+
 interface ActiveSession {
   session: Session;
   loop: AgentLoop;
@@ -58,6 +69,8 @@ interface ActiveSession {
   running: boolean;
   /** 会话级权限管理器（支持运行期 setMode） */
   permission: PermissionManager;
+  /** 记忆运行时（自动注入读取；自动提取写入） */
+  memory: SessionMemoryRuntime;
 }
 
 interface DeferredApproval {
@@ -189,7 +202,10 @@ export class SessionManager {
     }
     active.running = true;
     void this.runTurn(active, message)
-      .then((reason) => options?.onSettled?.(reason))
+      .then((reason) => {
+        options?.onSettled?.(reason);
+        this.scheduleExtraction(active, 'turn_end');
+      })
       .finally(() => {
         active.running = false;
       });
@@ -227,7 +243,10 @@ export class SessionManager {
    * 删除 seq >= fromSeq 的事件，并广播截断通知让所有标签页丢弃本地旧事件。
    */
   private async rewind(sessionId: string, fromSeq: number): Promise<void> {
-    this.closeSession(sessionId);
+    const active = this.active.get(sessionId);
+    const queue = active?.memory.queue;
+    this.closeSession(sessionId, { extract: false });
+    if (queue !== undefined) await queue.catch(() => undefined);
     await this.deps.eventStore.deleteFrom(sessionId, fromSeq);
     this.deps.wsHub?.broadcastTruncated(sessionId, fromSeq);
   }
@@ -316,20 +335,28 @@ export class SessionManager {
     return evicted;
   }
 
-  closeSession(sessionId: string): void {
+  /**
+   * 关闭会话并驱逐活跃 loop。
+   *
+   * @param options.extract false = 跳过关闭前 flush（回退重建时使用）
+   */
+  closeSession(sessionId: string, options?: { extract?: boolean }): void {
     const active = this.active.get(sessionId);
     if (active) {
+      if (options?.extract !== false) this.scheduleExtraction(active, 'session_end');
       active.loop.interrupt();
       this.active.delete(sessionId);
       this.cancelPendingForSession(sessionId);
     }
   }
 
-  destroyAll(): Promise<void> {
-    for (const sessionId of [...this.active.keys()]) {
-      this.closeSession(sessionId);
+  async destroyAll(): Promise<void> {
+    const queues: Promise<void>[] = [];
+    for (const active of [...this.active.values()]) {
+      this.closeSession(active.session.id);
+      queues.push(active.memory.queue);
     }
-    return Promise.resolve();
+    await Promise.allSettled(queues);
   }
 
   private async getOrCreate(sessionId: string): Promise<ActiveSession> {
@@ -341,6 +368,7 @@ export class SessionManager {
 
     const envelopes = await this.deps.eventStore.replay(sessionId);
     const priorEvents = envelopes.map((e) => e.payload);
+    const lastSeq = envelopes.at(-1)?.seq ?? 0;
 
     const bus = new EventBus();
     bus.on('event', (envelope: EventEnvelope) => {
@@ -413,11 +441,7 @@ export class SessionManager {
         : this.deps.permission;
     const permission = createInteractivePermission(withApprovalEvents(serverAsk, sink), policy);
 
-    const memoryInjector = new MemoryInjector(this.deps.memoryStore, {
-      maxItems: this.deps.memoryConfig.injectMaxItems,
-      maxTokens: this.deps.memoryConfig.injectMaxTokens,
-      mode: this.deps.memoryConfig.injectMode,
-    });
+    const memory = this.buildMemoryRuntime(runtime, lastSeq);
 
     const loop = new AgentLoop({
       sessionId,
@@ -432,15 +456,111 @@ export class SessionManager {
       context,
       bus,
       sandbox: this.deps.sandbox,
-      ...(this.deps.memoryConfig.autoInject ? { memory: memoryInjector } : {}),
+      ...(this.deps.memoryConfig.autoInject ? { memory: memory.injector } : {}),
       systemPrompt: this.deps.systemPrompt,
       maxTokens: this.deps.maxTokens,
       logger: this.deps.logger,
     });
 
-    const active: ActiveSession = { session, loop, bus, running: false, permission };
+    const active: ActiveSession = { session, loop, bus, running: false, permission, memory };
     this.active.set(sessionId, active);
     return active;
+  }
+
+  /** 构建某会话的记忆运行时：注入器 + 可选提取器 + 提取游标与队列 */
+  private buildMemoryRuntime(runtime: SessionRuntime, cursor: number): SessionMemoryRuntime {
+    const config = this.deps.memoryConfig;
+    const injector = new MemoryInjector(this.deps.memoryStore, {
+      maxItems: config.injectMaxItems,
+      maxTokens: config.injectMaxTokens,
+      mode: config.injectMode,
+    });
+
+    const extractor = config.autoExtract
+      ? new MemoryExtractor(
+          runtime.router.getClient('extractor'),
+          this.deps.memoryStore,
+          this.deps.logger,
+          config.extractorTemperature,
+          (usage) =>
+            this.deps.costTracker.record(
+              {
+                role: 'extractor',
+                provider: runtime.router.getProvider('extractor'),
+                model: usage.model,
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+              },
+              undefined,
+            ),
+        )
+      : undefined;
+
+    return {
+      injector,
+      ...(extractor !== undefined ? { extractor } : {}),
+      cursor,
+      queue: Promise.resolve(),
+    };
+  }
+
+  /** 排队一次提取；同会话串行，失败只记日志、不影响 turn。 */
+  private scheduleExtraction(
+    active: ActiveSession,
+    source: 'turn_end' | 'session_end',
+  ): void {
+    if (active.memory.extractor === undefined) return;
+    active.memory.queue = active.memory.queue
+      .then(() => this.extractPending(active, source, false))
+      .catch((err: unknown) =>
+        this.deps.logger.warn('memory extraction failed', {
+          sessionId: active.session.id,
+          error: String(err),
+        }),
+      );
+  }
+
+  /**
+   * 从游标之后的事件切片中提取记忆。
+   *
+   * @param force true = 跳过字符阈值（手动触发）
+   */
+  private async extractPending(
+    active: ActiveSession,
+    source: 'turn_end' | 'session_end' | 'manual',
+    force: boolean,
+  ): Promise<void> {
+    const runtime = active.memory;
+    const extractor = runtime.extractor;
+    if (extractor === undefined) return;
+
+    const all = await this.deps.eventStore.replay(active.session.id);
+    const slice = all.filter((envelope) => envelope.seq > runtime.cursor);
+    const last = slice.at(-1);
+    if (last === undefined) return;
+
+    if (!force) {
+      const config = this.deps.memoryConfig;
+      const min = source === 'session_end' ? config.extractFlushMinChars : config.extractMinChars;
+      if (conversationChars(slice) < min) return;
+    }
+
+    const titles = (await this.deps.memoryStore.listActive()).map((memory) => memory.title);
+    const count = await extractor.extract(slice, titles, {
+      minChars: 0,
+      maxExistingTitles: this.deps.memoryConfig.maxExistingTitles,
+    });
+
+    runtime.cursor = last.seq;
+
+    if (count > 0) {
+      const envelope = await this.deps.eventStore.append(active.session.id, {
+        type: 'memory_extracted',
+        count,
+        source,
+      });
+      active.bus.emit('event', envelope);
+    }
   }
 
   private cancelPendingForSession(sessionId: string): void {
@@ -452,6 +572,17 @@ export class SessionManager {
       }
     }
   }
+}
+
+/** 切片内 user_input + assistant_text 的字符总数（提取阈值判定） */
+function conversationChars(slice: EventEnvelope[]): number {
+  let total = 0;
+  for (const envelope of slice) {
+    const payload = envelope.payload;
+    if (payload.type === 'user_input') total += payload.content.length;
+    else if (payload.type === 'assistant_text') total += payload.text.length;
+  }
+  return total;
 }
 
 class DeferredImpl<T> {

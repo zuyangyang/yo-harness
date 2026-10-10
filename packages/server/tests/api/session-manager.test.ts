@@ -128,6 +128,16 @@ async function waitForAssistantText(sessionId: string, count: number, timeoutMs 
   throw new Error(`timed out waiting for ${count} assistant_text events`);
 }
 
+async function waitForMemoryExtracted(sessionId: string, timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const events = await storage.events.replay(sessionId);
+    if (events.some((e) => e.payload.type === 'memory_extracted')) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('timed out waiting for memory_extracted');
+}
+
 describe('SessionManager 模型配置变更', () => {
   it('在途 turn 不驱逐；空闲后驱逐，下一条消息用新 router', async () => {
     let currentRouter = routerWith('first');
@@ -502,5 +512,102 @@ describe('SessionManager 记忆注入', () => {
     );
     expect(injected).toBeUndefined();
     await manager.destroyAll();
+  });
+});
+
+describe('SessionManager 记忆提取', () => {
+  function extractionManager(
+    scriptTexts: string[],
+    memoryConfig = DEFAULT_MEMORY_CONFIG,
+  ): { manager: SessionManager; client: FakeLLMClient } {
+    const script = scriptTexts.map((text) => ({
+      text,
+      toolCalls: [],
+      stopReason: 'end_turn' as const,
+      usage: { inputTokens: 1, outputTokens: 1 },
+    }));
+    const client = new FakeLLMClient(script);
+    const gateway = new LLMGateway(new Map([['fake', client]]), { defaultProvider: 'fake' });
+    const router = new ModelRouter(gateway, {});
+    const m = new SessionManager(
+      createDeps({
+        memoryConfig,
+        resolveRuntime: async () => ({ router, contextWindow: 4096, model: 'fake' }),
+      }),
+    );
+    return { manager: m, client };
+  }
+
+  it('turn 结束后自动提取并写入记忆 + 落 memory_extracted', async () => {
+    const extractionJson = JSON.stringify({
+      memories: [
+        {
+          title: 'Uses vitest',
+          content: 'Project tests with vitest',
+          category: 'project_knowledge',
+          description: 'test runner',
+          keywords: ['vitest'],
+        },
+      ],
+    });
+    const { manager: m } = extractionManager(['ok', extractionJson], {
+      ...DEFAULT_MEMORY_CONFIG,
+      extractMinChars: 10,
+    });
+    manager = m;
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'we use vitest for this project');
+    await waitForAssistantText(session.id, 1);
+    await waitForMemoryExtracted(session.id);
+
+    const memories = await storage.memories.listActive();
+    expect(memories.map((memory) => memory.title)).toContain('Uses vitest');
+    expect(memories[0]?.sourceSessionId).toBe(session.id);
+    await manager.destroyAll();
+  });
+
+  it('未达字符阈值时不提取', async () => {
+    const extractionJson = JSON.stringify({
+      memories: [
+        { title: 'Should not appear', content: 'x', category: 'general', description: 'd', keywords: ['x'] },
+      ],
+    });
+    const { manager: m, client } = extractionManager(['ok', extractionJson], {
+      ...DEFAULT_MEMORY_CONFIG,
+      extractMinChars: 5_000,
+      extractFlushMinChars: 5_000,
+    });
+    manager = m;
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'hi');
+    await waitForAssistantText(session.id, 1);
+    await manager.destroyAll();
+
+    expect(client.consumed).toBe(1);
+    expect(await storage.memories.listActive()).toHaveLength(0);
+  });
+
+  it('会话关闭时 flush 提取', async () => {
+    const extractionJson = JSON.stringify({
+      memories: [
+        { title: 'Flushed memory', content: 'captured on close', category: 'general', description: 'd', keywords: ['flush'] },
+      ],
+    });
+    const { manager: m } = extractionManager(['ok', extractionJson], {
+      ...DEFAULT_MEMORY_CONFIG,
+      extractMinChars: 5_000,
+      extractFlushMinChars: 10,
+    });
+    manager = m;
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'remember this on close');
+    await waitForAssistantText(session.id, 1);
+    await manager.destroyAll();
+
+    const memories = await storage.memories.listActive();
+    expect(memories.map((memory) => memory.title)).toContain('Flushed memory');
   });
 });
