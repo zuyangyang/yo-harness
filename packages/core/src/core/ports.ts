@@ -193,6 +193,24 @@ export interface MemoryStore {
   search(query: string, options?: MemorySearchOptions): Promise<Memory[]>;
 }
 
+/** 注入结果：system prompt 片段 + 落 memory_injected 事件所需的元信息 */
+export interface MemoryInjection {
+  text: string;
+  memoryIds: string[];
+  count: number;
+}
+
+export interface MemoryInjectionContext {
+  /** 当前 turn 的用户输入（relevant 模式检索用；all 模式忽略） */
+  userInput: string;
+}
+
+/** 记忆注入端口：core 定义接口，MemoryInjector 实现；AgentLoop 只依赖此接口 */
+export interface MemoryInjectionProvider {
+  /** 生成 system prompt 的记忆片段；无可用记忆时返回 undefined */
+  buildInjection(context: MemoryInjectionContext): Promise<MemoryInjection | undefined>;
+}
+
 // ─── Phase 3 后台任务端口 ───
 
 export interface TaskStore {

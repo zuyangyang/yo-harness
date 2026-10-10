@@ -111,4 +111,66 @@ describe('MemoryInjector', () => {
     expect(result).toContain('Pref 1');
     expect(result).toContain('Pref 2');
   });
+
+  it('无记忆时 buildInjection 返回 undefined', async () => {
+    const injection = await injector.buildInjection({ userInput: 'anything' });
+    expect(injection).toBeUndefined();
+  });
+
+  it('maxItems 截断注入条数', async () => {
+    for (let i = 0; i < 5; i += 1) {
+      await store.create({
+        title: 'Item ' + i,
+        content: 'Content ' + i,
+        category: 'general',
+        description: 'Desc ' + i,
+        keywords: ['k' + i],
+        status: 'active',
+      });
+    }
+    const capped = new MemoryInjector(store, { maxItems: 2 });
+    const injection = await capped.buildInjection({ userInput: '' });
+    expect(injection?.count).toBe(2);
+    expect(injection?.memoryIds).toHaveLength(2);
+  });
+
+  it('maxTokens 截断但至少保留一条', async () => {
+    await store.create({
+      title: 'Big',
+      content: 'x'.repeat(4000),
+      category: 'general',
+      description: 'big',
+      keywords: ['big'],
+      status: 'active',
+    });
+    const capped = new MemoryInjector(store, { maxTokens: 1 });
+    const injection = await capped.buildInjection({ userInput: '' });
+    expect(injection?.count).toBe(1);
+    expect(injection?.text).toContain('Big');
+  });
+
+  it('relevant 模式按用户输入检索命中', async () => {
+    await store.create({
+      title: 'TypeScript strict',
+      content: 'User prefers strict TypeScript',
+      category: 'preference',
+      description: 'TS strict mode',
+      keywords: ['typescript'],
+      status: 'active',
+    });
+    await store.create({
+      title: 'Unrelated',
+      content: 'Something about cooking',
+      category: 'general',
+      description: 'cooking',
+      keywords: ['cooking'],
+      status: 'active',
+    });
+
+    const relevant = new MemoryInjector(store, { mode: 'relevant' });
+    const injection = await relevant.buildInjection({ userInput: 'typescript' });
+    expect(injection?.count).toBe(1);
+    expect(injection?.text).toContain('TypeScript strict');
+    expect(injection?.text).not.toContain('Unrelated');
+  });
 });
