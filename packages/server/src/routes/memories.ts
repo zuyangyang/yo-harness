@@ -5,15 +5,18 @@ import { Hono } from 'hono';
 
 import type { ServerEnv } from '../types.js';
 import type { StorageBackend } from '../storage/interface.js';
+import type { SessionManager } from '../session-manager.js';
 import type { MemoryCategory } from '@yo-harness/core/types/memory.js';
 import { requirePermission } from '../auth/rbac.js';
 
 export interface MemoriesRouteDeps {
   storage: StorageBackend;
+  sessionManager: SessionManager;
 }
 
-export function createMemoryRoutes(_deps: MemoriesRouteDeps): Hono<ServerEnv> {
+export function createMemoryRoutes(deps: MemoriesRouteDeps): Hono<ServerEnv> {
   const app = new Hono<ServerEnv>();
+  const { sessionManager } = deps;
 
   app.use('*', requirePermission('memories:read'));
 
@@ -73,6 +76,15 @@ export function createMemoryRoutes(_deps: MemoriesRouteDeps): Hono<ServerEnv> {
     const id = c.req.param('id');
     await store.memories.archive(id);
     return c.json({ ok: true });
+  });
+
+  app.post('/extract', requirePermission('memories:write'), async (c) => {
+    const body = await c.req.json<{ sessionId?: string }>();
+    if (body.sessionId === undefined || body.sessionId.trim().length === 0) {
+      return c.json({ error: 'sessionId is required' }, 400);
+    }
+    const count = await sessionManager.extractMemoriesNow(body.sessionId);
+    return c.json({ ok: true, count });
   });
 
   app.get('/search', async (c) => {

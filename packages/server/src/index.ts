@@ -22,7 +22,7 @@ import type { PricingTable } from '@yo-harness/core/types/pricing.js';
 import { createApp } from './app.js';
 import { SessionManager } from './session-manager.js';
 import { createJwtConfig } from './auth/jwt.js';
-import { createDefaultServerConfig, type ServerConfig } from './config.js';
+import { createDefaultServerConfig, DEFAULT_MEMORY_CONFIG, type ServerConfig } from './config.js';
 import { ModelConfigService } from './model-config-service.js';
 import { WebSocketHub } from './ws/hub.js';
 import { ScheduledTaskScheduler } from './scheduler/scheduler.js';
@@ -222,6 +222,14 @@ async function main() {
         }]
       : [],
     pricing: mergePricingTable(pricingOverrides),
+    memory: {
+      ...DEFAULT_MEMORY_CONFIG,
+      autoInject: process.env.YO_MEMORY_AUTO_INJECT !== 'false',
+      autoExtract: process.env.YO_MEMORY_AUTO_EXTRACT !== 'false',
+      ...(process.env.YO_MEMORY_INJECT_MODE === 'relevant'
+        ? { injectMode: 'relevant' as const }
+        : {}),
+    },
   });
 
   await startServer({

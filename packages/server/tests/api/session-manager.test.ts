@@ -610,4 +610,29 @@ describe('SessionManager 记忆提取', () => {
     const memories = await storage.memories.listActive();
     expect(memories.map((memory) => memory.title)).toContain('Flushed memory');
   });
+
+  it('extractMemoriesNow 对非活跃会话回放全量事件提取', async () => {
+    const extractionJson = JSON.stringify({
+      memories: [
+        { title: 'Manual memory', content: 'manual', category: 'general', description: 'd', keywords: ['m'] },
+      ],
+    });
+    const { manager: m } = extractionManager(['ok', extractionJson], {
+      ...DEFAULT_MEMORY_CONFIG,
+      extractMinChars: 5_000,
+      extractFlushMinChars: 5_000,
+    });
+    manager = m;
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'we use vitest for this project');
+    await waitForAssistantText(session.id, 1);
+    manager.closeSession(session.id, { extract: false });
+
+    const count = await manager.extractMemoriesNow(session.id);
+
+    expect(count).toBe(1);
+    const memories = await storage.memories.listActive();
+    expect(memories.map((memory) => memory.title)).toContain('Manual memory');
+  });
 });

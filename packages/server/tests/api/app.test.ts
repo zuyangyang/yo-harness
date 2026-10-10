@@ -38,6 +38,7 @@ function mockSessionManager(): SessionManager {
     closeSession: () => {},
     invalidateSession: () => false,
     applyPermissionMode: () => false,
+    extractMemoriesNow: async () => 2,
     destroyAll: async () => {},
   } as unknown as SessionManager;
 }
@@ -595,6 +596,37 @@ describe('memory routes', () => {
     expect(res.status).toBe(200);
     const body = await json(res);
     expect(body.memories.length).toBe(1);
+  });
+
+  it('POST /api/v1/memories/extract → 200 + count', async () => {
+    const res = await app.request('/api/v1/memories/extract', {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify({ sessionId: 's1' }),
+    });
+    expect(res.status).toBe(200);
+    const body = await json(res);
+    expect(body.ok).toBe(true);
+    expect(body.count).toBe(2);
+  });
+
+  it('POST /api/v1/memories/extract 缺 sessionId → 400', async () => {
+    const res = await app.request('/api/v1/memories/extract', {
+      method: 'POST',
+      headers: authHeader(token),
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('viewer 调用 extract → 403', async () => {
+    const viewerToken = await signAccessToken({ userId, tenantId, role: 'viewer' }, jwtConfig);
+    const res = await app.request('/api/v1/memories/extract', {
+      method: 'POST',
+      headers: authHeader(viewerToken),
+      body: JSON.stringify({ sessionId: 's1' }),
+    });
+    expect(res.status).toBe(403);
   });
 });
 

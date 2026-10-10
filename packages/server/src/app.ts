@@ -129,7 +129,7 @@ export function createApp(deps: AppDeps): AppResult {
     app.route('/api/v1/schedules', createScheduleRoutes({ scheduler }));
   }
   app.route('/api/v1/notifications', createNotificationRoutes());
-  app.route('/api/v1/memories', createMemoryRoutes({ storage }));
+  app.route('/api/v1/memories', createMemoryRoutes({ storage, sessionManager }));
   app.route('/api/v1/models', createModelRoutes({ serverConfig, modelConfig }));
 
   return { app, wsHub, injectWebSocket: (server) => nodeWs.injectWebSocket(server) };

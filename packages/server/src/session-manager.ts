@@ -511,7 +511,9 @@ export class SessionManager {
   ): void {
     if (active.memory.extractor === undefined) return;
     active.memory.queue = active.memory.queue
-      .then(() => this.extractPending(active, source, false))
+      .then(async () => {
+        await this.extractPending(active, source, false);
+      })
       .catch((err: unknown) =>
         this.deps.logger.warn('memory extraction failed', {
           sessionId: active.session.id,
@@ -529,20 +531,20 @@ export class SessionManager {
     active: ActiveSession,
     source: 'turn_end' | 'session_end' | 'manual',
     force: boolean,
-  ): Promise<void> {
+  ): Promise<number> {
     const runtime = active.memory;
     const extractor = runtime.extractor;
-    if (extractor === undefined) return;
+    if (extractor === undefined) return 0;
 
     const all = await this.deps.eventStore.replay(active.session.id);
     const slice = all.filter((envelope) => envelope.seq > runtime.cursor);
     const last = slice.at(-1);
-    if (last === undefined) return;
+    if (last === undefined) return 0;
 
     if (!force) {
       const config = this.deps.memoryConfig;
       const min = source === 'session_end' ? config.extractFlushMinChars : config.extractMinChars;
-      if (conversationChars(slice) < min) return;
+      if (conversationChars(slice) < min) return 0;
     }
 
     const titles = (await this.deps.memoryStore.listActive()).map((memory) => memory.title);
@@ -561,6 +563,57 @@ export class SessionManager {
       });
       active.bus.emit('event', envelope);
     }
+    return count;
+  }
+
+  /**
+   * 手动触发某会话的记忆提取（不依赖 autoExtract 开关）。
+   *
+   * 活跃会话复用其提取器并串行排队；非活跃会话回放全量事件临时提取。
+   *
+   * @returns 新写入的记忆数量
+   */
+  async extractMemoriesNow(sessionId: string): Promise<number> {
+    const active = this.active.get(sessionId);
+    if (active !== undefined && active.memory.extractor !== undefined) {
+      let created = 0;
+      const run = active.memory.queue.then(async () => {
+        created = await this.extractPending(active, 'manual', true);
+      });
+      active.memory.queue = run.catch((err: unknown) => {
+        this.deps.logger.warn('manual memory extraction failed', {
+          sessionId,
+          error: String(err),
+        });
+      });
+      await active.memory.queue;
+      return created;
+    }
+
+    const session = await this.deps.sessionStore.get(sessionId);
+    if (session === undefined) throw new Error('session not found: ' + sessionId);
+    const runtime = await this.deps.resolveRuntime(session);
+    const extractor = new MemoryExtractor(
+      runtime.router.getClient('extractor'),
+      this.deps.memoryStore,
+      this.deps.logger,
+      this.deps.memoryConfig.extractorTemperature,
+    );
+    const events = await this.deps.eventStore.replay(sessionId);
+    const titles = (await this.deps.memoryStore.listActive()).map((memory) => memory.title);
+    const count = await extractor.extract(events, titles, {
+      minChars: 0,
+      maxExistingTitles: this.deps.memoryConfig.maxExistingTitles,
+    });
+    if (count > 0) {
+      const envelope = await this.deps.eventStore.append(sessionId, {
+        type: 'memory_extracted',
+        count,
+        source: 'manual',
+      });
+      this.deps.wsHub?.broadcast(sessionId, envelope);
+    }
+    return count;
   }
 
   private cancelPendingForSession(sessionId: string): void {
