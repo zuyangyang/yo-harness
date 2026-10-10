@@ -1,9 +1,24 @@
 # 语义记忆自动化设计（自动注入 + 自动提取）
 
-> 状态：设计稿（待实现）
+> 状态：P0–P3 已实现并通过全量测试（2026-10）
 > 范围：yo-harness server（Web UI 真实对话）为主路径；CLI 与后台任务作为可选扩展
 > 关联文档：docs/UI-REDESIGN.md §5、README「语义记忆」
 > 现有代码：packages/core/src/memory/{injector,extractor}.ts、packages/core/src/storage/memory-store.ts、packages/server/src/routes/memories.ts
+
+---
+
+## 0. 实现状态（本次落地）
+
+| 阶段 | 内容 | 状态 |
+| --- | --- | --- |
+| P0 | core 注入端口 + injector 上限/relevant + agent-loop 钩子 + extractor 去重/用量 + 事件 turn_end | 已完成 |
+| P1 | server MemoryConfig + SessionManager 注入接线（getOrCreate / index 装配） | 已完成 |
+| P2 | 自动提取流水线 + turn 后调度 + 会话关闭 flush + 回退保护 | 已完成 |
+| P3 | 手动提取 API（POST /api/v1/memories/extract）+ 环境变量覆盖 | 已完成 |
+| P4 | Web 设置开关 / 来源展示 / 提取按钮 | 未做（可选） |
+
+验证：pnpm -r run test 全绿（core 474 / server 223 / cli 39 / web 135）。
+说明：仓库既有 lint 在本轮改动前已是红色（core 有 6 个历史问题），本次改动未新增 lint 错误。
 
 ---
 
