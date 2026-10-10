@@ -145,4 +145,46 @@ describe('MemoryExtractor', () => {
 
     expect(count).toBe(0);
   });
+
+  it('程序化去重：与已有标题归一化相同则跳过', async () => {
+    const json = JSON.stringify({
+      memories: [
+        { title: 'TypeScript Strict', content: 'x', category: 'preference', description: 'd', keywords: ['a'] },
+        { title: 'New Memory', content: 'y', category: 'general', description: 'd2', keywords: ['b'] },
+      ],
+    });
+    const fake = new FakeLLMClient([{ text: json, toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 10, outputTokens: 10 } }]);
+    const extractor = new MemoryExtractor(fake, store, SILENT_LOGGER);
+
+    const events = makeEvents('s1', [['help me set up typescript with strict mode enabled please', 'sure, I will enable strict mode in your tsconfig file']]);
+    const count = await extractor.extract(events, ['typescript strict']);
+
+    expect(count).toBe(1);
+    const memories = await store.listActive();
+    expect(memories.map((m) => m.title)).toEqual(['New Memory']);
+  });
+
+  it('minChars 选项生效：低于阈值不调 LLM', async () => {
+    const fake = new FakeLLMClient([]);
+    const extractor = new MemoryExtractor(fake, store, SILENT_LOGGER);
+
+    const events = makeEvents('s1', [['hello world', 'hi there']]);
+    const count = await extractor.extract(events, [], { minChars: 500 });
+
+    expect(count).toBe(0);
+    expect(fake.consumed).toBe(0);
+  });
+
+  it('onUsage 回调收到真实用量', async () => {
+    const json = JSON.stringify({ memories: [] });
+    const fake = new FakeLLMClient([{ text: json, toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 42, outputTokens: 7 } }]);
+    const usages: { inputTokens: number; outputTokens: number; model: string }[] = [];
+    const extractor = new MemoryExtractor(fake, store, SILENT_LOGGER, 0, (u) => usages.push(u));
+
+    const events = makeEvents('s1', [['help me set up the project with typescript and eslint configuration', 'sure, I will help you set up typescript with eslint']]);
+    await extractor.extract(events, []);
+
+    expect(usages).toHaveLength(1);
+    expect(usages[0]).toMatchObject({ inputTokens: 42, outputTokens: 7 });
+  });
 });

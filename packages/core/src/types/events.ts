@@ -145,7 +145,7 @@ export const AgentEventSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('memory_extracted'),
     count: z.number().int().nonnegative(),
-    source: z.enum(['session_end', 'manual']),
+    source: z.enum(['turn_end', 'session_end', 'manual']),
   }),
   z.object({
     type: z.literal('memory_injected'),

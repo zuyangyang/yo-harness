@@ -67,6 +67,7 @@ const sampleEvents = [
   { type: 'goal_reminder', goal: '重构 auth 模块', stepsSinceProgress: 10 },
   // ─── Phase 3 新增事件 ───
   { type: 'memory_extracted', count: 3, source: 'session_end' },
+  { type: 'memory_extracted', count: 1, source: 'turn_end' },
   { type: 'memory_injected', count: 2, memoryIds: ['mem_1', 'mem_2'] },
   { type: 'task_started', taskId: 'bg-1', description: '跑测试', sessionId: 'sess-1' },
   { type: 'task_completed', taskId: 'bg-1', reason: 'done', summary: '全部通过' },
