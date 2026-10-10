@@ -35,7 +35,7 @@ import { TokenCalibrator } from '../utils/tokens.js';
 import type { TurnBudget } from './budget.js';
 import type { ContextBuildResult, ContextManager } from './context-manager.js';
 import type { EventBus } from './event-bus.js';
-import type { EventStore, ToolResolver } from './ports.js';
+import type { EventStore, MemoryInjectionProvider, ToolResolver } from './ports.js';
 import type { PermissionManager } from './permission.js';
 import type { ModelRouter } from '../router/model-router.js';
 import type { CostTracker } from '../router/cost-tracker.js';
@@ -78,6 +78,11 @@ export interface AgentLoopDeps {
     checkDrift(currentStep: number, recentToolCalls: ToolCall[]): string | undefined;
     toSystemPromptInjection(): string | undefined;
   };
+  /**
+   * 记忆注入端口；undefined = 关闭自动注入。
+   * 每 turn 开始时调用一次，结果拼进本 turn 的 system prompt。
+   */
+  memory?: MemoryInjectionProvider;
   /** 模型价格表（成本核算）；undefined = 不核算成本，仅累计 token */
   pricing?: PricingTable;
   /** 工具 schema 下发模式（§9.3）；默认 full，compact 裁到顶层属性名 */
@@ -113,6 +118,8 @@ export class AgentLoop {
   private turnCost: number | undefined;
   private truncationCount = 0;
   private recentToolCalls: ToolCall[] = [];
+  /** 本 turn 的记忆注入文本（system prompt 片段） */
+  private memoryInjection: string | undefined;
   private turnAbort: AbortController | undefined;
 
   constructor(private readonly deps: AgentLoopDeps) {}
@@ -135,6 +142,7 @@ export class AgentLoop {
     this.turnCost = undefined;
     this.truncationCount = 0;
     this.recentToolCalls = [];
+    this.memoryInjection = undefined;
     this.turnAbort = new AbortController();
     this.deps.goalTracker?.initialize(userText);
     let reason: TurnEndReason = 'done';
@@ -142,6 +150,7 @@ export class AgentLoop {
       await this.append({ type: 'turn_started', turnId });
       this.deps.budget.start();
       await this.appendAndPush({ type: 'user_input', content: userText });
+      await this.injectMemory(userText);
       reason = await this.runSteps();
     } catch (err) {
       // BudgetStop 是计划内熔断，直接映射原因；中断映射 interrupted；其余落 error 事件
@@ -420,10 +429,33 @@ export class AgentLoop {
     return lookupPrice(this.deps.pricing, this.deps.router.getProvider('main'), client.model);
   }
 
+  private async injectMemory(userInput: string): Promise<void> {
+    const provider = this.deps.memory;
+    if (provider === undefined) return;
+    try {
+      const injection = await provider.buildInjection({ userInput });
+      if (injection === undefined || injection.count === 0) return;
+      this.memoryInjection = injection.text;
+      await this.append({
+        type: 'memory_injected',
+        count: injection.count,
+        memoryIds: injection.memoryIds,
+      });
+    } catch (err) {
+      this.deps.logger.warn('memory injection failed', {
+        sessionId: this.deps.sessionId,
+        error: String(err),
+      });
+    }
+  }
+
   private toRequest(messages: ChatMessage[]): ChatRequest {
     const { systemPrompt, maxTokens, temperature, tools } = this.deps;
+    const parts: string[] = [systemPrompt];
+    if (this.memoryInjection !== undefined) parts.push(this.memoryInjection);
     const goalInjection = this.deps.goalTracker?.toSystemPromptInjection();
-    const system = goalInjection !== undefined ? `${systemPrompt}\n\n${goalInjection}` : systemPrompt;
+    if (goalInjection !== undefined) parts.push(goalInjection);
+    const system = parts.join('\n\n');
     const toolSpecs = tools.specs(this.deps.toolsSchemaMode ?? 'full');
     return temperature !== undefined
       ? { system, messages, tools: toolSpecs, maxTokens, temperature }

@@ -8,7 +8,7 @@ import { ContextManager } from '../../src/core/context-manager.js';
 import type { ContextManagerConfig } from '../../src/core/context-manager.js';
 import { EventBus } from '../../src/core/event-bus.js';
 import type { AgentStatus } from '../../src/core/event-bus.js';
-import type { EventStore } from '../../src/core/ports.js';
+import type { EventStore, MemoryInjectionProvider } from '../../src/core/ports.js';
 import {
   createInteractivePermission,
   createNonInteractivePermission,
@@ -133,6 +133,8 @@ interface LoopOptions {
     checkDrift(currentStep: number, recentToolCalls: ToolCall[]): string | undefined;
     toSystemPromptInjection(): string | undefined;
   };
+  /** 记忆注入端口；提供时注入 AgentLoop.memory */
+  memory?: MemoryInjectionProvider;
   /** 价格表；提供时注入 AgentLoop.pricing（成本核算测试用） */
   pricing?: PricingTable;
 }
@@ -190,6 +192,7 @@ function makeLoop(options: LoopOptions): LoopHarness {
     logger: SILENT_LOGGER,
     ...(options.checkpoint !== undefined ? { checkpoint: options.checkpoint } : {}),
     ...(options.goalTracker !== undefined ? { goalTracker: options.goalTracker } : {}),
+    ...(options.memory !== undefined ? { memory: options.memory } : {}),
     ...(options.pricing !== undefined ? { pricing: options.pricing } : {}),
   });
   return { loop, store, fake, bus, rec, contextConfig, costTracker };
@@ -881,6 +884,60 @@ describe('AgentLoop', () => {
     if (tr?.type !== 'tool_result') throw new Error('expected tool_result');
     expect(tr.ok).toBe(false);
     expect(tr.content).toContain('[FATAL]');
+  });
+
+  it('记忆注入：拼进 system prompt 并落 memory_injected 事件', async () => {
+    const { loop, store, fake } = makeLoop({
+      script: [resp('ok')],
+      memory: {
+        buildInjection: () =>
+          Promise.resolve({
+            text: '<semantic-memory>\n- **Pref**: strict TS\n</semantic-memory>',
+            memoryIds: ['m1'],
+            count: 1,
+          }),
+      },
+    });
+
+    const reason = await loop.runTurn('hi');
+
+    expect(reason).toBe('done');
+    expect(fake.requests[0]?.system).toBe(
+      'You are yo.\n\n<semantic-memory>\n- **Pref**: strict TS\n</semantic-memory>',
+    );
+    const injected = store.events.find((e) => e.payload.type === 'memory_injected');
+    if (injected?.payload.type !== 'memory_injected') throw new Error('expected memory_injected');
+    expect(injected.payload.count).toBe(1);
+    expect(injected.payload.memoryIds).toEqual(['m1']);
+  });
+
+  it('记忆注入：provider 返回 undefined 时不落事件', async () => {
+    const { loop, store } = makeLoop({
+      script: [resp('ok')],
+      memory: { buildInjection: () => Promise.resolve(undefined) },
+    });
+
+    await loop.runTurn('hi');
+
+    expect(store.events.some((e) => e.payload.type === 'memory_injected')).toBe(false);
+  });
+
+  it('记忆注入失败：turn 正常结束，system 无记忆段落', async () => {
+    const { loop, store, fake } = makeLoop({
+      script: [resp('ok')],
+      memory: { buildInjection: () => Promise.reject(new Error('boom')) },
+    });
+
+    const reason = await loop.runTurn('hi');
+
+    expect(reason).toBe('done');
+    expect(fake.requests[0]?.system).toBe('You are yo.');
+    expect(types(store.events)).toEqual([
+      'turn_started',
+      'user_input',
+      'assistant_text',
+      'turn_completed',
+    ]);
   });
 });
 
