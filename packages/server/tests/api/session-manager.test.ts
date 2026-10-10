@@ -14,6 +14,7 @@ import { createLogger } from '@yo-harness/core/utils/logger.js';
 import { DEFAULT_BUDGET_LIMITS } from '@yo-harness/core/core/budget.js';
 import { DEFAULT_PERMISSION_SETTINGS } from '@yo-harness/core/core/permission.js';
 import { createLocalSandbox } from '@yo-harness/core/sandbox/local-sandbox.js';
+import { DEFAULT_MEMORY_CONFIG } from '../../src/config.js';
 import type { SessionManagerDeps } from '../../src/session-manager.js';
 import type { WebSocketHub } from '../../src/ws/hub.js';
 import type { ChatResponse } from '@yo-harness/core/types/llm.js';
@@ -36,6 +37,8 @@ function createDeps(overrides: Partial<SessionManagerDeps> = {}): SessionManager
     costTracker: new CostTracker(),
     sandbox: createLocalSandbox('/tmp'),
     logger: createLogger('silent'),
+    memoryStore: storage.memories,
+    memoryConfig: DEFAULT_MEMORY_CONFIG,
     systemPrompt: 'test',
     maxTokens: 1024,
     budgetLimits: DEFAULT_BUDGET_LIMITS,
@@ -428,6 +431,76 @@ describe('SessionManager 回退（重新生成 / 编辑重发）', () => {
     await manager.sendMessage(session.id, 'hello');
     await expect(manager.regenerateTurn(session.id)).rejects.toThrow('already running');
     await expect(manager.editTurn(session.id, 1, 'x')).rejects.toThrow('already running');
+    await manager.destroyAll();
+  });
+});
+
+describe('SessionManager 记忆注入', () => {
+  it('新 turn 注入 active 记忆并落 memory_injected 事件', async () => {
+    await storage.memories.create({
+      title: 'Prefers strict TS',
+      content: 'User always enables strict mode',
+      category: 'preference',
+      description: 'strict TS',
+      keywords: ['typescript'],
+      status: 'active',
+    });
+
+    const client = new FakeLLMClient([
+      { text: 'ok', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } },
+    ]);
+    const gateway = new LLMGateway(new Map([['fake', client]]), { defaultProvider: 'fake' });
+    const router = new ModelRouter(gateway, {});
+    manager = new SessionManager(
+      createDeps({
+        resolveRuntime: async () => ({ router, contextWindow: 4096, model: 'fake' }),
+      }),
+    );
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'hello');
+    await waitForAssistantText(session.id, 1);
+
+    expect(client.requests[0]?.system).toContain('<semantic-memory>');
+    expect(client.requests[0]?.system).toContain('Prefers strict TS');
+    const injected = (await storage.events.replay(session.id)).find(
+      (e) => e.payload.type === 'memory_injected',
+    );
+    expect(injected).toBeDefined();
+    await manager.destroyAll();
+  });
+
+  it('autoInject=false 时不注入记忆', async () => {
+    await storage.memories.create({
+      title: 'Prefers strict TS',
+      content: 'User always enables strict mode',
+      category: 'preference',
+      description: 'strict TS',
+      keywords: ['typescript'],
+      status: 'active',
+    });
+
+    const client = new FakeLLMClient([
+      { text: 'ok', toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } },
+    ]);
+    const gateway = new LLMGateway(new Map([['fake', client]]), { defaultProvider: 'fake' });
+    const router = new ModelRouter(gateway, {});
+    manager = new SessionManager(
+      createDeps({
+        memoryConfig: { ...DEFAULT_MEMORY_CONFIG, autoInject: false },
+        resolveRuntime: async () => ({ router, contextWindow: 4096, model: 'fake' }),
+      }),
+    );
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'hello');
+    await waitForAssistantText(session.id, 1);
+
+    expect(client.requests[0]?.system).toBe('test');
+    const injected = (await storage.events.replay(session.id)).find(
+      (e) => e.payload.type === 'memory_injected',
+    );
+    expect(injected).toBeUndefined();
     await manager.destroyAll();
   });
 });

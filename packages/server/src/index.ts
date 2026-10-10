@@ -89,6 +89,8 @@ export async function createServer(options: CreateServerOptions) {
     eventStore: storage.events,
     sessionStore: storage.sessions,
     tools,
+    memoryStore: storage.memories,
+    memoryConfig: serverConfig.memory,
     resolveRuntime: async (session) => {
       const runtime = await modelConfig.buildRuntimeForModel(session.model);
       return {

@@ -29,9 +29,10 @@ import {
   type PermissionMode,
   type PermissionSettings,
 } from '@yo-harness/core/core/permission.js';
-import type { EventStore, SessionStore, Session, ToolResolver } from '@yo-harness/core/core/ports.js';
+import type { EventStore, MemoryStore, SessionStore, Session, ToolResolver } from '@yo-harness/core/core/ports.js';
 import { deriveTitle } from '@yo-harness/core/utils/title.js';
 import { DEFAULT_PRICING_TABLE } from '@yo-harness/core/llm/pricing.js';
+import { MemoryInjector } from '@yo-harness/core/memory/injector.js';
 import type { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
 import type { ModelRouter } from '@yo-harness/core/router/model-router.js';
 import type { Logger } from '@yo-harness/core/types/common.js';
@@ -39,6 +40,7 @@ import type { PricingTable } from '@yo-harness/core/types/pricing.js';
 import type { AgentEvent, EventEnvelope, TurnEndReason } from '@yo-harness/core/types/events.js';
 import type { SandboxProvider } from '@yo-harness/core/types/sandbox.js';
 import type { WebSocketHub } from './ws/hub.js';
+import type { MemoryConfig } from './config.js';
 
 export interface PendingApproval {
   id: string;
@@ -82,6 +84,10 @@ export interface SessionManagerDeps {
   pricing?: PricingTable;
   sandbox: SandboxProvider;
   logger: Logger;
+  /** 语义记忆存储（自动注入读取；自动提取写入） */
+  memoryStore: MemoryStore;
+  /** 记忆自动化配置 */
+  memoryConfig: MemoryConfig;
   systemPrompt: string;
   maxTokens: number;
   budgetLimits: { maxStepsPerTurn: number; maxTokensPerTurn: number; maxTurnDurationMs: number };
@@ -407,6 +413,12 @@ export class SessionManager {
         : this.deps.permission;
     const permission = createInteractivePermission(withApprovalEvents(serverAsk, sink), policy);
 
+    const memoryInjector = new MemoryInjector(this.deps.memoryStore, {
+      maxItems: this.deps.memoryConfig.injectMaxItems,
+      maxTokens: this.deps.memoryConfig.injectMaxTokens,
+      mode: this.deps.memoryConfig.injectMode,
+    });
+
     const loop = new AgentLoop({
       sessionId,
       cwd: session.cwd,
@@ -420,6 +432,7 @@ export class SessionManager {
       context,
       bus,
       sandbox: this.deps.sandbox,
+      ...(this.deps.memoryConfig.autoInject ? { memory: memoryInjector } : {}),
       systemPrompt: this.deps.systemPrompt,
       maxTokens: this.deps.maxTokens,
       logger: this.deps.logger,
