@@ -288,3 +288,67 @@ describe('SqliteMemoryStore 过期语义（隐藏不删除）', () => {
     expect(rows[0]?.title).toBe('kept');
   });
 });
+
+describe('SqliteMemoryStore key 确定性 upsert', () => {
+  it('首次创建 → 再次更新同一行，不产生重复', async () => {
+    const first = await store.upsertByKey({
+      ...baseInput,
+      key: 'profile.name',
+      title: 'User name',
+      content: 'The user is called yang',
+      importance: 9,
+    });
+    expect(first.created).toBe(true);
+
+    const second = await store.upsertByKey({
+      ...baseInput,
+      key: 'profile.name',
+      title: 'User name',
+      content: 'The user is called Yang Yang',
+      importance: 9,
+    });
+    expect(second.created).toBe(false);
+    expect(second.memory.id).toBe(first.memory.id);
+    expect(second.memory.content).toBe('The user is called Yang Yang');
+    expect(await store.listActive()).toHaveLength(1);
+  });
+
+  it('同一槽位的事实被取代后，新值复位为 active 并清空取代指针', async () => {
+    const first = await store.upsertByKey({ ...baseInput, key: 'preference.language' });
+    await store.update(first.memory.id, {
+      status: 'superseded',
+      supersededBy: 'other',
+      validTo: '2026-01-01T00:00:00.000Z',
+    });
+
+    const second = await store.upsertByKey({
+      ...baseInput,
+      key: 'preference.language',
+      content: 'now English',
+    });
+    expect(second.created).toBe(false);
+    expect(second.memory.status).toBe('active');
+    expect(second.memory.supersededBy).toBeUndefined();
+    expect(second.memory.validTo).toBeUndefined();
+    expect(second.memory.content).toBe('now English');
+  });
+
+  it('keyed upsert 会用新 TTL 整体替换旧 TTL（未提供即永久）', async () => {
+    await store.upsertByKey({
+      ...baseInput,
+      key: 'env.db',
+      expiresAt: '2000-01-01T00:00:00.000Z',
+    });
+    // 过期后不可见，但 key 仍在
+    expect(await store.listActive()).toHaveLength(0);
+
+    const next = await store.upsertByKey({ ...baseInput, key: 'env.db', content: 'now permanent' });
+    expect(next.created).toBe(false);
+    expect(next.memory.expiresAt).toBeUndefined();
+    expect(await store.listActive()).toHaveLength(1);
+  });
+
+  it('getByKey 未命中返回 undefined', async () => {
+    expect(await store.getByKey('nope')).toBeUndefined();
+  });
+});

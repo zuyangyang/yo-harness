@@ -44,6 +44,7 @@ import type { BackgroundTask, BackgroundTaskStatus, CreateTaskInput } from '@yo-
 import type { ModelSelection, ProviderRecord, ProviderRecordInput } from '@yo-harness/core/types/model-config.js';
 import { parseModelsJson } from '@yo-harness/core/storage/model-config-store.js';
 import { applyMemoryPatch } from '@yo-harness/core/types/memory.js';
+import { upsertMemoryByKey } from '@yo-harness/core/memory/upsert.js';
 
 import type { StorageBackend } from './interface.js';
 import { createTenantSchema, type TenantTables } from './schema.js';
@@ -652,6 +653,19 @@ class PostgresMemoryStore implements MemoryStore {
   async get(id: string): Promise<Memory | undefined> {
     const rows = await this.db.select().from(this.t.memories).where(eq(this.t.memories.id, id)).limit(1);
     return rows[0] ? mapMemory(rows[0]) : undefined;
+  }
+
+  async getByKey(key: string): Promise<Memory | undefined> {
+    const rows = await this.db.select().from(this.t.memories)
+      .where(eq(this.t.memories.key, key))
+      .limit(1);
+    return rows[0] ? mapMemory(rows[0]) : undefined;
+  }
+
+  async upsertByKey(
+    input: MemoryCreateInput & { key: string },
+  ): Promise<{ memory: Memory; created: boolean }> {
+    return upsertMemoryByKey(this, input);
   }
 
   async update(id: string, patch: MemoryUpdatePatch): Promise<Memory | undefined> {

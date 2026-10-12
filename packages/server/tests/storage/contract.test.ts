@@ -301,6 +301,74 @@ function runContractTests(factory: BackendFactory) {
       expect(updated!.content).toBe('content');
     });
 
+    it('upsertByKey 命中同一槽位时更新同一行（不产生重复）', async () => {
+      const first = await backend.memories.upsertByKey({
+        key: 'profile.name',
+        title: 'User name',
+        content: 'The user is called yang',
+        category: 'general',
+        description: 'user name',
+        keywords: ['name'],
+        status: 'active',
+        importance: 9,
+      });
+      expect(first.created).toBe(true);
+      expect(first.memory.importance).toBe(9);
+
+      const second = await backend.memories.upsertByKey({
+        key: 'profile.name',
+        title: 'User name',
+        content: 'The user is called Yang Yang',
+        category: 'general',
+        description: 'user name',
+        keywords: ['name'],
+        status: 'active',
+        importance: 9,
+      });
+      expect(second.created).toBe(false);
+      expect(second.memory.id).toBe(first.memory.id);
+      expect(second.memory.content).toBe('The user is called Yang Yang');
+
+      // 槽位唯一：仍只有一行
+      expect(await backend.memories.listActive()).toHaveLength(1);
+      expect((await backend.memories.getByKey('profile.name'))?.id).toBe(first.memory.id);
+      expect(await backend.memories.getByKey('missing.slot')).toBeUndefined();
+    });
+
+    it('upsertByKey 会把被取代的槽位复位为 active 并清空取代指针', async () => {
+      const first = await backend.memories.upsertByKey({
+        key: 'preference.language',
+        title: 'Language preference',
+        content: 'User writes in Chinese',
+        category: 'preference',
+        description: 'language',
+        keywords: ['language'],
+        status: 'active',
+      });
+
+      await backend.memories.update(first.memory.id, {
+        status: 'superseded',
+        supersededBy: 'someone-else',
+        validTo: '2026-01-01T00:00:00.000Z',
+      });
+
+      const second = await backend.memories.upsertByKey({
+        key: 'preference.language',
+        title: 'Language preference',
+        content: 'User writes in Chinese; replies should be in English',
+        category: 'preference',
+        description: 'language',
+        keywords: ['language'],
+        status: 'active',
+      });
+
+      expect(second.created).toBe(false);
+      expect(second.memory.id).toBe(first.memory.id);
+      expect(second.memory.status).toBe('active');
+      expect(second.memory.supersededBy).toBeUndefined();
+      expect(second.memory.validTo).toBeUndefined();
+    });
+
     it('archive changes status', async () => {
       const memory = await backend.memories.create({
         title: 't', content: 'c', category: 'general',

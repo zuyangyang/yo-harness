@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { MemoryStore, MemorySearchOptions } from '../core/ports.js';
+import { upsertMemoryByKey } from '../memory/upsert.js';
 import { applyMemoryPatch } from '../types/memory.js';
 import type {
   Memory,
@@ -208,6 +209,19 @@ export class SqliteMemoryStore implements MemoryStore {
 
     const rows = this.db.prepare(sql).all(...params) as MemoryRow[];
     return rows.map(mapMemory);
+  }
+
+  async getByKey(key: string): Promise<Memory | undefined> {
+    const row = this.db
+      .prepare('SELECT * FROM memories WHERE key = ?')
+      .get(key) as MemoryRow | undefined;
+    return row === undefined ? undefined : mapMemory(row);
+  }
+
+  async upsertByKey(
+    input: MemoryCreateInput & { key: string },
+  ): Promise<{ memory: Memory; created: boolean }> {
+    return upsertMemoryByKey(this, input);
   }
 
   private listByFilter(

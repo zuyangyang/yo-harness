@@ -197,6 +197,15 @@ export interface MemoryStore {
   archive(id: string): Promise<void>;
   listActive(): Promise<Memory[]>;
   search(query: string, options?: MemorySearchOptions): Promise<Memory[]>;
+  /** 按稳定槽位取记忆（key 非空且唯一） */
+  getByKey(key: string): Promise<Memory | undefined>;
+  /**
+   * 按 key 确定性 upsert：命中则更新同一行，否则创建。
+   * 承载「自动更新而非全量 append」的骨架，不依赖 LLM 关系判断。
+   */
+  upsertByKey(
+    input: MemoryCreateInput & { key: string },
+  ): Promise<{ memory: Memory; created: boolean }>;
 }
 
 /** 注入结果：system prompt 片段 + 落 memory_injected 事件所需的元信息 */
