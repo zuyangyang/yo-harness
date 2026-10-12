@@ -188,3 +188,246 @@ describe('MemoryExtractor', () => {
     expect(usages[0]).toMatchObject({ inputTokens: 42, outputTokens: 7 });
   });
 });
+
+describe('MemoryExtractor 价值闸门', () => {
+  const LONG_TURN: [string, string][] = [
+    [
+      'help me set up the project with typescript and eslint configuration',
+      'sure, I will help you set up typescript with eslint',
+    ],
+  ];
+
+  function client(memories: unknown[]): FakeLLMClient {
+    return new FakeLLMClient([
+      {
+        text: JSON.stringify({ memories }),
+        toolCalls: [],
+        stopReason: 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 10 },
+      },
+    ]);
+  }
+
+  it('importance 低于阈值 → 不落库', async () => {
+    const fake = client([
+      {
+        title: 'Trivial remark',
+        content: 'x',
+        category: 'general',
+        description: 'd',
+        keywords: ['a'],
+        importance: 2,
+        durability: 'durable',
+      },
+    ]);
+    const extractor = new MemoryExtractor(fake, store, SILENT_LOGGER);
+
+    const count = await extractor.extract(makeEvents('s1', LONG_TURN), []);
+    expect(count).toBe(0);
+    expect(await store.listActive()).toHaveLength(0);
+  });
+
+  it('importance 达标 → 落库并保留分数', async () => {
+    const fake = client([
+      {
+        title: 'Important fact',
+        content: 'x',
+        category: 'general',
+        description: 'd',
+        keywords: ['a'],
+        importance: 9,
+        durability: 'durable',
+      },
+    ]);
+    const extractor = new MemoryExtractor(fake, store, SILENT_LOGGER);
+
+    expect(await extractor.extract(makeEvents('s1', LONG_TURN), [])).toBe(1);
+    const [m] = await store.listActive();
+    expect(m?.importance).toBe(9);
+  });
+
+  it('minImportance 可配置', async () => {
+    const fake = client([
+      {
+        title: 'Medium fact',
+        content: 'x',
+        category: 'general',
+        description: 'd',
+        keywords: ['a'],
+        importance: 5,
+        durability: 'durable',
+      },
+    ]);
+    const extractor = new MemoryExtractor(fake, store, SILENT_LOGGER);
+
+    expect(await extractor.extract(makeEvents('s1', LONG_TURN), [], { minImportance: 6 })).toBe(0);
+  });
+});
+
+describe('MemoryExtractor 稳定槽位与时效', () => {
+  const LONG_TURN: [string, string][] = [
+    [
+      'my name is yang, please remember it for future sessions',
+      'got it, I will remember that your name is yang from now on',
+    ],
+  ];
+
+  function client(memories: unknown[]): FakeLLMClient {
+    return new FakeLLMClient([
+      {
+        text: JSON.stringify({ memories }),
+        toolCalls: [],
+        stopReason: 'end_turn',
+        usage: { inputTokens: 10, outputTokens: 10 },
+      },
+    ]);
+  }
+
+  it('带 key 的候选走 upsert：同一槽位只保留最新值', async () => {
+    const first = new MemoryExtractor(
+      client([
+        {
+          title: 'User name',
+          content: 'The user name is yang',
+          category: 'general',
+          description: 'user name',
+          keywords: ['name'],
+          importance: 9,
+          durability: 'durable',
+          key: 'profile.name',
+        },
+      ]),
+      store,
+      SILENT_LOGGER,
+    );
+    expect(await first.extract(makeEvents('s1', LONG_TURN), [])).toBe(1);
+
+    const second = new MemoryExtractor(
+      client([
+        {
+          title: 'User name',
+          content: 'The user name is Yang Yang',
+          category: 'general',
+          description: 'user name',
+          keywords: ['name'],
+          importance: 9,
+          durability: 'durable',
+          key: 'profile.name',
+        },
+      ]),
+      store,
+      SILENT_LOGGER,
+    );
+    expect(await second.extract(makeEvents('s1', LONG_TURN), [])).toBe(1);
+
+    const all = await store.listActive();
+    expect(all).toHaveLength(1);
+    expect(all[0]?.content).toBe('The user name is Yang Yang');
+    expect(all[0]?.key).toBe('profile.name');
+  });
+
+  it('不同 key 的候选各自成行', async () => {
+    const extractor = new MemoryExtractor(
+      client([
+        {
+          title: 'Editor',
+          content: 'Editor is vim',
+          category: 'general',
+          description: 'editor',
+          keywords: ['editor'],
+          importance: 7,
+          durability: 'durable',
+          key: 'preference.editor',
+        },
+        {
+          title: 'Terminal',
+          content: 'Terminal is ghostty',
+          category: 'general',
+          description: 'terminal',
+          keywords: ['terminal'],
+          importance: 7,
+          durability: 'durable',
+          key: 'preference.terminal',
+        },
+      ]),
+      store,
+      SILENT_LOGGER,
+    );
+
+    expect(await extractor.extract(makeEvents('s1', LONG_TURN), [])).toBe(2);
+    expect(await store.listActive()).toHaveLength(2);
+  });
+
+  it('ephemeral + expiresInDays → 写入过期时间且当前可见', async () => {
+    const extractor = new MemoryExtractor(
+      client([
+        {
+          title: 'Current sprint goal',
+          content: 'Ship the memory v9 migration',
+          category: 'general',
+          description: 'sprint goal',
+          keywords: ['sprint'],
+          importance: 5,
+          durability: 'ephemeral',
+          expiresInDays: 7,
+        },
+      ]),
+      store,
+      SILENT_LOGGER,
+    );
+
+    expect(await extractor.extract(makeEvents('s1', LONG_TURN), [])).toBe(1);
+    const [m] = await store.listActive();
+    expect(m?.durability).toBe('ephemeral');
+    expect(m?.expiresAt).toBeDefined();
+    expect(new Date(m!.expiresAt!).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('ephemeral 未给 TTL → 套用默认天数', async () => {
+    const extractor = new MemoryExtractor(
+      client([
+        {
+          title: 'Temporary workaround',
+          content: 'Pin sqlite-vec to 0.1.9',
+          category: 'general',
+          description: 'workaround',
+          keywords: ['workaround'],
+          importance: 5,
+          durability: 'ephemeral',
+        },
+      ]),
+      store,
+      SILENT_LOGGER,
+    );
+
+    await extractor.extract(makeEvents('s1', LONG_TURN), [], { defaultEphemeralTtlDays: 3 });
+    const [m] = await store.listActive();
+    expect(m?.expiresAt).toBeDefined();
+    expect(new Date(m!.expiresAt!).getTime()).toBeLessThan(Date.now() + 3 * 86400_000 + 3600_000);
+  });
+
+  it('durable 类别（preference）强制 durable + pinned 且不过期', async () => {
+    const extractor = new MemoryExtractor(
+      client([
+        {
+          title: 'Language preference',
+          content: 'User replies should be in English',
+          category: 'preference',
+          description: 'language',
+          keywords: ['language'],
+          importance: 8,
+          durability: 'ephemeral',
+          expiresInDays: 1,
+        },
+      ]),
+      store,
+      SILENT_LOGGER,
+    );
+
+    await extractor.extract(makeEvents('s1', LONG_TURN), []);
+    const [m] = await store.listActive();
+    expect(m?.durability).toBe('durable');
+    expect(m?.pinned).toBe(true);
+    expect(m?.expiresAt).toBeUndefined();
+  });
+});
