@@ -668,6 +668,13 @@ class PostgresMemoryStore implements MemoryStore {
     return upsertMemoryByKey(this, input);
   }
 
+  async touch(ids: string[], at: string): Promise<void> {
+    if (ids.length === 0) return;
+    await this.db.update(this.t.memories)
+      .set({ lastAccessedAt: at, accessCount: sql`${this.t.memories.accessCount} + 1` })
+      .where(inArray(this.t.memories.id, ids));
+  }
+
   async update(id: string, patch: MemoryUpdatePatch): Promise<Memory | undefined> {
     const existing = await this.get(id);
     if (!existing) return undefined;

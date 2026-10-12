@@ -352,3 +352,23 @@ describe('SqliteMemoryStore key 确定性 upsert', () => {
     expect(await store.getByKey('nope')).toBeUndefined();
   });
 });
+
+describe('SqliteMemoryStore 召回计数', () => {
+  it('touch 刷新 last_accessed_at 并累加 access_count', async () => {
+    const m = await store.create(baseInput);
+    expect(m.accessCount).toBe(0);
+
+    const at = '2026-05-01T00:00:00.000Z';
+    await store.touch([m.id], at);
+    const after = await store.get(m.id);
+    expect(after?.accessCount).toBe(1);
+    expect(after?.lastAccessedAt).toBe(at);
+
+    await store.touch([m.id], at);
+    expect((await store.get(m.id))?.accessCount).toBe(2);
+  });
+
+  it('touch 空数组是 no-op', async () => {
+    await expect(store.touch([], '2026-05-01T00:00:00.000Z')).resolves.toBeUndefined();
+  });
+});

@@ -206,6 +206,8 @@ export interface MemoryStore {
   upsertByKey(
     input: MemoryCreateInput & { key: string },
   ): Promise<{ memory: Memory; created: boolean }>;
+  /** 记录一次召回：刷新 last_accessed_at 并累加 access_count（衰减与淘汰的依据） */
+  touch(ids: string[], at: string): Promise<void>;
 }
 
 /** 注入结果：system prompt 片段 + 落 memory_injected 事件所需的元信息 */

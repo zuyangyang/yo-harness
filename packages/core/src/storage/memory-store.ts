@@ -224,6 +224,17 @@ export class SqliteMemoryStore implements MemoryStore {
     return upsertMemoryByKey(this, input);
   }
 
+  async touch(ids: string[], at: string): Promise<void> {
+    if (ids.length === 0) return;
+    const stmt = this.db.prepare(
+      'UPDATE memories SET last_accessed_at = ?, access_count = access_count + 1 WHERE id = ?',
+    );
+    const run = this.db.transaction((list: string[]) => {
+      for (const id of list) stmt.run(at, id);
+    });
+    run(ids);
+  }
+
   private listByFilter(
     category: MemoryCategory | undefined,
     status: MemoryStatus,

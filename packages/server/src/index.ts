@@ -219,6 +219,7 @@ async function main() {
     console.warn('[yo-server] ignoring invalid pricing config:', String(err));
   }
 
+  const memoryInjectMode = process.env.YO_MEMORY_INJECT_MODE;
   const memoryMinImportance = envInt('YO_MEMORY_MIN_IMPORTANCE');
   const memoryEphemeralTtlDays = envInt('YO_MEMORY_EPHEMERAL_TTL_DAYS');
 
@@ -237,8 +238,8 @@ async function main() {
       ...DEFAULT_MEMORY_CONFIG,
       autoInject: process.env.YO_MEMORY_AUTO_INJECT !== 'false',
       autoExtract: process.env.YO_MEMORY_AUTO_EXTRACT !== 'false',
-      ...(process.env.YO_MEMORY_INJECT_MODE === 'relevant'
-        ? { injectMode: 'relevant' as const }
+      ...(memoryInjectMode === 'all' || memoryInjectMode === 'relevant' || memoryInjectMode === 'ranked'
+        ? { injectMode: memoryInjectMode }
         : {}),
       ...(memoryMinImportance !== undefined ? { minImportance: memoryMinImportance } : {}),
       ...(memoryEphemeralTtlDays !== undefined

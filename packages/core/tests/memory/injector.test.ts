@@ -174,3 +174,69 @@ describe('MemoryInjector', () => {
     expect(injection?.text).not.toContain('Unrelated');
   });
 });
+
+describe('MemoryInjector ranked 模式与召回计数', () => {
+  const base = {
+    content: 'content',
+    category: 'general' as const,
+    description: 'desc',
+    keywords: ['token'],
+    status: 'active' as const,
+  };
+
+  it('pinned 记忆优先注入（即便 maxItems 很小、重要度很低）', async () => {
+    const pinned = await store.create({ ...base, title: 'Pinned identity', pinned: true, importance: 1 });
+    for (let i = 0; i < 3; i += 1) {
+      await store.create({ ...base, title: 'Item ' + i, importance: 9 });
+    }
+
+    const ranked = new MemoryInjector(store, { maxItems: 1 });
+    const injection = await ranked.buildInjection({ userInput: '' });
+    expect(injection?.memoryIds).toEqual([pinned.id]);
+  });
+
+  it('名额不足时重要度高的优先', async () => {
+    await store.create({ ...base, title: 'Low', importance: 2 });
+    const high = await store.create({ ...base, title: 'High', importance: 10 });
+
+    const ranked = new MemoryInjector(store, { maxItems: 1 });
+    const injection = await ranked.buildInjection({ userInput: '' });
+    expect(injection?.memoryIds).toEqual([high.id]);
+    expect(injection?.text).not.toContain('Low');
+  });
+
+  it('同重要度时词面相关度更高的优先', async () => {
+    await store.create({
+      ...base,
+      title: 'Cooking',
+      description: 'cooking',
+      content: 'cooking notes',
+      keywords: ['cooking'],
+      importance: 5,
+    });
+    const ts = await store.create({
+      ...base,
+      title: 'TypeScript strict',
+      description: 'TS',
+      content: 'strict mode enabled',
+      keywords: ['typescript'],
+      importance: 5,
+    });
+
+    const ranked = new MemoryInjector(store, { maxItems: 1 });
+    const injection = await ranked.buildInjection({ userInput: 'typescript strict mode' });
+    expect(injection?.memoryIds).toEqual([ts.id]);
+  });
+
+  it('只对真正注入 prompt 的记忆 touch（预算截断的不算）', async () => {
+    await store.create({ ...base, title: 'Big', content: 'x'.repeat(4000), importance: 10 });
+    const small = await store.create({ ...base, title: 'Small', importance: 1 });
+
+    const ranked = new MemoryInjector(store, { maxItems: 10, maxTokens: 1 });
+    await ranked.buildInjection({ userInput: '' });
+
+    const touched = await store.get(small.id);
+    expect(touched?.accessCount).toBe(0);
+    expect(touched?.lastAccessedAt).toBeUndefined();
+  });
+});

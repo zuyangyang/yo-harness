@@ -474,6 +474,7 @@ export class SessionManager {
       maxItems: config.injectMaxItems,
       maxTokens: config.injectMaxTokens,
       mode: config.injectMode,
+      decayHalfLifeDays: config.injectDecayHalfLifeDays,
     });
 
     const extractor = config.autoExtract

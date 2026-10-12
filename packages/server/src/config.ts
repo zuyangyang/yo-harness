@@ -60,8 +60,10 @@ export interface MemoryConfig {
   autoInject: boolean;
   /** turn 结束后是否自动提取记忆 */
   autoExtract: boolean;
-  /** all = 全量 active；relevant = 按用户输入 FTS 检索 */
-  injectMode: 'all' | 'relevant';
+  /** all = 全量 active；relevant = 按用户输入 FTS 检索；ranked = 衰减+重要度+相关度打分 */
+  injectMode: 'all' | 'relevant' | 'ranked';
+  /** ranked 模式的时间衰减半衰期（天） */
+  injectDecayHalfLifeDays: number;
   /** 单次注入条数上限 */
   injectMaxItems: number;
   /** 单次注入 token 预算上限（估算） */
@@ -85,7 +87,8 @@ export interface MemoryConfig {
 export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   autoInject: true,
   autoExtract: true,
-  injectMode: 'all',
+  injectMode: 'ranked',
+  injectDecayHalfLifeDays: 30,
   injectMaxItems: 50,
   injectMaxTokens: 2_000,
   extractMinChars: 300,

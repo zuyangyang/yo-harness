@@ -369,6 +369,21 @@ function runContractTests(factory: BackendFactory) {
       expect(second.memory.validTo).toBeUndefined();
     });
 
+    it('touch 累加召回计数并刷新最近访问时间', async () => {
+      const memory = await backend.memories.create({
+        title: 't', content: 'c', category: 'general',
+        description: 'd', keywords: [], status: 'active',
+      });
+      expect(memory.accessCount).toBe(0);
+
+      const at = '2026-05-01T00:00:00.000Z';
+      await backend.memories.touch([memory.id], at);
+
+      const after = await backend.memories.get(memory.id);
+      expect(after?.accessCount).toBe(1);
+      expect(after?.lastAccessedAt).toBe(at);
+    });
+
     it('archive changes status', async () => {
       const memory = await backend.memories.create({
         title: 't', content: 'c', category: 'general',
