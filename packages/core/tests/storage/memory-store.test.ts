@@ -287,6 +287,20 @@ describe('SqliteMemoryStore 过期语义（隐藏不删除）', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.title).toBe('kept');
   });
+
+  it('includeExpired=true 时管理端可见过期记忆（可恢复）', async () => {
+    const expired = await store.create({
+      ...baseInput,
+      title: 'expired but recoverable',
+      expiresAt: '2000-01-01T00:00:00.000Z',
+    });
+
+    const hidden = await store.search('expired but recoverable');
+    expect(hidden).toHaveLength(0);
+
+    const visible = await store.search('', { includeExpired: true, limit: 50 });
+    expect(visible.map((m) => m.id)).toEqual([expired.id]);
+  });
 });
 
 describe('SqliteMemoryStore key 确定性 upsert', () => {

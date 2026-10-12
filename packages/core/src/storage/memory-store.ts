@@ -175,11 +175,12 @@ export class SqliteMemoryStore implements MemoryStore {
     const limit = options?.limit ?? 20;
     const category = options?.category;
     const status = options?.status ?? 'active';
+    const includeExpired = options?.includeExpired ?? false;
     const now = new Date().toISOString();
 
     const trimmed = query.trim();
     if (trimmed.length === 0) {
-      return this.listByFilter(category, status, limit, now);
+      return this.listByFilter(category, status, limit, now, includeExpired);
     }
 
     const terms = trimmed
@@ -188,23 +189,26 @@ export class SqliteMemoryStore implements MemoryStore {
       .map((t) => `"${t.replace(/"/g, '')}"`)
       .join(' OR ');
 
+    const expiry = includeExpired ? '' : ` AND ${NOT_EXPIRED_SQL}`;
+    const expiryParams: unknown[] = includeExpired ? [] : [now];
+
     let sql: string;
     let params: unknown[];
 
     if (category !== undefined) {
       sql = `SELECT m.* FROM memories m
              JOIN memories_fts f ON m.rowid = f.rowid
-             WHERE memories_fts MATCH ? AND m.status = ? AND m.category = ? AND ${NOT_EXPIRED_SQL}
+             WHERE memories_fts MATCH ? AND m.status = ? AND m.category = ?${expiry}
              ORDER BY rank
              LIMIT ?`;
-      params = [terms, status, category, now, limit];
+      params = [terms, status, category, ...expiryParams, limit];
     } else {
       sql = `SELECT m.* FROM memories m
              JOIN memories_fts f ON m.rowid = f.rowid
-             WHERE memories_fts MATCH ? AND m.status = ? AND ${NOT_EXPIRED_SQL}
+             WHERE memories_fts MATCH ? AND m.status = ?${expiry}
              ORDER BY rank
              LIMIT ?`;
-      params = [terms, status, now, limit];
+      params = [terms, status, ...expiryParams, limit];
     }
 
     const rows = this.db.prepare(sql).all(...params) as MemoryRow[];
@@ -240,18 +244,22 @@ export class SqliteMemoryStore implements MemoryStore {
     status: MemoryStatus,
     limit: number,
     now: string,
+    includeExpired = false,
   ): Memory[] {
+    const expiry = includeExpired ? '' : ` AND ${NOT_EXPIRED_SQL}`;
+    const expiryParams: unknown[] = includeExpired ? [] : [now];
+
     let sql: string;
     let params: unknown[];
 
     if (category !== undefined) {
-      sql = `SELECT * FROM memories WHERE status = ? AND category = ? AND ${NOT_EXPIRED_SQL}
+      sql = `SELECT * FROM memories WHERE status = ? AND category = ?${expiry}
              ORDER BY created_at DESC, rowid DESC LIMIT ?`;
-      params = [status, category, now, limit];
+      params = [status, category, ...expiryParams, limit];
     } else {
-      sql = `SELECT * FROM memories WHERE status = ? AND ${NOT_EXPIRED_SQL}
+      sql = `SELECT * FROM memories WHERE status = ?${expiry}
              ORDER BY created_at DESC, rowid DESC LIMIT ?`;
-      params = [status, now, limit];
+      params = [status, ...expiryParams, limit];
     }
 
     const rows = this.db.prepare(sql).all(...params) as MemoryRow[];

@@ -361,3 +361,35 @@ env 覆盖沿用 [index.ts:225-232](../packages/server/src/index.ts) 的 `YO_MEM
 - MemoryBank（R=e^(−t/S)，S 随回忆 +1）：https://ar5iv.labs.arxiv.org/html/2305.10250
 - Cognee ECL（add/cognify/memify）：https://www.cognee.ai/how-cognee-builds-ai-memory
 - 背景合成会破坏记忆的警示：https://arize.com/blog/two-labs-started-dreaming-and-they-built-two-different-architectures/
+
+---
+
+## 附录 B 实施状态
+
+### P0 已完成（6 个提交）
+
+| 提交主题 | 内容 |
+|---|---|
+| schema v9 | memories 新增 11 个元数据列 + `key` 部分唯一索引 + `expires_at` 索引；SQLite 与 Postgres（Drizzle schema + migrate.ts）双边同步，迁移幂等 |
+| 记忆存储层 v9 | MemoryStatus 扩为 5 态（active/superseded/merged/expired/archived）；Memory 新增 importance/durability/confidence/pinned/expiresAt/validFrom/validTo/supersededBy/lastAccessedAt/accessCount；listActive/search 过滤过期（隐藏不删除、可逆）；`includeExpired` 供管理端查看 |
+| key 确定性 upsert | `getByKey` / `upsertByKey`：同一槽位只保留最新值，命中即覆盖并复位 superseded/validTo |
+| 提取器价值闸门 | importance < minImportance(4) 直接丢弃；`durability`/`expiresInDays` 计算过期；preference 强制 durable+pinned；带 key 的候选走 upsert，其余按标题去重 |
+| 接入生命周期 | MemoryConfig 三项新配置 + `YO_MEMORY_MIN_IMPORTANCE` / `YO_MEMORY_EPHEMERAL_TTL_DAYS`；自动提取与手动提取共用同一组选项 |
+| 注入 ranked + 召回 | score = 衰减 + 重要度 + 词面相关度（夹在 0.3–1.5）；pinned 永远优先；注入后仅对进入 prompt 的记忆 `touch` |
+
+三条需求的落地映射：
+
+1. **只存有价值的** → 两道闸门：prompt 负例约束（没有可复用事实就返回空数组）+ importance 阈值过滤。
+2. **自动更新而非 append** → 本 P0 落地的是**确定性骨架**（稳定槽位覆盖）；LLM 关系决策（add/update/supersede/merge）留待 P1。
+3. **有时效性** → `expires_at` 隐藏式过期 + 衰减排序 + durable/ephemeral 分层；容量淘汰留待 P2。
+
+### 尚未实现（按 §9 的分期）
+
+- **P1**：`reconciler.ts`（FTS 邻居取回 → 一次 LLM → add/update/supersede/merge/noop + 程序化兜底）、`memory_reconciled` 事件
+- **P2**：`MemoryMaintainer`（定时过期扫描、maxActiveMemories 软淘汰）
+- **P3**：`embedding` 角色 + 混合检索（sqlite-vec）、旁挂式聚类摘要
+- **配套**：`memory` 工具（避免模型绕过 MemoryStore 直接改库）、Web UI 展示 importance/expiresAt/status
+
+### 已知既有问题（与本次改动无关）
+
+`pnpm run lint` 在 core 的 agent-loop.ts / context-manager.ts / tools/registry.ts / tests/core/agent-loop.test.ts 与 server 的 session-manager.ts 上有 7 个历史报错，本轮未新增。

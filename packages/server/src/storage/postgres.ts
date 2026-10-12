@@ -735,9 +735,10 @@ class PostgresMemoryStore implements MemoryStore {
     const status = options?.status ?? 'active';
     const trimmed = query.trim();
     const now = new Date().toISOString();
+    const includeExpired = options?.includeExpired ?? false;
 
     if (trimmed.length === 0) {
-      return this.listByFilter(category, status, limit, now);
+      return this.listByFilter(category, status, limit, now, includeExpired);
     }
 
     const terms = trimmed.split(/\s+/).filter(Boolean);
@@ -755,7 +756,7 @@ class PostgresMemoryStore implements MemoryStore {
         eq(this.t.memories.status, status),
         or(...conditions),
         category ? eq(this.t.memories.category, category) : undefined,
-        this.notExpired(now),
+        includeExpired ? undefined : this.notExpired(now),
       ))
       .orderBy(desc(this.t.memories.createdAt))
       .limit(limit);
@@ -764,12 +765,12 @@ class PostgresMemoryStore implements MemoryStore {
     return rows.map(mapMemory);
   }
 
-  private async listByFilter(category: MemoryCategory | undefined, status: MemoryStatus, limit: number, now: string): Promise<Memory[]> {
+  private async listByFilter(category: MemoryCategory | undefined, status: MemoryStatus, limit: number, now: string, includeExpired = false): Promise<Memory[]> {
     const rows = await this.db.select().from(this.t.memories)
       .where(and(
         eq(this.t.memories.status, status),
         category ? eq(this.t.memories.category, category) : undefined,
-        this.notExpired(now),
+        includeExpired ? undefined : this.notExpired(now),
       ))
       .orderBy(desc(this.t.memories.createdAt))
       .limit(limit);

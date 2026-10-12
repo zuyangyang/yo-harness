@@ -6,7 +6,7 @@ import { Hono } from 'hono';
 import type { ServerEnv } from '../types.js';
 import type { StorageBackend } from '../storage/interface.js';
 import type { SessionManager } from '../session-manager.js';
-import type { MemoryCategory } from '@yo-harness/core/types/memory.js';
+import type { MemoryCategory, MemoryStatus } from '@yo-harness/core/types/memory.js';
 import { requirePermission } from '../auth/rbac.js';
 
 export interface MemoriesRouteDeps {
@@ -22,6 +22,12 @@ export function createMemoryRoutes(deps: MemoriesRouteDeps): Hono<ServerEnv> {
 
   app.get('/', async (c) => {
     const store = c.get('storage');
+    // 默认只返回未过期的 active；include_expired=true 时连过期的一起返回
+    // （过期语义是隐藏不是删除，管理端需要能看到并恢复）
+    if (c.req.query('include_expired') === 'true') {
+      const memories = await store.memories.search('', { includeExpired: true, limit: 500 });
+      return c.json({ memories });
+    }
     const memories = await store.memories.listActive();
     return c.json({ memories });
   });
@@ -61,7 +67,10 @@ export function createMemoryRoutes(deps: MemoriesRouteDeps): Hono<ServerEnv> {
       category?: MemoryCategory;
       description?: string;
       keywords?: string[];
-      status?: 'active' | 'archived';
+      status?: MemoryStatus;
+      importance?: number;
+      expiresAt?: string | null;
+      pinned?: boolean;
     }>();
 
     const memory = await store.memories.update(id, body);

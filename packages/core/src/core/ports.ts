@@ -187,6 +187,8 @@ export interface MemorySearchOptions {
   category?: MemoryCategory;
   status?: MemoryStatus;
   limit?: number;
+  /** 默认过滤过期记忆；管理端可置 true 查看（过期只是隐藏，数据仍在） */
+  includeExpired?: boolean;
 }
 
 /** 语义记忆存储端口：core 定义接口，storage 实现 */

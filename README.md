@@ -272,7 +272,15 @@ yo-harness/                       # pnpm monorepo
 通过 [Model Context Protocol](https://modelcontextprotocol.io) 接入外部工具服务器。在 `~/.yo-harness/config.json` 的 `mcp` 字段配置服务器列表，启动时自动发现并注册工具。工具名格式为 `{serverName}__{toolName}`（双下划线分隔）。参见 `mcp.json.example`。
 
 **语义记忆**
-自动从对话中提取用户偏好与事实（`MemoryExtractor`），存入 SQLite + FTS5 全文索引。新会话开始时，`MemoryInjector` 根据当前上下文搜索相关记忆注入 system prompt。支持 `/memory` 命令手动管理。
+自动从对话中提取用户偏好与事实（`MemoryExtractor`），存入 SQLite + FTS5 全文索引。新会话开始时，`MemoryInjector` 按「时间衰减 + 重要度 + 词面相关度」打分，把 top-N 记忆注入 system prompt（`pinned` 记忆永远优先）。支持 `/memory` 命令手动管理。
+
+智能化机制（schema v9 起）：
+
+- **价值闸门**：LLM 为每条候选打 1-10 重要度，低于阈值（默认 4）的直接丢弃，不落库；`preference` 类强制 durable + pinned，免疫过期与衰减。
+- **自动更新而非追加**：唯一身份事实使用稳定槽位 `key`（如 `profile.name`、`preference.language`），命中同一槽位时**覆盖**旧值，不会因标题不同产生重复条目。
+- **时效与衰减**：`durability=ephemeral` 的记忆按 `expiresInDays` 过期；过期语义是「隐藏不删除」，清空 `expires_at` 即恢复。`access_count` / `last_accessed_at` 记录召回，长期不用的记忆自然沉底。
+
+可调环境变量：`YO_MEMORY_AUTO_INJECT`、`YO_MEMORY_AUTO_EXTRACT`、`YO_MEMORY_INJECT_MODE`（`all` | `relevant` | `ranked`）、`YO_MEMORY_MIN_IMPORTANCE`、`YO_MEMORY_EPHEMERAL_TTL_DAYS`。设计细节见 [docs/MEMORY-SMART-DESIGN.md](docs/MEMORY-SMART-DESIGN.md)。
 
 **多模型路由**
 不同角色可配置不同模型：主对话用大模型（如 Claude Sonnet），摘要/压缩用小模型（如 Claude Haiku），降低成本。在 `config.json` 的 `modelRoles` 字段配置角色映射。`CostTracker` 实时追踪各模型 token 用量。
