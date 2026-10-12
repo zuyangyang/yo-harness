@@ -7,7 +7,13 @@
  */
 import type { AgentEvent, EventEnvelope } from '../types/events.js';
 import type { PermissionMode } from './permission.js';
-import type { Memory, MemoryCategory, MemoryStatus } from '../types/memory.js';
+import type {
+  Memory,
+  MemoryCategory,
+  MemoryCreateInput,
+  MemoryStatus,
+  MemoryUpdatePatch,
+} from '../types/memory.js';
 import type { Tool, ToolSpec } from '../types/tools.js';
 import type { BackgroundTask, BackgroundTaskStatus, CreateTaskInput } from '../daemon/types.js';
 import type { ModelSelection, ProviderRecord, ProviderRecordInput } from '../types/model-config.js';
@@ -185,9 +191,9 @@ export interface MemorySearchOptions {
 
 /** 语义记忆存储端口：core 定义接口，storage 实现 */
 export interface MemoryStore {
-  create(input: Omit<Memory, 'id' | 'createdAt' | 'updatedAt'>): Promise<Memory>;
+  create(input: MemoryCreateInput): Promise<Memory>;
   get(id: string): Promise<Memory | undefined>;
-  update(id: string, patch: Partial<Pick<Memory, 'title' | 'content' | 'category' | 'description' | 'keywords' | 'status'>>): Promise<Memory | undefined>;
+  update(id: string, patch: MemoryUpdatePatch): Promise<Memory | undefined>;
   archive(id: string): Promise<void>;
   listActive(): Promise<Memory[]>;
   search(query: string, options?: MemorySearchOptions): Promise<Memory[]>;

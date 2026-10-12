@@ -93,12 +93,38 @@ export async function runMigrations(client: PoolClient, schemaName: string): Pro
       keywords          TEXT NOT NULL,
       status            TEXT NOT NULL DEFAULT 'active',
       source_session_id TEXT,
+      key               TEXT,
+      importance        INTEGER NOT NULL DEFAULT 5,
+      durability        TEXT NOT NULL DEFAULT 'durable',
+      confidence        REAL NOT NULL DEFAULT 1,
+      pinned            BOOLEAN NOT NULL DEFAULT FALSE,
+      expires_at        TEXT,
+      valid_from        TEXT,
+      valid_to          TEXT,
+      superseded_by     TEXT,
+      last_accessed_at  TEXT,
+      access_count      INTEGER NOT NULL DEFAULT 0,
       created_at        TEXT NOT NULL,
       updated_at        TEXT NOT NULL
     )
   `);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_memories_status ON memories (status)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_memories_category ON memories (category)`);
+  // 存量库升级：v9 智能记忆元数据列（幂等追加）
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS key TEXT`);
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS importance INTEGER NOT NULL DEFAULT 5`);
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS durability TEXT NOT NULL DEFAULT 'durable'`);
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS confidence REAL NOT NULL DEFAULT 1`);
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT FALSE`);
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS expires_at TEXT`);
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS valid_from TEXT`);
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS valid_to TEXT`);
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS superseded_by TEXT`);
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS last_accessed_at TEXT`);
+  await client.query(`ALTER TABLE memories ADD COLUMN IF NOT EXISTS access_count INTEGER NOT NULL DEFAULT 0`);
+  // Postgres 唯一索引默认允许多个 NULL
+  await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_key ON memories (key)`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_memories_expires ON memories (expires_at)`);
 
   await client.query(`
     CREATE TABLE IF NOT EXISTS tasks (

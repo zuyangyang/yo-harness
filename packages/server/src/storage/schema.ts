@@ -10,6 +10,7 @@ import {
   integer,
   bigint,
   boolean,
+  real,
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
@@ -107,12 +108,27 @@ export function createTenantSchema(schemaName: string) {
       keywords: text('keywords').notNull(),
       status: text('status').notNull().default('active'),
       sourceSessionId: text('source_session_id'),
+      // v9 智能记忆元数据（与 SQLite 侧一一对应）
+      key: text('key'),
+      importance: integer('importance').notNull().default(5),
+      durability: text('durability').notNull().default('durable'),
+      confidence: real('confidence').notNull().default(1),
+      pinned: boolean('pinned').notNull().default(false),
+      expiresAt: text('expires_at'),
+      validFrom: text('valid_from'),
+      validTo: text('valid_to'),
+      supersededBy: text('superseded_by'),
+      lastAccessedAt: text('last_accessed_at'),
+      accessCount: integer('access_count').notNull().default(0),
       createdAt: text('created_at').notNull(),
       updatedAt: text('updated_at').notNull(),
     },
     (table) => [
       index('memories_status_idx').on(table.status),
       index('memories_category_idx').on(table.category),
+      // Postgres 唯一索引默认允许多个 NULL，等价于 SQLite 的 key 部分唯一索引
+      uniqueIndex('memories_key_idx').on(table.key),
+      index('memories_expires_idx').on(table.expiresAt),
     ],
   );
 

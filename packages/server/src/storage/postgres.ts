@@ -6,7 +6,7 @@
  */
 import { Pool } from 'pg';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { eq, and, desc, asc, sql, count, or, like, isNull, inArray, gte, lte } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, count, or, like, isNull, inArray, gte, lte, gt } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 
 import type {
@@ -33,10 +33,17 @@ import type {
 } from '@yo-harness/core/core/ports.js';
 import type { AgentEvent, EventEnvelope } from '@yo-harness/core/types/events.js';
 import { AgentEventSchema } from '@yo-harness/core/types/events.js';
-import type { Memory, MemoryCategory, MemoryStatus } from '@yo-harness/core/types/memory.js';
+import type {
+  Memory,
+  MemoryCategory,
+  MemoryCreateInput,
+  MemoryStatus,
+  MemoryUpdatePatch,
+} from '@yo-harness/core/types/memory.js';
 import type { BackgroundTask, BackgroundTaskStatus, CreateTaskInput } from '@yo-harness/core/daemon/types.js';
 import type { ModelSelection, ProviderRecord, ProviderRecordInput } from '@yo-harness/core/types/model-config.js';
 import { parseModelsJson } from '@yo-harness/core/storage/model-config-store.js';
+import { applyMemoryPatch } from '@yo-harness/core/types/memory.js';
 
 import type { StorageBackend } from './interface.js';
 import { createTenantSchema, type TenantTables } from './schema.js';
@@ -600,10 +607,20 @@ class PostgresMemoryStore implements MemoryStore {
   private get t() { return this.backend.getTables(); }
   private get db() { return this.backend.getDb(); }
 
-  async create(input: Omit<Memory, 'id' | 'createdAt' | 'updatedAt'>): Promise<Memory> {
+  async create(input: MemoryCreateInput): Promise<Memory> {
     const id = randomUUID();
     const now = new Date().toISOString();
-    const memory: Memory = { ...input, id, createdAt: now, updatedAt: now };
+    const memory: Memory = {
+      ...input,
+      importance: input.importance ?? 5,
+      durability: input.durability ?? 'durable',
+      confidence: input.confidence ?? 1,
+      pinned: input.pinned ?? false,
+      accessCount: 0,
+      id,
+      createdAt: now,
+      updatedAt: now,
+    };
 
     await this.db.insert(this.t.memories).values({
       id: memory.id,
@@ -614,6 +631,17 @@ class PostgresMemoryStore implements MemoryStore {
       keywords: JSON.stringify(memory.keywords),
       status: memory.status,
       sourceSessionId: memory.sourceSessionId ?? null,
+      key: memory.key ?? null,
+      importance: memory.importance,
+      durability: memory.durability,
+      confidence: memory.confidence,
+      pinned: memory.pinned,
+      expiresAt: memory.expiresAt ?? null,
+      validFrom: memory.validFrom ?? null,
+      validTo: memory.validTo ?? null,
+      supersededBy: memory.supersededBy ?? null,
+      lastAccessedAt: memory.lastAccessedAt ?? null,
+      accessCount: memory.accessCount,
       createdAt: now,
       updatedAt: now,
     });
@@ -626,12 +654,12 @@ class PostgresMemoryStore implements MemoryStore {
     return rows[0] ? mapMemory(rows[0]) : undefined;
   }
 
-  async update(id: string, patch: Partial<Pick<Memory, 'title' | 'content' | 'category' | 'description' | 'keywords' | 'status'>>): Promise<Memory | undefined> {
+  async update(id: string, patch: MemoryUpdatePatch): Promise<Memory | undefined> {
     const existing = await this.get(id);
     if (!existing) return undefined;
 
     const now = new Date().toISOString();
-    const merged: Memory = { ...existing, ...patch, updatedAt: now };
+    const merged = applyMemoryPatch(existing, patch, now);
 
     await this.db.update(this.t.memories)
       .set({
@@ -641,11 +669,30 @@ class PostgresMemoryStore implements MemoryStore {
         description: merged.description,
         keywords: JSON.stringify(merged.keywords),
         status: merged.status,
+        key: merged.key ?? null,
+        importance: merged.importance,
+        durability: merged.durability,
+        confidence: merged.confidence,
+        pinned: merged.pinned,
+        expiresAt: merged.expiresAt ?? null,
+        validFrom: merged.validFrom ?? null,
+        validTo: merged.validTo ?? null,
+        supersededBy: merged.supersededBy ?? null,
+        lastAccessedAt: merged.lastAccessedAt ?? null,
         updatedAt: now,
       })
       .where(eq(this.t.memories.id, id));
 
     return merged;
+  }
+
+  /** 未过期判定：expires_at 为空即永久；pinned 免疫过期 */
+  private notExpired(now: string) {
+    return or(
+      isNull(this.t.memories.expiresAt),
+      gt(this.t.memories.expiresAt, now),
+      eq(this.t.memories.pinned, true),
+    );
   }
 
   async archive(id: string): Promise<void> {
@@ -656,7 +703,7 @@ class PostgresMemoryStore implements MemoryStore {
 
   async listActive(): Promise<Memory[]> {
     const rows = await this.db.select().from(this.t.memories)
-      .where(eq(this.t.memories.status, 'active'))
+      .where(and(eq(this.t.memories.status, 'active'), this.notExpired(new Date().toISOString())))
       .orderBy(desc(this.t.memories.createdAt));
     return rows.map(mapMemory);
   }
@@ -666,9 +713,10 @@ class PostgresMemoryStore implements MemoryStore {
     const category = options?.category;
     const status = options?.status ?? 'active';
     const trimmed = query.trim();
+    const now = new Date().toISOString();
 
     if (trimmed.length === 0) {
-      return this.listByFilter(category, status, limit);
+      return this.listByFilter(category, status, limit, now);
     }
 
     const terms = trimmed.split(/\s+/).filter(Boolean);
@@ -686,6 +734,7 @@ class PostgresMemoryStore implements MemoryStore {
         eq(this.t.memories.status, status),
         or(...conditions),
         category ? eq(this.t.memories.category, category) : undefined,
+        this.notExpired(now),
       ))
       .orderBy(desc(this.t.memories.createdAt))
       .limit(limit);
@@ -694,11 +743,12 @@ class PostgresMemoryStore implements MemoryStore {
     return rows.map(mapMemory);
   }
 
-  private async listByFilter(category: MemoryCategory | undefined, status: MemoryStatus, limit: number): Promise<Memory[]> {
+  private async listByFilter(category: MemoryCategory | undefined, status: MemoryStatus, limit: number, now: string): Promise<Memory[]> {
     const rows = await this.db.select().from(this.t.memories)
       .where(and(
         eq(this.t.memories.status, status),
         category ? eq(this.t.memories.category, category) : undefined,
+        this.notExpired(now),
       ))
       .orderBy(desc(this.t.memories.createdAt))
       .limit(limit);
@@ -709,7 +759,11 @@ class PostgresMemoryStore implements MemoryStore {
 function mapMemory(row: {
   id: string; title: string; content: string; category: string;
   description: string; keywords: string; status: string;
-  sourceSessionId: string | null; createdAt: string; updatedAt: string;
+  sourceSessionId: string | null;
+  key: string | null; importance: number; durability: string; confidence: number;
+  pinned: boolean; expiresAt: string | null; validFrom: string | null; validTo: string | null;
+  supersededBy: string | null; lastAccessedAt: string | null; accessCount: number;
+  createdAt: string; updatedAt: string;
 }): Memory {
   let keywords: string[];
   try { keywords = JSON.parse(row.keywords) as string[]; } catch { keywords = []; }
@@ -722,10 +776,21 @@ function mapMemory(row: {
     description: row.description,
     keywords,
     status: row.status as MemoryStatus,
+    importance: row.importance,
+    durability: row.durability as Memory['durability'],
+    confidence: row.confidence,
+    pinned: row.pinned,
+    accessCount: row.accessCount,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
   if (row.sourceSessionId) memory.sourceSessionId = row.sourceSessionId;
+  if (row.key) memory.key = row.key;
+  if (row.expiresAt) memory.expiresAt = row.expiresAt;
+  if (row.validFrom) memory.validFrom = row.validFrom;
+  if (row.validTo) memory.validTo = row.validTo;
+  if (row.supersededBy) memory.supersededBy = row.supersededBy;
+  if (row.lastAccessedAt) memory.lastAccessedAt = row.lastAccessedAt;
   return memory;
 }
 

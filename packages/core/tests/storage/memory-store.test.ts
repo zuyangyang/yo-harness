@@ -165,3 +165,126 @@ describe('SqliteMemoryStore', () => {
     expect(result).toBeUndefined();
   });
 });
+
+describe('SqliteMemoryStore v9 智能记忆元数据', () => {
+  it('create 补默认值：importance 5 / durability durable / confidence 1 / pinned false / accessCount 0', async () => {
+    const m = await store.create(baseInput);
+    expect(m.importance).toBe(5);
+    expect(m.durability).toBe('durable');
+    expect(m.confidence).toBe(1);
+    expect(m.pinned).toBe(false);
+    expect(m.accessCount).toBe(0);
+    expect(m.key).toBeUndefined();
+    expect(m.expiresAt).toBeUndefined();
+  });
+
+  it('create → get 往返保留全部新字段', async () => {
+    const created = await store.create({
+      ...baseInput,
+      key: 'profile.name',
+      importance: 9,
+      confidence: 0.8,
+      pinned: true,
+      expiresAt: '2030-01-01T00:00:00.000Z',
+      validFrom: '2026-01-01T00:00:00.000Z',
+      validTo: '2029-01-01T00:00:00.000Z',
+      supersededBy: 'other-id',
+      lastAccessedAt: '2026-01-02T00:00:00.000Z',
+    });
+
+    const got = await store.get(created.id);
+    expect(got?.key).toBe('profile.name');
+    expect(got?.importance).toBe(9);
+    expect(got?.confidence).toBe(0.8);
+    expect(got?.pinned).toBe(true);
+    expect(got?.expiresAt).toBe('2030-01-01T00:00:00.000Z');
+    expect(got?.validFrom).toBe('2026-01-01T00:00:00.000Z');
+    expect(got?.validTo).toBe('2029-01-01T00:00:00.000Z');
+    expect(got?.supersededBy).toBe('other-id');
+    expect(got?.lastAccessedAt).toBe('2026-01-02T00:00:00.000Z');
+  });
+
+  it('key 唯一：同一槽位第二次写入被拒绝', async () => {
+    await store.create({ ...baseInput, key: 'profile.name', content: 'first' });
+    await expect(
+      store.create({ ...baseInput, key: 'profile.name', content: 'second' }),
+    ).rejects.toThrow();
+
+    const all = await store.listActive();
+    expect(all).toHaveLength(1);
+    expect(all[0]?.content).toBe('first');
+  });
+
+  it('update 可改写 v9 字段（含 superseded 状态）', async () => {
+    const created = await store.create({ ...baseInput, importance: 3 });
+    const updated = await store.update(created.id, {
+      importance: 8,
+      expiresAt: '2031-01-01T00:00:00.000Z',
+      supersededBy: 'newer',
+      status: 'superseded',
+    });
+
+    expect(updated?.importance).toBe(8);
+    expect(updated?.expiresAt).toBe('2031-01-01T00:00:00.000Z');
+    expect(updated?.supersededBy).toBe('newer');
+    expect(updated?.status).toBe('superseded');
+  });
+});
+
+describe('SqliteMemoryStore 过期语义（隐藏不删除）', () => {
+  it('过期记忆不进 listActive / search，但 get 仍可取回', async () => {
+    const expired = await store.create({
+      ...baseInput,
+      title: 'old fact',
+      keywords: ['obsolete'],
+      expiresAt: '2000-01-01T00:00:00.000Z',
+    });
+    const future = await store.create({
+      ...baseInput,
+      title: 'future fact',
+      keywords: ['obsolete'],
+      expiresAt: '2999-01-01T00:00:00.000Z',
+    });
+    const permanent = await store.create({
+      ...baseInput,
+      title: 'permanent fact',
+      keywords: ['obsolete'],
+    });
+
+    const active = await store.listActive();
+    expect(active.map((m) => m.id).sort()).toEqual([future.id, permanent.id].sort());
+
+    const hits = await store.search('obsolete');
+    expect(hits.map((m) => m.id).sort()).toEqual([future.id, permanent.id].sort());
+
+    // 隐藏不是删除：仍可按 id 取回
+    expect((await store.get(expired.id))?.title).toBe('old fact');
+  });
+
+  it('pinned 记忆免疫过期', async () => {
+    const pinned = await store.create({
+      ...baseInput,
+      title: 'pinned',
+      pinned: true,
+      expiresAt: '2000-01-01T00:00:00.000Z',
+    });
+    const active = await store.listActive();
+    expect(active.map((m) => m.id)).toEqual([pinned.id]);
+  });
+
+  it('清空 expires_at 即恢复可见（可逆）', async () => {
+    const m = await store.create({ ...baseInput, expiresAt: '2000-01-01T00:00:00.000Z' });
+    expect(await store.listActive()).toHaveLength(0);
+
+    await store.update(m.id, { expiresAt: null });
+    expect(await store.listActive()).toHaveLength(1);
+  });
+
+  it('search 空查询走 listByFilter 也过滤过期', async () => {
+    await store.create({ ...baseInput, expiresAt: '2000-01-01T00:00:00.000Z' });
+    await store.create({ ...baseInput, title: 'kept' });
+    const rows = await store.search('   ');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.title).toBe('kept');
+  });
+});
