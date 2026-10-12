@@ -184,6 +184,14 @@ export async function startServer(options: StartServerOptions): Promise<void> {
 }
 
 // ─── CLI 入口 ───
+/** 读取可选整数环境变量；未设置或非法时返回 undefined */
+function envInt(name: string): number | undefined {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === '') return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? Math.trunc(value) : undefined;
+}
+
 async function main() {
   loadDotEnv();
   const storageType = process.env.YO_STORAGE ?? 'sqlite';
@@ -211,6 +219,9 @@ async function main() {
     console.warn('[yo-server] ignoring invalid pricing config:', String(err));
   }
 
+  const memoryMinImportance = envInt('YO_MEMORY_MIN_IMPORTANCE');
+  const memoryEphemeralTtlDays = envInt('YO_MEMORY_EPHEMERAL_TTL_DAYS');
+
   const serverConfig = createDefaultServerConfig({
     mode: (process.env.YO_MODE as 'single' | 'multi') ?? 'single',
     providers: process.env.YO_PROVIDER
@@ -228,6 +239,10 @@ async function main() {
       autoExtract: process.env.YO_MEMORY_AUTO_EXTRACT !== 'false',
       ...(process.env.YO_MEMORY_INJECT_MODE === 'relevant'
         ? { injectMode: 'relevant' as const }
+        : {}),
+      ...(memoryMinImportance !== undefined ? { minImportance: memoryMinImportance } : {}),
+      ...(memoryEphemeralTtlDays !== undefined
+        ? { defaultEphemeralTtlDays: memoryEphemeralTtlDays }
         : {}),
     },
   });

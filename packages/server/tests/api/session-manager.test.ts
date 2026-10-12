@@ -138,6 +138,34 @@ async function waitForMemoryExtracted(sessionId: string, timeoutMs = 3000): Prom
   throw new Error('timed out waiting for memory_extracted');
 }
 
+async function waitForMemoryExtractedCount(
+  sessionId: string,
+  count: number,
+  timeoutMs = 3000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const events = await storage.events.replay(sessionId);
+    if (events.filter((e) => e.payload.type === 'memory_extracted').length >= count) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`timed out waiting for ${count} memory_extracted events`);
+}
+
+/** 等上一 turn 的 running 标记释放后再发下一条（避免 "already running a turn"） */
+async function sendWhenIdle(m: SessionManager, sessionId: string, text: string): Promise<void> {
+  const deadline = Date.now() + 3000;
+  for (;;) {
+    try {
+      await m.sendMessage(sessionId, text);
+      return;
+    } catch (err) {
+      if (Date.now() > deadline) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+}
+
 describe('SessionManager 模型配置变更', () => {
   it('在途 turn 不驱逐；空闲后驱逐，下一条消息用新 router', async () => {
     let currentRouter = routerWith('first');
@@ -564,6 +592,98 @@ describe('SessionManager 记忆提取', () => {
     const memories = await storage.memories.listActive();
     expect(memories.map((memory) => memory.title)).toContain('Uses vitest');
     expect(memories[0]?.sourceSessionId).toBe(session.id);
+    await manager.destroyAll();
+  });
+
+  it('价值闸门：低重要度候选被丢弃，高重要度保留', async () => {
+    const extractionJson = JSON.stringify({
+      memories: [
+        {
+          title: 'Low value note',
+          content: 'drop me',
+          category: 'general',
+          description: 'd',
+          keywords: ['low'],
+          importance: 2,
+          durability: 'durable',
+        },
+        {
+          title: 'Valuable note',
+          content: 'keep me',
+          category: 'project_knowledge',
+          description: 'd',
+          keywords: ['valuable'],
+          importance: 8,
+          durability: 'durable',
+        },
+      ],
+    });
+    const { manager: m } = extractionManager(['ok', extractionJson], {
+      ...DEFAULT_MEMORY_CONFIG,
+      extractMinChars: 10,
+      minImportance: 4,
+    });
+    manager = m;
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'we use vitest for this project');
+    await waitForAssistantText(session.id, 1);
+    await waitForMemoryExtracted(session.id);
+
+    const titles = (await storage.memories.listActive()).map((memory) => memory.title);
+    expect(titles).toContain('Valuable note');
+    expect(titles).not.toContain('Low value note');
+    await manager.destroyAll();
+  });
+
+  it('同一稳定槽位再次提取 → 覆盖同一行而不是追加（记忆自动更新）', async () => {
+    const firstJson = JSON.stringify({
+      memories: [
+        {
+          title: 'User name',
+          content: 'The user name is yang',
+          category: 'general',
+          description: 'user name',
+          keywords: ['name'],
+          importance: 9,
+          durability: 'durable',
+          key: 'profile.name',
+        },
+      ],
+    });
+    const secondJson = JSON.stringify({
+      memories: [
+        {
+          title: 'User name',
+          content: 'The user name is Yang Yang',
+          category: 'general',
+          description: 'user name',
+          keywords: ['name'],
+          importance: 9,
+          durability: 'durable',
+          key: 'profile.name',
+        },
+      ],
+    });
+    const { manager: m } = extractionManager(['ok', firstJson, 'ok', secondJson], {
+      ...DEFAULT_MEMORY_CONFIG,
+      extractMinChars: 10,
+    });
+    manager = m;
+    const session = await storage.sessions.create({ model: 'm', cwd: '/tmp', type: 'interactive' });
+
+    await manager.sendMessage(session.id, 'my name is yang, remember it');
+    await waitForAssistantText(session.id, 1);
+    await waitForMemoryExtractedCount(session.id, 1);
+
+    await sendWhenIdle(manager, session.id, 'actually my name is Yang Yang');
+    await waitForAssistantText(session.id, 2);
+    await waitForMemoryExtractedCount(session.id, 2);
+
+    const memories = await storage.memories.listActive();
+    expect(memories).toHaveLength(1);
+    expect(memories[0]?.content).toBe('The user name is Yang Yang');
+    expect(memories[0]?.key).toBe('profile.name');
     await manager.destroyAll();
   });
 

@@ -11,6 +11,12 @@ import { DEFAULT_PERMISSION_SETTINGS } from '@yo-harness/core/core/permission.js
 import { DEFAULT_PRICING_TABLE } from '@yo-harness/core/llm/pricing.js';
 import type { PricingTable } from '@yo-harness/core/types/pricing.js';
 import type { ModelRoleMap } from '@yo-harness/core/types/router.js';
+import type { MemoryCategory } from '@yo-harness/core/types/memory.js';
+import {
+  DEFAULT_DURABLE_CATEGORIES,
+  DEFAULT_EPHEMERAL_TTL_DAYS,
+  DEFAULT_MIN_IMPORTANCE,
+} from '@yo-harness/core/memory/extractor.js';
 
 export type { ProviderName } from '@yo-harness/core/config/config.js';
 
@@ -68,6 +74,12 @@ export interface MemoryConfig {
   extractorTemperature: number;
   /** 进提取 prompt 的已有标题上限 */
   maxExistingTitles: number;
+  /** 价值闸门：重要度低于该值的候选不落库 */
+  minImportance: number;
+  /** 强制 durable + pinned 的类别（长期身份事实） */
+  durableCategories: MemoryCategory[];
+  /** ephemeral 候选未给 TTL 时的默认过期天数（<= 0 表示不过期） */
+  defaultEphemeralTtlDays: number;
 }
 
 export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
@@ -80,6 +92,9 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   extractFlushMinChars: 100,
   extractorTemperature: 0,
   maxExistingTitles: 200,
+  minImportance: DEFAULT_MIN_IMPORTANCE,
+  durableCategories: [...DEFAULT_DURABLE_CATEGORIES],
+  defaultEphemeralTtlDays: DEFAULT_EPHEMERAL_TTL_DAYS,
 };
 
 export function createDefaultServerConfig(overrides?: Partial<ServerConfig>): ServerConfig {

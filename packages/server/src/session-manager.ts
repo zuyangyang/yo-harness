@@ -32,7 +32,7 @@ import {
 import type { EventStore, MemoryStore, SessionStore, Session, ToolResolver } from '@yo-harness/core/core/ports.js';
 import { deriveTitle } from '@yo-harness/core/utils/title.js';
 import { DEFAULT_PRICING_TABLE } from '@yo-harness/core/llm/pricing.js';
-import { MemoryExtractor } from '@yo-harness/core/memory/extractor.js';
+import { MemoryExtractor, type MemoryExtractOptions } from '@yo-harness/core/memory/extractor.js';
 import { MemoryInjector } from '@yo-harness/core/memory/injector.js';
 import type { CostTracker } from '@yo-harness/core/router/cost-tracker.js';
 import type { ModelRouter } from '@yo-harness/core/router/model-router.js';
@@ -504,6 +504,18 @@ export class SessionManager {
     };
   }
 
+  /** 提取器选项：调用阈值 + 价值闸门 + 耐久类别策略 */
+  private extractOptions(): MemoryExtractOptions {
+    const config = this.deps.memoryConfig;
+    return {
+      minChars: 0,
+      maxExistingTitles: config.maxExistingTitles,
+      minImportance: config.minImportance,
+      durableCategories: config.durableCategories,
+      defaultEphemeralTtlDays: config.defaultEphemeralTtlDays,
+    };
+  }
+
   /** 排队一次提取；同会话串行，失败只记日志、不影响 turn。 */
   private scheduleExtraction(
     active: ActiveSession,
@@ -548,10 +560,7 @@ export class SessionManager {
     }
 
     const titles = (await this.deps.memoryStore.listActive()).map((memory) => memory.title);
-    const count = await extractor.extract(slice, titles, {
-      minChars: 0,
-      maxExistingTitles: this.deps.memoryConfig.maxExistingTitles,
-    });
+    const count = await extractor.extract(slice, titles, this.extractOptions());
 
     runtime.cursor = last.seq;
 
@@ -601,10 +610,7 @@ export class SessionManager {
     );
     const events = await this.deps.eventStore.replay(sessionId);
     const titles = (await this.deps.memoryStore.listActive()).map((memory) => memory.title);
-    const count = await extractor.extract(events, titles, {
-      minChars: 0,
-      maxExistingTitles: this.deps.memoryConfig.maxExistingTitles,
-    });
+    const count = await extractor.extract(events, titles, this.extractOptions());
     if (count > 0) {
       const envelope = await this.deps.eventStore.append(sessionId, {
         type: 'memory_extracted',
