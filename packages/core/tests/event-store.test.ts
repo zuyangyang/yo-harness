@@ -187,7 +187,15 @@ describe('Schema v2 → 最新版 迁移', () => {
 
     // schema_version 已升级到最新版
     const version = (v3.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }).value;
-    expect(version).toBe('8');
+    expect(version).toBe('9');
+
+    // v9：增量迁移路径下 memories 也要补上智能记忆元数据列
+    const memoryColumns = (
+      v3.prepare('PRAGMA table_info(memories)').all() as { name: string }[]
+    ).map((c) => c.name);
+    expect(memoryColumns).toContain('key');
+    expect(memoryColumns).toContain('expires_at');
+    expect(memoryColumns).toContain('superseded_by');
 
     // 旧数据完整
     const session = v3.prepare('SELECT * FROM sessions WHERE id = ?').get('s1') as Record<string, unknown>;

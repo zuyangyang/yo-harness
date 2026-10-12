@@ -11,6 +11,8 @@
  * - v6（Phase 6）：+ model_providers / model_settings（Web UI 模型配置）
  * - v7（审批流）：sessions +permission_mode 列
  * - v8（定时任务）：+ scheduled_tasks / notifications；tasks +schedule_id/trigger 列
+ * - v9（智能记忆）：memories +key/importance/durability/confidence/pinned/expires_at/
+ *   valid_from/valid_to/superseded_by/last_accessed_at/access_count 列与索引
  */
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -19,7 +21,7 @@ import { FatalError } from '../types/errors.js';
 
 export type SqliteDatabase = Database.Database;
 
-const SCHEMA_VERSION = '8';
+const SCHEMA_VERSION = '9';
 
 export function openDatabase(dbPath: string): SqliteDatabase {
   if (dbPath !== ':memory:') {
@@ -128,6 +130,14 @@ function initSchema(db: SqliteDatabase): void {
 
   if (afterV6 === '7') {
     migrateV7ToV8(db);
+  }
+
+  const afterV7 = (
+    db.prepare('SELECT value FROM meta WHERE key = ?').get('schema_version') as { value: string }
+  ).value;
+
+  if (afterV7 === '8') {
+    migrateV8ToV9(db);
   }
 
   const finalVersion = (
@@ -420,6 +430,55 @@ function migrateV7ToV8(db: SqliteDatabase): void {
     }
 
     db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('8', 'schema_version');
+  });
+  migration();
+}
+
+/**
+ * v8 → v9：智能记忆。
+ *
+ * memories 表补充价值/时效/衰减元数据：
+ * - key            稳定槽位（如 profile.name），非空时唯一 → 支持确定性 upsert
+ * - importance     1-10，写入时由 LLM 打分（Generative Agents 式）
+ * - durability     durable | ephemeral
+ * - confidence     0-1
+ * - pinned         1 = 每 turn 必注入，免疫过期与衰减
+ * - expires_at     过期时间（NULL = 永久），语义是隐藏不是删除
+ * - valid_from/valid_to/superseded_by  双时态：矛盾时只失效不删除
+ * - last_accessed_at/access_count      记忆强度，用于衰减排序
+ */
+function migrateV8ToV9(db: SqliteDatabase): void {
+  const migration = db.transaction(() => {
+    const existing = new Set(
+      (db.prepare('PRAGMA table_info(memories)').all() as { name: string }[]).map((c) => c.name),
+    );
+    const columns: [string, string][] = [
+      ['key', 'TEXT'],
+      ['importance', 'INTEGER NOT NULL DEFAULT 5'],
+      ['durability', "TEXT NOT NULL DEFAULT 'durable'"],
+      ['confidence', 'REAL NOT NULL DEFAULT 1.0'],
+      ['pinned', 'INTEGER NOT NULL DEFAULT 0'],
+      ['expires_at', 'TEXT'],
+      ['valid_from', 'TEXT'],
+      ['valid_to', 'TEXT'],
+      ['superseded_by', 'TEXT'],
+      ['last_accessed_at', 'TEXT'],
+      ['access_count', 'INTEGER NOT NULL DEFAULT 0'],
+    ];
+    for (const [name, ddl] of columns) {
+      if (!existing.has(name)) {
+        db.exec(`ALTER TABLE memories ADD COLUMN ${name} ${ddl}`);
+      }
+    }
+
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_memories_key
+        ON memories (key) WHERE key IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_memories_expires ON memories (expires_at);
+      CREATE INDEX IF NOT EXISTS idx_memories_status_updated ON memories (status, updated_at);
+    `);
+
+    db.prepare('UPDATE meta SET value = ? WHERE key = ?').run('9', 'schema_version');
   });
   migration();
 }
